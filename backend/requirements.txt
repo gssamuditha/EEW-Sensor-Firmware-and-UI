@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+websockets
+pydantic
+spidev
+RPi.GPIO
