@@ -14,7 +14,7 @@ export default function Export() {
     const startTime = new Date(start).getTime() / 1000;
     const endTime = new Date(end).getTime() / 1000;
     
-    window.open(`http://localhost:8000/api/export?start=${startTime}&end=${endTime}`, '_blank');
+    window.open(`/api/export?start=${startTime}&end=${endTime}`, '_blank');
   };
 
   return (

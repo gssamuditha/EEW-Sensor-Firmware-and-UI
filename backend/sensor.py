@@ -6,6 +6,8 @@ import random
 import sys
 import json
 
+SAMPLE_INTERVAL = 0.0035  # 100 sps
+
 from database import insert_batch
 
 class MockSensor:
@@ -224,7 +226,7 @@ class SensorManager:
                     insert_batch(buffer)
                     buffer = []
                     
-                time.sleep(0.01) # 100 sps approx
+                time.sleep(SAMPLE_INTERVAL) # 100 sps approx
             except Exception as e:
                 print(f"Sensor read error: {e}")
                 time.sleep(1)

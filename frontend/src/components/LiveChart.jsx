@@ -86,7 +86,8 @@ export default function LiveChart({ timeZone, updateReadouts }) {
   }, [timeZone]);
 
   useEffect(() => {
-    wsRef.current = new WebSocket('ws://localhost:8000/ws/stream');
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    wsRef.current = new WebSocket(`${wsProtocol}//${window.location.host}/ws/stream`);
     let messageCount = 0;
     
     wsRef.current.onmessage = (event) => {
