@@ -4,7 +4,7 @@ import 'uplot/dist/uPlot.min.css';
 
 const sync = uPlot.sync("eew");
 
-export default function LiveChart({ timeZone, updateReadouts }) {
+export default function LiveChart({ timeZone, updateReadouts, updateSps }) {
   const containerEne = useRef(null);
   const containerEnn = useRef(null);
   const containerEnz = useRef(null);
@@ -90,7 +90,14 @@ export default function LiveChart({ timeZone, updateReadouts }) {
     wsRef.current = new WebSocket(`${wsProtocol}//${window.location.host}/ws/stream`);
     let messageCount = 0;
     
+    let spsCounter = 0;
+    const spsInterval = setInterval(() => {
+      if (updateSps) updateSps(spsCounter);
+      spsCounter = 0;
+    }, 1000);
+    
     wsRef.current.onmessage = (event) => {
+      spsCounter++;
       const data = JSON.parse(event.data);
       const { t, z, x, y } = data; // z=ENZ, x=ENN, y=ENE
       
@@ -129,11 +136,12 @@ export default function LiveChart({ timeZone, updateReadouts }) {
     };
 
     return () => {
+      clearInterval(spsInterval);
       if (wsRef.current) {
         wsRef.current.close();
       }
     };
-  }, [updateReadouts]);
+  }, [updateReadouts, updateSps]);
 
   return (
     <div className="flex flex-col space-y-4">
