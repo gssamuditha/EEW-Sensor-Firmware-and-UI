@@ -7,6 +7,12 @@ export default function Dashboard() {
 
   const [sps, setSps] = useState(0);
   const [activeChannels, setActiveChannels] = useState([]);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   
   const [systemStats, setSystemStats] = useState({
     cpu_percent: 0,
@@ -56,6 +62,13 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="flex items-center space-x-3 text-sm">
+          <div className="font-mono font-bold text-gray-600 mr-4 bg-white px-3 py-1.5 border border-gray-200 shadow-sm">
+            {new Intl.DateTimeFormat('en-US', {
+              timeZone: timeZone,
+              year: 'numeric', month: 'short', day: 'numeric',
+              hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+            }).format(currentTime)}
+          </div>
           <label className="font-bold text-gray-500 uppercase tracking-wider">Timezone</label>
           <select
             value={timeZone}
@@ -75,6 +88,10 @@ export default function Dashboard() {
             <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Device Details</div>
             <div className="space-y-4 font-mono text-sm">
               <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                <span className="font-bold text-gray-500">NAME</span>
+                <span className="text-primary font-bold">CRISIS-NODE-01</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-gray-100 pb-2">
                 <span className="font-bold text-gray-500">MODEL</span>
                 <span className="text-primary font-bold">EEW-PI-4</span>
               </div>
@@ -89,6 +106,14 @@ export default function Dashboard() {
               <div className="flex justify-between items-center border-b border-gray-100 pb-2">
                 <span className="font-bold text-gray-500">MAC ADDR</span>
                 <span className="text-primary font-bold">{systemStats.mac_address}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                <span className="font-bold text-gray-500">LATITUDE</span>
+                <span className="text-primary font-bold">6.9733</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                <span className="font-bold text-gray-500">LONGITUDE</span>
+                <span className="text-primary font-bold">79.9514</span>
               </div>
               <div className="flex justify-between items-center border-b border-gray-100 pb-2">
                 <span className="font-bold text-gray-500">UPTIME</span>
@@ -157,16 +182,16 @@ export default function Dashboard() {
           </div>
 
           {/* Widget 6: Server Actions */}
-          <div className="bg-white border border-gray-200 p-5 shadow-sm flex-1 flex flex-col min-h-[140px] shrink-0">
+          <div className="bg-white border border-gray-200 p-5 shadow-sm flex-1 flex flex-col shrink-0">
             <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Server Actions</div>
-            <div className="grid grid-cols-2 gap-3 h-full">
-              <a href="#station" className="flex flex-col items-center justify-center border border-gray-200 rounded p-3 hover:bg-gray-50 transition text-gray-500 hover:text-primary">
-                <svg className="w-6 h-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                <span className="text-xs font-bold text-center">Station View</span>
+            <div className="flex flex-col gap-3 h-full">
+              <a href="#station" className="flex items-center border border-gray-200 rounded p-3 hover:bg-gray-50 transition text-gray-500 hover:text-primary">
+                <svg className="w-5 h-5 mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                <span className="text-xs font-bold">Station View</span>
               </a>
-              <a href="#data" className="flex flex-col items-center justify-center border border-gray-200 rounded p-3 hover:bg-gray-50 transition text-gray-500 hover:text-primary">
-                <svg className="w-6 h-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                <span className="text-xs font-bold text-center">Data View</span>
+              <a href="#data" className="flex items-center border border-gray-200 rounded p-3 hover:bg-gray-50 transition text-gray-500 hover:text-primary">
+                <svg className="w-5 h-5 mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                <span className="text-xs font-bold">Data View</span>
               </a>
             </div>
           </div>
