@@ -8,7 +8,7 @@ lerna-debug.log*
 
 # Node / Frontend
 node_modules/
-dist/
+# dist/
 dist-ssr/
 *.local
 .npm/
@@ -22,7 +22,7 @@ __pycache__/
 env/
 build/
 develop-eggs/
-dist/
+# dist/
 downloads/
 eggs/
 .eggs/
