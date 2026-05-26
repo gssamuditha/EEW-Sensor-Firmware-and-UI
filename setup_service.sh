@@ -35,8 +35,10 @@ After=network.target
 [Service]
 User=$USER
 WorkingDirectory=$REPO_DIR/backend
+# Allow non-root user to bind to privileged ports like 80
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 # Using uvicorn directly avoids the development reloader that is in main.py
-ExecStart=$VENV_DIR/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+ExecStart=$VENV_DIR/bin/uvicorn main:app --host 0.0.0.0 --port 80
 Restart=always
 RestartSec=5
 # Set production environment variables if needed
@@ -45,6 +47,16 @@ Environment=PYTHONUNBUFFERED=1
 [Install]
 WantedBy=multi-user.target
 EOF
+
+echo "Fixing database and directory permissions..."
+# Ensure the backend directory is owned by the current user and writable
+sudo chown -R $USER:$USER "$REPO_DIR/backend"
+sudo chmod 755 "$REPO_DIR/backend"
+
+# Ensure the database file is writable by the user if it exists
+if [ -f "$REPO_DIR/backend/eew_sensor.db" ]; then
+    sudo chmod 644 "$REPO_DIR/backend/eew_sensor.db"
+fi
 
 echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
