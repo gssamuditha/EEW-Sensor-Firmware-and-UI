@@ -1,9 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Download } from 'lucide-react';
+import { useTimeZone } from '../TimeZoneContext';
+import { format, fromZonedTime } from 'date-fns-tz';
 
 export default function Export() {
+  const { timeZone } = useTimeZone();
+
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
+
+  // Update default start/end times when component mounts or timezone changes
+  useEffect(() => {
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    
+    setStart(format(oneHourAgo, "yyyy-MM-dd'T'HH:mm", { timeZone }));
+    setEnd(format(now, "yyyy-MM-dd'T'HH:mm", { timeZone }));
+  }, [timeZone]);
 
   const handleExport = () => {
     if (!start || !end) {
@@ -11,10 +24,14 @@ export default function Export() {
       return;
     }
     
-    const startTime = new Date(start).getTime() / 1000;
-    const endTime = new Date(end).getTime() / 1000;
+    // Parse the local input string AS IF it were in the target timezone
+    const startDate = fromZonedTime(start, timeZone);
+    const endDate = fromZonedTime(end, timeZone);
     
-    window.open(`http://localhost:8000/api/export?start=${startTime}&end=${endTime}`, '_blank');
+    const startTime = startDate.getTime() / 1000;
+    const endTime = endDate.getTime() / 1000;
+    
+    window.open(`/api/export?start=${startTime}&end=${endTime}`, '_blank');
   };
 
   return (

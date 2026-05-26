@@ -10,7 +10,7 @@ export default function Settings() {
   const [status, setStatus] = useState('');
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/settings')
+    fetch('/api/settings')
       .then(res => res.json())
       .then(data => {
         if (data.targets && data.targets.length > 0) setTargets(data.targets);
@@ -32,7 +32,7 @@ export default function Settings() {
 
   const handleSave = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/settings', {
+      const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

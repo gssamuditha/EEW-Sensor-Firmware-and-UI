@@ -1,0 +1,66 @@
+#!/bin/bash
+# Run this script on the Raspberry Pi to set up the EEW Sensor service to start on boot.
+
+# Get the absolute path to the current directory (should be the root of the repo)
+REPO_DIR=$(pwd)
+VENV_DIR="$REPO_DIR/.venv"
+
+echo "Setting up EEW Sensor Systemd Service..."
+
+# Ensure we are in the right directory
+if [ ! -d "$REPO_DIR/backend" ] || [ ! -d "$REPO_DIR/frontend" ]; then
+    echo "Error: Please run this script from the root directory of the EEW-Sensor-Firmware-and-UI project."
+    exit 1
+fi
+
+# Ensure the virtual environment exists
+if [ ! -d "$VENV_DIR" ]; then
+    echo "Virtual environment not found. Please create one and install dependencies first:"
+    echo "  python3 -m venv .venv"
+    echo "  source .venv/bin/activate"
+    echo "  pip install -r backend/requirements.txt"
+    exit 1
+fi
+
+SERVICE_FILE=/etc/systemd/system/eew-sensor.service
+
+echo "Creating systemd service file at $SERVICE_FILE..."
+
+# Create the service file using sudo
+sudo bash -c "cat > $SERVICE_FILE" << EOF
+[Unit]
+Description=EEW Sensor Backend & UI Service
+After=network.target
+
+[Service]
+User=$USER
+WorkingDirectory=$REPO_DIR/backend
+# Using uvicorn directly avoids the development reloader that is in main.py
+ExecStart=$VENV_DIR/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+# Set production environment variables if needed
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "Reloading systemd daemon..."
+sudo systemctl daemon-reload
+
+echo "Enabling eew-sensor service to start on boot..."
+sudo systemctl enable eew-sensor.service
+
+echo "Restarting eew-sensor service..."
+sudo systemctl restart eew-sensor.service
+
+echo "=================================================================="
+echo "Service setup complete!"
+echo "The sensor and UI will now start automatically when the Pi boots."
+echo ""
+echo "Helpful commands:"
+echo "- Check status: sudo systemctl status eew-sensor.service"
+echo "- View logs:    sudo journalctl -u eew-sensor.service -f"
+echo "- Stop service: sudo systemctl stop eew-sensor.service"
+echo "=================================================================="
