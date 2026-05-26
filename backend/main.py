@@ -3,6 +3,9 @@ import csv
 import io
 import time
 import json
+import psutil
+import socket
+import uuid
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import StreamingResponse
@@ -68,6 +71,43 @@ def api_set_settings(settings: SettingsModel):
     update_settings(targets_json, settings.latitude, settings.longitude)
     return {"status": "ok"}
 
+@app.get("/api/system_status")
+def api_system_status():
+    try:
+        cpu = psutil.cpu_percent(interval=0.1) # short blocking is okay for this stats
+        disk = psutil.disk_usage('/').percent
+        uptime_sec = int(time.time() - psutil.boot_time())
+        days = uptime_sec // (24 * 3600)
+        uptime_sec = uptime_sec % (24 * 3600)
+        hours = uptime_sec // 3600
+        minutes = (uptime_sec % 3600) // 60
+        uptime_str = f"{days}d {hours}h {minutes}m"
+        
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0)
+        try:
+            s.connect(('10.254.254.254', 1))
+            ip = s.getsockname()[0]
+        except Exception:
+            ip = '127.0.0.1'
+        finally:
+            s.close()
+            
+        mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) 
+                        for ele in range(0,8*6,8)][::-1])
+                        
+        return {
+            "cpu_percent": cpu,
+            "disk_percent": disk,
+            "uptime": uptime_str,
+            "local_ip": ip,
+            "mac_address": mac,
+            "internet_status": True,
+            "server_status": True
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/api/export")
 def api_export(start: float, end: float):
     if end < start:
@@ -94,9 +134,10 @@ async def websocket_stream(websocket: WebSocket):
     sensor_manager.subscribe(queue)
     try:
         while True:
+            # We assume t, z, x, y are returned.
             t, z, x, y = await queue.get()
-            # Send small dict to minimize overhead
-            await websocket.send_json({"t": t, "z": z, "x": x, "y": y})
+            # Send dictionary with channel names
+            await websocket.send_json({"t": t, "ENZ": z, "ENN": x, "ENE": y})
     except WebSocketDisconnect:
         pass
     finally:
