@@ -169,8 +169,6 @@ export default function LiveChart({ timeZone, updateSps, onChannelsFound, isExpa
     }, 200);
     
     wsRef.current.onmessage = (event) => {
-      // Background buffering: We no longer return early when paused.
-      // Data continues to accumulate in dataRefs.
       spsCounter++;
       const data = JSON.parse(event.data);
       const { t, ...chData } = data;

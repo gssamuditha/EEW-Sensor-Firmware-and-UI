@@ -6,9 +6,26 @@ import random
 import sys
 import json
 
+from database import insert_batch
+
+# === ADC Config ===
+CS_PINS = [35, 33, 36]        # Acc Z, Acc X, Acc Y
+DRDY_PINS = [11, 15, 13]
+VREF_ADCS = [1.8, 1.8, 1.8]
+FULL_SCALE = 8388607
+CHANNEL_NAMES = ['ENZ', 'ENN', 'ENE']
+SAMPLES_PER_PACKET = 25
 SAMPLE_INTERVAL = 0.0035  # 100 sps
 
-from database import insert_batch
+# === Accelerometer Settings ===
+ACC_ZERO_VOLTAGES = [0.0, 0.0, 0.0]  # To be calibrated
+ACC_SENSITIVITY_V_PER_G = 0.4
+G_TO_MS2 = 9.80665
+
+# === Sensor Control Pins ===
+ST1 = 16
+ST2 = 18
+STBY = 22
 
 class MockSensor:
     def __init__(self):
@@ -38,20 +55,6 @@ class RealSensor:
         self.spidev = spidev
         self.GPIO = GPIO
         
-        self.CS_PINS = [35, 33, 36]        # Acc Z, Acc X, Acc Y
-        self.DRDY_PINS = [11, 15, 13]
-        self.VREF_ADCS = [1.8, 1.8, 1.8]
-        self.FULL_SCALE = 8388607
-        self.CHANNEL_NAMES = ['ENZ', 'ENN', 'ENE']
-        
-        self.ACC_ZERO_VOLTAGES = [0.0, 0.0, 0.0]
-        self.ACC_SENSITIVITY_V_PER_G = 0.4
-        self.G_TO_MS2 = 9.80665
-        
-        self.ST1 = 16
-        self.ST2 = 18
-        self.STBY = 22
-        
         self.spi = spidev.SpiDev()
         self.spi.open(0, 0)
         self.spi.max_speed_hz = 4000000
@@ -61,23 +64,23 @@ class RealSensor:
         self.GPIO.setwarnings(False)
         self.GPIO.setmode(self.GPIO.BOARD)
 
-        self.GPIO.setup(self.ST1, self.GPIO.OUT)
-        self.GPIO.setup(self.ST2, self.GPIO.OUT)
-        self.GPIO.setup(self.STBY, self.GPIO.OUT)
+        self.GPIO.setup(ST1, self.GPIO.OUT)
+        self.GPIO.setup(ST2, self.GPIO.OUT)
+        self.GPIO.setup(STBY, self.GPIO.OUT)
 
-        self.GPIO.output(self.ST1, self.GPIO.LOW)
-        self.GPIO.output(self.ST2, self.GPIO.LOW)
-        self.GPIO.output(self.STBY, self.GPIO.HIGH)
-        time.sleep(1)
+        self.GPIO.output(ST1, self.GPIO.LOW)
+        self.GPIO.output(ST2, self.GPIO.LOW)
+        self.GPIO.output(STBY, self.GPIO.HIGH)
+        time.sleep(10)
 
-        for cs in self.CS_PINS:
+        for cs in CS_PINS:
             self.GPIO.setup(cs, self.GPIO.OUT)
             self.GPIO.output(cs, self.GPIO.HIGH)
 
-        for drdy in self.DRDY_PINS:
+        for drdy in DRDY_PINS:
             self.GPIO.setup(drdy, self.GPIO.IN, pull_up_down=self.GPIO.PUD_UP)
             
-        time.sleep(0.1)
+        time.sleep(1)
         self._adc_init_all()
         for _ in range(5):
             self._start_conversion_all()
@@ -90,60 +93,64 @@ class RealSensor:
             
     def _adc_init_all(self):
         for i in range(3):
-            self.GPIO.output(self.CS_PINS[i], self.GPIO.LOW)
+            self.GPIO.output(CS_PINS[i], self.GPIO.LOW)
             time.sleep(0.000001)
             self.spi.xfer2([0x06])
             time.sleep(0.1)
             self.spi.xfer2([0x42, 0x81, 0x60, 0x40])
             self.spi.xfer2([0x08])
-            self.GPIO.output(self.CS_PINS[i], self.GPIO.HIGH)
+            self.GPIO.output(CS_PINS[i], self.GPIO.HIGH)
             time.sleep(0.1)
 
     def _start_conversion_all(self):
-        for cs in self.CS_PINS:
+        for cs in CS_PINS:
             self.GPIO.output(cs, self.GPIO.LOW)
         self.spi.xfer2([0x08])
-        for cs in self.CS_PINS:
+        for cs in CS_PINS:
             self.GPIO.output(cs, self.GPIO.HIGH)
 
-    def _read_adc(self, i):
-        self.GPIO.output(self.CS_PINS[i], self.GPIO.LOW)
+    def _read_adc(self, i, return_raw=False):
+        self.GPIO.output(CS_PINS[i], self.GPIO.LOW)
         start = time.time()
-        while self.GPIO.input(self.DRDY_PINS[i]):
+        while self.GPIO.input(DRDY_PINS[i]):
             if time.time() - start > 0.15:
                 raise TimeoutError(f"DRDY timeout on ADC {i}")
             time.sleep(0.0001)
         data = self.spi.xfer2([0x00, 0x00, 0x00])
-        self.GPIO.output(self.CS_PINS[i], self.GPIO.HIGH)
+        self.GPIO.output(CS_PINS[i], self.GPIO.HIGH)
         raw = (data[0] << 16) | (data[1] << 8) | data[2]
         if raw & (1 << 23):
             raw -= (1 << 24)
-        voltage = (raw / self.FULL_SCALE) * self.VREF_ADCS[i]
+        if return_raw:
+            return raw
+        voltage = (raw / FULL_SCALE) * VREF_ADCS[i]
         return voltage
         
-    def calibrate(self):
-        print("Starting accelerometer zero-level calibration for 1 seconds...")
-        samples = [[], [], []]
+    def calibrate(self, calibration_time_sec=100):
+        print(f"Starting accelerometer zero-level calibration for {calibration_time_sec} seconds...")
+        samples = [[], [], []]  # For Z, X, Y
         start_time = time.time()
-        while time.time() - start_time < 1:
+        while time.time() - start_time < calibration_time_sec:
             self._start_conversion_all()
             for axis in range(3):
                 voltage = self._read_adc(axis)
                 samples[axis].append(voltage)
-            time.sleep(0.01)
-            
+            time.sleep(SAMPLE_INTERVAL)
+
         for i in range(3):
-            self.ACC_ZERO_VOLTAGES[i] = sum(samples[i]) / len(samples[i])
-        print("Calibration complete.")
+            ACC_ZERO_VOLTAGES[i] = sum(samples[i]) / len(samples[i])
+
+        print("Calibration complete. Zero-level voltages (V):")
+        print(f"Z: {ACC_ZERO_VOLTAGES[0]:.6f} V, X: {ACC_ZERO_VOLTAGES[1]:.6f} V, Y: {ACC_ZERO_VOLTAGES[2]:.6f} V")
 
     def read_all(self):
         self._start_conversion_all()
         readings = []
         for i in range(3):
             voltage = self._read_adc(i)
-            zero_voltage = self.ACC_ZERO_VOLTAGES[i]
-            g_val = (voltage - zero_voltage) / self.ACC_SENSITIVITY_V_PER_G
-            ms2 = g_val * self.G_TO_MS2
+            zero_voltage = ACC_ZERO_VOLTAGES[i]
+            g_val = (voltage - zero_voltage) / ACC_SENSITIVITY_V_PER_G
+            ms2 = g_val * G_TO_MS2
             readings.append(ms2)
         return (time.time(), readings[0], readings[1], readings[2])
 
@@ -159,6 +166,8 @@ class SensorManager:
         self.thread = None
         self.subscribers = []  # asyncio queues
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.hardware_sps = 0
+        self.avg_sps = 0
         
     def start(self):
         self.sensor.init_sensor()
@@ -183,53 +192,110 @@ class SensorManager:
         from database import get_settings
         buffer = []
         udp_buffers = [[], [], []]
-        SAMPLES_PER_PACKET = 25
-        
+
+        # SPS tracking (matching ADXL354.py)
+        total_samples = 0
+        total_time = 0
+        packet_start_time = None
+        sample_count = 0
+
+        # Precise 100 SPS timing
+        target_interval = 1.0 / 100  # 10ms per sample
+
+        # Cache settings to avoid DB hit every sample
+        cached_settings = None
+        settings_refresh_time = 0
+
         while self.running:
             try:
+                loop_start = time.monotonic()
+
+                # Track packet timing
+                if sample_count == 0:
+                    packet_start_time = time.time()
+
                 t, z, x, y = self.sensor.read_all()
                 record = (t, z, x, y)
                 buffer.append(record)
-                
-                # Push to websockets
+                sample_count += 1
+
+                # Push to websockets (evict oldest on overflow instead of dropping)
                 for q in self.subscribers:
                     try:
                         q.put_nowait(record)
                     except asyncio.QueueFull:
-                        pass
-                
+                        try:
+                            q.get_nowait()  # evict oldest
+                        except:
+                            pass
+                        try:
+                            q.put_nowait(record)
+                        except:
+                            pass
+
+                # SPS calculation per packet batch (matching ADXL354.py)
+                if sample_count >= SAMPLES_PER_PACKET:
+                    end_time = time.time()
+                    elapsed = end_time - packet_start_time
+                    sps = SAMPLES_PER_PACKET / elapsed if elapsed > 0 else 0
+
+                    total_samples += SAMPLES_PER_PACKET
+                    total_time += elapsed
+                    overall_sps = total_samples / total_time if total_time > 0 else 0
+
+                    self.hardware_sps = round(sps, 2)
+                    self.avg_sps = round(overall_sps, 2)
+
+                    print(f"Per-Channel Sample Rates:")
+                    for name in CHANNEL_NAMES:
+                        print(f"   {name}: {sps:.2f} samples/sec (current), {overall_sps:.2f} samples/sec (avg)")
+
+                    sample_count = 0
+
+                # Refresh settings cache every 5 seconds (not every sample)
+                now_mono = time.monotonic()
+                if now_mono - settings_refresh_time > 5.0:
+                    cached_settings = get_settings()
+                    settings_refresh_time = now_mono
+
                 # Prepare UDP
-                settings = get_settings()
-                targets_str = settings.get('targets', '[]')
+                targets_str = cached_settings.get('targets', '[]') if cached_settings else '[]'
                 try:
                     targets = json.loads(targets_str)
                 except:
                     targets = []
-                
+
                 if targets:
                     if len(udp_buffers[0]) == 0:
                         timestamp = t
                     udp_buffers[0].append(z)
                     udp_buffers[1].append(x)
                     udp_buffers[2].append(y)
-                    
+
                     if len(udp_buffers[0]) >= SAMPLES_PER_PACKET:
-                        for i, name in enumerate(['ENZ', 'ENN', 'ENE']):
+                        for i, name in enumerate(CHANNEL_NAMES):
                             packet = [name, timestamp] + udp_buffers[i]
                             data = str(packet).encode()
                             for target in targets:
                                 self.sock.sendto(data, (target['ip'], target['port']))
                         udp_buffers = [[], [], []]
-                
+
                 # Batch save to DB every 50 samples
                 if len(buffer) >= 50:
                     insert_batch(buffer)
                     buffer = []
-                    
-                time.sleep(SAMPLE_INTERVAL) # 100 sps approx
+
+                # Precise rate limiting: hybrid sleep + busy-wait for exact 100 SPS
+                remaining = target_interval - (time.monotonic() - loop_start)
+                if remaining > 0.002:
+                    time.sleep(remaining - 0.001)  # coarse sleep, leave 1ms margin
+                while (time.monotonic() - loop_start) < target_interval:
+                    pass  # busy-wait the final sub-ms for precision
+
             except Exception as e:
                 print(f"Sensor read error: {e}")
                 time.sleep(1)
+                next_sample_time = time.monotonic()
 
 # Global manager instance
 sensor_manager = SensorManager(use_mock=sys.platform == 'win32')
