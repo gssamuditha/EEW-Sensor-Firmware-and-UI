@@ -18,7 +18,9 @@ from sensor import sensor_manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    sensor_manager.start()
+    # Run sensor init in a thread to avoid blocking the asyncio event loop
+    # (RealSensor.init_sensor sleeps ~11s, calibrate sleeps ~100s)
+    await asyncio.to_thread(sensor_manager.start)
     
     # Background task for cleanup
     async def cleanup_task():
@@ -56,7 +58,7 @@ def api_get_settings():
     targets_str = s.get("targets", '[{"ip": "127.0.0.1", "port": 2098}]')
     try:
         targets = json.loads(targets_str)
-    except:
+    except Exception:
         targets = [{"ip": "127.0.0.1", "port": 2098}]
         
     return {
@@ -70,6 +72,14 @@ def api_set_settings(settings: SettingsModel):
     targets_json = json.dumps([{"ip": t.ip, "port": t.port} for t in settings.targets])
     update_settings(targets_json, settings.latitude, settings.longitude)
     return {"status": "ok"}
+
+def _check_internet():
+    """Check if outbound internet connectivity is available."""
+    try:
+        socket.create_connection(("8.8.8.8", 53), timeout=2)
+        return True
+    except OSError:
+        return False
 
 @app.get("/api/system_status")
 def api_system_status():
@@ -102,7 +112,7 @@ def api_system_status():
             "uptime": uptime_str,
             "local_ip": ip,
             "mac_address": mac,
-            "internet_status": True,
+            "internet_status": _check_internet(),
             "server_status": True,
             "hardware_sps": sensor_manager.hardware_sps,
             "avg_sps": sensor_manager.avg_sps

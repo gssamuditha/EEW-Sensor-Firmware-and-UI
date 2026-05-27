@@ -8,6 +8,7 @@ export default function Dashboard() {
   const [sps, setSps] = useState(0);
   const [activeChannels, setActiveChannels] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [sensorSettings, setSensorSettings] = useState({ latitude: 0.0, longitude: 0.0 });
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -42,6 +43,15 @@ export default function Dashboard() {
     fetchStats();
     const int = setInterval(fetchStats, 5000);
     return () => clearInterval(int);
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        setSensorSettings({ latitude: data.latitude || 0.0, longitude: data.longitude || 0.0 });
+      })
+      .catch(console.error);
   }, []);
 
   const updateSps = useCallback((val) => {
@@ -110,11 +120,11 @@ export default function Dashboard() {
               </div>
               <div className="flex justify-between items-center border-b border-gray-100 pb-2">
                 <span className="font-bold text-gray-500">LATITUDE</span>
-                <span className="text-primary font-bold">6.9733</span>
+                <span className="text-primary font-bold">{sensorSettings.latitude}</span>
               </div>
               <div className="flex justify-between items-center border-b border-gray-100 pb-2">
                 <span className="font-bold text-gray-500">LONGITUDE</span>
-                <span className="text-primary font-bold">79.9514</span>
+                <span className="text-primary font-bold">{sensorSettings.longitude}</span>
               </div>
               <div className="flex justify-between items-center border-b border-gray-100 pb-2">
                 <span className="font-bold text-gray-500">UPTIME</span>

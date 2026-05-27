@@ -165,6 +165,7 @@ class SensorManager:
         self.running = False
         self.thread = None
         self.subscribers = []  # asyncio queues
+        self._sub_lock = threading.Lock()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.hardware_sps = 0
         self.avg_sps = 0
@@ -180,13 +181,16 @@ class SensorManager:
         self.running = False
         if self.thread:
             self.thread.join()
+        self.sock.close()
             
     def subscribe(self, queue):
-        self.subscribers.append(queue)
+        with self._sub_lock:
+            self.subscribers.append(queue)
         
     def unsubscribe(self, queue):
-        if queue in self.subscribers:
-            self.subscribers.remove(queue)
+        with self._sub_lock:
+            if queue in self.subscribers:
+                self.subscribers.remove(queue)
             
     def _run_loop(self):
         from database import get_settings
@@ -220,17 +224,19 @@ class SensorManager:
                 sample_count += 1
 
                 # Push to websockets (evict oldest on overflow instead of dropping)
-                for q in self.subscribers:
+                with self._sub_lock:
+                    subs = list(self.subscribers)
+                for q in subs:
                     try:
                         q.put_nowait(record)
                     except asyncio.QueueFull:
                         try:
                             q.get_nowait()  # evict oldest
-                        except:
+                        except Exception:
                             pass
                         try:
                             q.put_nowait(record)
-                        except:
+                        except Exception:
                             pass
 
                 # SPS calculation per packet batch (matching ADXL354.py)
@@ -262,7 +268,7 @@ class SensorManager:
                 targets_str = cached_settings.get('targets', '[]') if cached_settings else '[]'
                 try:
                     targets = json.loads(targets_str)
-                except:
+                except Exception:
                     targets = []
 
                 if targets:
