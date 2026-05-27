@@ -156,6 +156,11 @@ export default function LiveChart({ timeZone, updateSps, onChannelsFound, isExpa
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     wsRef.current = new WebSocket(`${wsProtocol}//${window.location.host}/ws/stream`);
     
+    let latestSps = 0;
+    const spsInterval = setInterval(() => {
+      if (updateSps) updateSps(latestSps);
+    }, 1000);
+    
     const uiInterval = setInterval(() => {
       if (!isPausedRef.current) {
         setTick(t => t + 1);
@@ -166,14 +171,9 @@ export default function LiveChart({ timeZone, updateSps, onChannelsFound, isExpa
       const data = JSON.parse(event.data);
       const { t, sps, ...chData } = data;
       
-<<<<<<< HEAD
-      // Display actual hardware sample rate from backend
-      if (sps !== undefined && updateSps) {
-        updateSps(sps);
+      if (sps !== undefined) {
+        latestSps = sps;
       }
-=======
-      if (sps !== undefined && updateSps) updateSps(sps);
->>>>>>> 383f381e761426e5514f78a81129e9ca2e3445da
       
       const newChannels = Object.keys(chData);
       
@@ -207,6 +207,7 @@ export default function LiveChart({ timeZone, updateSps, onChannelsFound, isExpa
     };
 
     return () => {
+      clearInterval(spsInterval);
       clearInterval(uiInterval);
       if (wsRef.current) wsRef.current.close();
     };
