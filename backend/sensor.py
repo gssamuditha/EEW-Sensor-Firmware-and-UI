@@ -199,6 +199,14 @@ class SensorManager:
         packet_start_time = None
         sample_count = 0
 
+        # Precise 100 SPS timing using monotonic clock
+        target_interval = 1.0 / 100  # 10ms per sample
+        next_sample_time = time.monotonic()
+
+        # Cache settings to avoid DB hit every sample
+        cached_settings = None
+        settings_refresh_time = 0
+
         while self.running:
             try:
                 # Track packet timing
@@ -243,9 +251,14 @@ class SensorManager:
 
                     sample_count = 0
 
+                # Refresh settings cache every 5 seconds (not every sample)
+                now_mono = time.monotonic()
+                if now_mono - settings_refresh_time > 5.0:
+                    cached_settings = get_settings()
+                    settings_refresh_time = now_mono
+
                 # Prepare UDP
-                settings = get_settings()
-                targets_str = settings.get('targets', '[]')
+                targets_str = cached_settings.get('targets', '[]') if cached_settings else '[]'
                 try:
                     targets = json.loads(targets_str)
                 except:
@@ -271,10 +284,19 @@ class SensorManager:
                     insert_batch(buffer)
                     buffer = []
 
-                time.sleep(SAMPLE_INTERVAL)
+                # Adaptive sleep to maintain exactly 100 SPS
+                next_sample_time += target_interval
+                sleep_time = next_sample_time - time.monotonic()
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+                elif sleep_time < -1.0:
+                    # Too far behind (>1s drift), reset timing
+                    next_sample_time = time.monotonic()
+
             except Exception as e:
                 print(f"Sensor read error: {e}")
                 time.sleep(1)
+                next_sample_time = time.monotonic()
 
 # Global manager instance
 sensor_manager = SensorManager(use_mock=sys.platform == 'win32')
