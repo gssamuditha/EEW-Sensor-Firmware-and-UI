@@ -156,12 +156,6 @@ export default function LiveChart({ timeZone, updateSps, onChannelsFound, isExpa
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     wsRef.current = new WebSocket(`${wsProtocol}//${window.location.host}/ws/stream`);
     
-    let spsCounter = 0;
-    const spsInterval = setInterval(() => {
-      if (updateSps) updateSps(spsCounter);
-      spsCounter = 0;
-    }, 1000);
-    
     const uiInterval = setInterval(() => {
       if (!isPausedRef.current) {
         setTick(t => t + 1);
@@ -169,9 +163,10 @@ export default function LiveChart({ timeZone, updateSps, onChannelsFound, isExpa
     }, 200);
     
     wsRef.current.onmessage = (event) => {
-      spsCounter++;
       const data = JSON.parse(event.data);
-      const { t, ...chData } = data;
+      const { t, sps, ...chData } = data;
+      
+      if (sps !== undefined && updateSps) updateSps(sps);
       
       const newChannels = Object.keys(chData);
       
@@ -205,7 +200,6 @@ export default function LiveChart({ timeZone, updateSps, onChannelsFound, isExpa
     };
 
     return () => {
-      clearInterval(spsInterval);
       clearInterval(uiInterval);
       if (wsRef.current) wsRef.current.close();
     };
