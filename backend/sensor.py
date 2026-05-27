@@ -126,7 +126,7 @@ class RealSensor:
         voltage = (raw / FULL_SCALE) * VREF_ADCS[i]
         return voltage
         
-    def calibrate(self, calibration_time_sec=1):
+    def calibrate(self, calibration_time_sec=100):
         print(f"Starting accelerometer zero-level calibration for {calibration_time_sec} seconds...")
         samples = [[], [], []]  # For Z, X, Y
         start_time = time.time()
@@ -246,7 +246,7 @@ class SensorManager:
                     self.hardware_sps = round(sps, 2)
                     self.avg_sps = round(overall_sps, 2)
 
-                    print(f"📊 Per-Channel Sample Rates:")
+                    print(f"Per-Channel Sample Rates:")
                     for name in CHANNEL_NAMES:
                         print(f"   {name}: {sps:.2f} samples/sec (current), {overall_sps:.2f} samples/sec (avg)")
 

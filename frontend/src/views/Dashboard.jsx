@@ -22,6 +22,7 @@ export default function Dashboard() {
     mac_address: '-',
     internet_status: false,
     server_status: false,
+    hardware_sps: 0,
   });
 
   useEffect(() => {
@@ -58,7 +59,7 @@ export default function Dashboard() {
           <h2 className="text-xl font-bold text-primary tracking-wide">LIVE TELEMETRY</h2>
           <div className="px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full border border-green-200 shadow-sm flex items-center space-x-2">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            <span>{sps} Samples/sec</span>
+            <span>{systemStats.hardware_sps} Samples/sec</span>
           </div>
         </div>
         <div className="flex items-center space-x-3 text-sm">
