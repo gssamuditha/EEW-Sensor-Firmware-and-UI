@@ -166,6 +166,8 @@ class SensorManager:
         self.thread = None
         self.subscribers = []  # asyncio queues
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.hardware_sps = 0
+        self.avg_sps = 0
         
     def start(self):
         self.sensor.init_sensor()
@@ -190,21 +192,57 @@ class SensorManager:
         from database import get_settings
         buffer = []
         udp_buffers = [[], [], []]
-        # Uses module-level SAMPLES_PER_PACKET = 25
-        
+
+        # SPS tracking (matching ADXL354.py)
+        total_samples = 0
+        total_time = 0
+        packet_start_time = None
+        sample_count = 0
+
         while self.running:
             try:
+                # Track packet timing
+                if sample_count == 0:
+                    packet_start_time = time.time()
+
                 t, z, x, y = self.sensor.read_all()
                 record = (t, z, x, y)
                 buffer.append(record)
-                
-                # Push to websockets
+                sample_count += 1
+
+                # Push to websockets (evict oldest on overflow instead of dropping)
                 for q in self.subscribers:
                     try:
                         q.put_nowait(record)
                     except asyncio.QueueFull:
-                        pass
-                
+                        try:
+                            q.get_nowait()  # evict oldest
+                        except:
+                            pass
+                        try:
+                            q.put_nowait(record)
+                        except:
+                            pass
+
+                # SPS calculation per packet batch (matching ADXL354.py)
+                if sample_count >= SAMPLES_PER_PACKET:
+                    end_time = time.time()
+                    elapsed = end_time - packet_start_time
+                    sps = SAMPLES_PER_PACKET / elapsed if elapsed > 0 else 0
+
+                    total_samples += SAMPLES_PER_PACKET
+                    total_time += elapsed
+                    overall_sps = total_samples / total_time if total_time > 0 else 0
+
+                    self.hardware_sps = round(sps, 2)
+                    self.avg_sps = round(overall_sps, 2)
+
+                    print(f"📊 Per-Channel Sample Rates:")
+                    for name in CHANNEL_NAMES:
+                        print(f"   {name}: {sps:.2f} samples/sec (current), {overall_sps:.2f} samples/sec (avg)")
+
+                    sample_count = 0
+
                 # Prepare UDP
                 settings = get_settings()
                 targets_str = settings.get('targets', '[]')
@@ -212,28 +250,28 @@ class SensorManager:
                     targets = json.loads(targets_str)
                 except:
                     targets = []
-                
+
                 if targets:
                     if len(udp_buffers[0]) == 0:
                         timestamp = t
                     udp_buffers[0].append(z)
                     udp_buffers[1].append(x)
                     udp_buffers[2].append(y)
-                    
+
                     if len(udp_buffers[0]) >= SAMPLES_PER_PACKET:
-                        for i, name in enumerate(['ENZ', 'ENN', 'ENE']):
+                        for i, name in enumerate(CHANNEL_NAMES):
                             packet = [name, timestamp] + udp_buffers[i]
                             data = str(packet).encode()
                             for target in targets:
                                 self.sock.sendto(data, (target['ip'], target['port']))
                         udp_buffers = [[], [], []]
-                
+
                 # Batch save to DB every 50 samples
                 if len(buffer) >= 50:
                     insert_batch(buffer)
                     buffer = []
-                    
-                time.sleep(SAMPLE_INTERVAL) # 100 sps approx
+
+                time.sleep(SAMPLE_INTERVAL)
             except Exception as e:
                 print(f"Sensor read error: {e}")
                 time.sleep(1)

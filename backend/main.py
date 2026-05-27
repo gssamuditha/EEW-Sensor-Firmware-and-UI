@@ -103,7 +103,9 @@ def api_system_status():
             "local_ip": ip,
             "mac_address": mac,
             "internet_status": True,
-            "server_status": True
+            "server_status": True,
+            "hardware_sps": sensor_manager.hardware_sps,
+            "avg_sps": sensor_manager.avg_sps
         }
     except Exception as e:
         return {"error": str(e)}
@@ -130,14 +132,15 @@ def api_export(start: float, end: float):
 @app.websocket("/ws/stream")
 async def websocket_stream(websocket: WebSocket):
     await websocket.accept()
-    queue = asyncio.Queue(maxsize=100)
+    queue = asyncio.Queue(maxsize=1000)
     sensor_manager.subscribe(queue)
     try:
         while True:
-            # We assume t, z, x, y are returned.
             t, z, x, y = await queue.get()
-            # Send dictionary with channel names
-            await websocket.send_json({"t": t, "ENZ": z, "ENN": x, "ENE": y})
+            await websocket.send_json({
+                "t": t, "ENZ": z, "ENN": x, "ENE": y,
+                "sps": sensor_manager.hardware_sps
+            })
     except WebSocketDisconnect:
         pass
     finally:
