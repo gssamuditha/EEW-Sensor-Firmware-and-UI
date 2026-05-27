@@ -199,9 +199,8 @@ class SensorManager:
         packet_start_time = None
         sample_count = 0
 
-        # Precise 100 SPS timing using monotonic clock
+        # Precise 100 SPS timing
         target_interval = 1.0 / 100  # 10ms per sample
-        next_sample_time = time.monotonic()
 
         # Cache settings to avoid DB hit every sample
         cached_settings = None
@@ -209,6 +208,8 @@ class SensorManager:
 
         while self.running:
             try:
+                loop_start = time.monotonic()
+
                 # Track packet timing
                 if sample_count == 0:
                     packet_start_time = time.time()
@@ -284,14 +285,12 @@ class SensorManager:
                     insert_batch(buffer)
                     buffer = []
 
-                # Adaptive sleep to maintain exactly 100 SPS
-                next_sample_time += target_interval
-                sleep_time = next_sample_time - time.monotonic()
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
-                elif sleep_time < -1.0:
-                    # Too far behind (>1s drift), reset timing
-                    next_sample_time = time.monotonic()
+                # Precise rate limiting: hybrid sleep + busy-wait for exact 100 SPS
+                remaining = target_interval - (time.monotonic() - loop_start)
+                if remaining > 0.002:
+                    time.sleep(remaining - 0.001)  # coarse sleep, leave 1ms margin
+                while (time.monotonic() - loop_start) < target_interval:
+                    pass  # busy-wait the final sub-ms for precision
 
             except Exception as e:
                 print(f"Sensor read error: {e}")
