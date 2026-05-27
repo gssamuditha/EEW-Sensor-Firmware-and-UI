@@ -137,7 +137,10 @@ async def websocket_stream(websocket: WebSocket):
     try:
         while True:
             t, z, x, y = await queue.get()
-            await websocket.send_json({"t": t, "ENZ": z, "ENN": x, "ENE": y})
+            await websocket.send_json({
+                "t": t, "ENZ": z, "ENN": x, "ENE": y,
+                "sps": sensor_manager.hardware_sps
+            })
     except WebSocketDisconnect:
         pass
     finally:
