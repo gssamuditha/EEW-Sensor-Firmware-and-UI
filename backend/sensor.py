@@ -171,8 +171,12 @@ class SensorManager:
         self.avg_sps = 0
         
     def start(self):
+        from database import get_settings
+        settings = get_settings()
+        cal_time = int(settings.get('calibration_time', 60))
+        
         self.sensor.init_sensor()
-        self.sensor.calibrate()
+        self.sensor.calibrate(calibration_time_sec=cal_time)
         self.running = True
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
         self.thread.start()
