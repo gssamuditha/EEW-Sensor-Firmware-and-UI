@@ -8,7 +8,7 @@ export default function Dashboard() {
   const [sps, setSps] = useState(0);
   const [activeChannels, setActiveChannels] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [sensorSettings, setSensorSettings] = useState({ latitude: 0.0, longitude: 0.0 });
+  const [sensorSettings, setSensorSettings] = useState({ latitude: 0.0, longitude: 0.0, device_name: 'Loading...' });
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -49,7 +49,11 @@ export default function Dashboard() {
     fetch('/api/settings')
       .then(res => res.json())
       .then(data => {
-        setSensorSettings({ latitude: data.latitude || 0.0, longitude: data.longitude || 0.0 });
+        setSensorSettings({ 
+          latitude: data.latitude || 0.0, 
+          longitude: data.longitude || 0.0,
+          device_name: data.device_name || 'CRISIS-NODE-01'
+        });
       })
       .catch(console.error);
   }, []);
@@ -100,7 +104,7 @@ export default function Dashboard() {
             <div className="space-y-4 font-mono text-sm">
               <div className="flex justify-between items-center border-b border-gray-100 pb-2">
                 <span className="font-bold text-gray-500">NAME</span>
-                <span className="text-primary font-bold">CRISIS-NODE-01</span>
+                <span className="text-primary font-bold">{sensorSettings.device_name}</span>
               </div>
               <div className="flex justify-between items-center border-b border-gray-100 pb-2">
                 <span className="font-bold text-gray-500">MODEL</span>
