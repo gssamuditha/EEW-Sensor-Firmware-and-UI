@@ -6,6 +6,7 @@ import json
 import psutil
 import socket
 import uuid
+import subprocess
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import StreamingResponse
@@ -51,6 +52,38 @@ class SettingsModel(BaseModel):
     targets: list[TargetModel]
     latitude: float
     longitude: float
+    device_name: str | None = None
+    calibration_time: int | None = None
+
+class WifiModel(BaseModel):
+    ssid: str
+    password: str
+
+@app.post("/api/wifi/connect")
+def api_wifi_connect(wifi: WifiModel):
+    try:
+        subprocess.run(["nmcli", "dev", "wifi", "connect", wifi.ssid, "password", wifi.password], check=True)
+        update_settings({"wifi_ssid": wifi.ssid, "wifi_password": wifi.password})
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/wifi/forget")
+def api_wifi_forget():
+    try:
+        s = get_settings()
+        ssid = s.get("wifi_ssid")
+        if ssid:
+            subprocess.run(["nmcli", "connection", "delete", "id", ssid])
+        update_settings({"wifi_ssid": "", "wifi_password": ""})
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/system/restart")
+def api_system_restart():
+    subprocess.Popen(["sudo", "reboot"])
+    return {"status": "ok"}
 
 @app.get("/api/settings")
 def api_get_settings():
@@ -64,13 +97,27 @@ def api_get_settings():
     return {
         "targets": targets, 
         "latitude": float(s.get("latitude", 0.0)),
-        "longitude": float(s.get("longitude", 0.0))
+        "longitude": float(s.get("longitude", 0.0)),
+        "device_name": s.get("device_name", "CRISIS-NODE-01"),
+        "calibration_time": int(s.get("calibration_time", 60)),
+        "wifi_ssid": s.get("wifi_ssid", ""),
+        "wifi_password": s.get("wifi_password", "")
     }
 
 @app.post("/api/settings")
 def api_set_settings(settings: SettingsModel):
     targets_json = json.dumps([{"ip": t.ip, "port": t.port} for t in settings.targets])
-    update_settings(targets_json, settings.latitude, settings.longitude)
+    settings_dict = {
+        "targets": targets_json,
+        "latitude": settings.latitude,
+        "longitude": settings.longitude,
+    }
+    if settings.device_name is not None:
+        settings_dict["device_name"] = settings.device_name
+    if settings.calibration_time is not None:
+        settings_dict["calibration_time"] = settings.calibration_time
+        
+    update_settings(settings_dict)
     return {"status": "ok"}
 
 def _check_internet():

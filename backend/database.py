@@ -75,11 +75,10 @@ def get_settings():
             rows = cursor.fetchall()
             return {k: v for k, v in rows}
 
-def update_settings(targets_json, lat, lon):
+def update_settings(settings_dict):
     with db_lock:
         with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
-            cursor.execute('REPLACE INTO settings (key, value) VALUES (?, ?)', ('targets', targets_json))
-            cursor.execute('REPLACE INTO settings (key, value) VALUES (?, ?)', ('latitude', str(lat)))
-            cursor.execute('REPLACE INTO settings (key, value) VALUES (?, ?)', ('longitude', str(lon)))
+            for key, value in settings_dict.items():
+                cursor.execute('REPLACE INTO settings (key, value) VALUES (?, ?)', (key, str(value)))
             conn.commit()
