@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Save, Plus, X, Wifi, Power, MapPin, Target, Monitor, Settings as SettingsIcon } from 'lucide-react';
+import { Save, Plus, X, Wifi, Power, MapPin, Target, Monitor, Settings as SettingsIcon, Activity } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -27,7 +27,8 @@ function LocationMarker({ position, setPosition }) {
 }
 
 export default function Settings() {
-  const [targets, setTargets] = useState([{ ip: '127.0.0.1', port: 2098 }]);
+  const [targets, setTargets] = useState([{ name: 'Main Server', ip: '127.0.0.1', port: 2098 }]);
+  const [newName, setNewName] = useState('');
   const [newIp, setNewIp] = useState('');
   const [newPort, setNewPort] = useState(2098);
   const [lat, setLat] = useState(0.0);
@@ -37,6 +38,9 @@ export default function Settings() {
   const [ssid, setSsid] = useState('');
   const [password, setPassword] = useState('');
   
+  const [dataForwarding, setDataForwarding] = useState(true);
+  const [activeWifi, setActiveWifi] = useState(null);
+
   const [status, setStatus] = useState(null);
   const [wifiStatus, setWifiStatus] = useState(null);
   const [isRestartModalOpen, setIsRestartModalOpen] = useState(false);
@@ -53,6 +57,8 @@ export default function Settings() {
         if (data.calibration_time) setCalibrationTime(data.calibration_time);
         if (data.wifi_ssid) setSsid(data.wifi_ssid);
         if (data.wifi_password) setPassword(data.wifi_password);
+        if (data.active_wifi) setActiveWifi(data.active_wifi);
+        if (data.data_forwarding !== undefined) setDataForwarding(data.data_forwarding);
       })
       .catch(console.error);
   }, []);
@@ -68,8 +74,9 @@ export default function Settings() {
   };
 
   const handleAddTarget = () => {
-    if (!newIp) return;
-    setTargets([...targets, { ip: newIp, port: parseInt(newPort) }]);
+    if (!newIp || !newName) return;
+    setTargets([...targets, { name: newName, ip: newIp, port: parseInt(newPort) }]);
+    setNewName('');
     setNewIp('');
   };
 
@@ -87,7 +94,8 @@ export default function Settings() {
           latitude: parseFloat(lat),
           longitude: parseFloat(lon),
           device_name: deviceName,
-          calibration_time: parseInt(calibrationTime)
+          calibration_time: parseInt(calibrationTime),
+          data_forwarding: dataForwarding
         })
       });
       if (res.ok) {
@@ -112,6 +120,7 @@ export default function Settings() {
       const data = await res.json();
       if (data.status === 'ok') {
         showWifiStatus('Wi-Fi Connected successfully.');
+        setActiveWifi(ssid);
       } else {
         showWifiStatus('Failed to connect: ' + data.message, true);
       }
@@ -127,6 +136,7 @@ export default function Settings() {
       if (res.ok) {
         setSsid('');
         setPassword('');
+        setActiveWifi(null);
         showWifiStatus('Wi-Fi Network Forgotten.');
       }
     } catch (e) {
@@ -278,6 +288,15 @@ export default function Settings() {
                 <Wifi size={16} className="mr-2" /> Wi-Fi Configuration
               </h3>
               <div className="space-y-4">
+                
+                {/* Active Connection Indicator */}
+                <div className="flex items-center space-x-2 bg-blue-50 border border-blue-100 px-4 py-2">
+                  <div className={`w-2 h-2 rounded-full ${activeWifi ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                  <span className="text-xs font-bold text-[#1a4162] font-mono tracking-wide">
+                    {activeWifi ? `CONNECTED TO: ${activeWifi}` : 'NOT CONNECTED'}
+                  </span>
+                </div>
+
                 <div>
                   <label className="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">SSID (Network Name)</label>
                   <input 
@@ -318,40 +337,70 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* Widget 2: UDP Targets */}
+            {/* Widget 2: Data Sharing (UDP Targets) */}
             <div className="bg-white border border-gray-200 p-6 shadow-sm flex flex-col h-full min-h-0">
-              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 flex items-center shrink-0">
-                <Target size={16} className="mr-2" /> UDP Target Servers
-              </h3>
-              <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-100 shrink-0">
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center">
+                  <Activity size={16} className="mr-2" /> Data Sharing
+                </h3>
+                
+                {/* Master Toggle */}
+                <div className="flex items-center space-x-3">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    Data Forwarding
+                  </span>
+                  <button 
+                    onClick={() => setDataForwarding(!dataForwarding)}
+                    className={`w-12 h-6 rounded-full p-1 transition-colors flex items-center ${dataForwarding ? 'bg-[#10B981]' : 'bg-gray-300'}`}
+                  >
+                    <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${dataForwarding ? 'translate-x-6' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+              </div>
+
+              <div className={`flex-1 flex flex-col min-h-0 transition-opacity ${!dataForwarding ? 'opacity-50 pointer-events-none' : ''}`}>
+                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 shrink-0">Data Cast IPs</h4>
+                
+                {/* Saved Targets List */}
                 <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2">
                   {targets.length === 0 ? (
                       <p className="text-sm text-gray-400 font-mono italic">No targets configured.</p>
                   ) : (
                       targets.map((t, i) => (
-                        <div key={i} className="flex items-center justify-between border border-gray-200 p-2 bg-gray-50">
-                          <div className="font-mono text-sm">
-                            <span className="font-bold text-gray-600">IP:</span> {t.ip} <span className="mx-2 text-gray-300">|</span> <span className="font-bold text-gray-600">PORT:</span> {t.port}
+                        <div key={i} className="flex flex-col border border-gray-200 p-3 bg-gray-50">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-bold text-primary text-sm uppercase tracking-wider">{t.name}</span>
+                            <button onClick={() => handleRemoveTarget(i)} className="text-gray-400 hover:text-red-600 transition-colors">
+                              <X size={16} />
+                            </button>
                           </div>
-                          <button onClick={() => handleRemoveTarget(i)} className="text-gray-400 hover:text-red-600 transition-colors">
-                            <X size={18} />
-                          </button>
+                          <div className="font-mono text-xs text-gray-600 flex items-center">
+                            <span className="font-bold mr-2">IP:</span> {t.ip} 
+                            <span className="mx-3 text-gray-300">|</span> 
+                            <span className="font-bold mr-2">PORT:</span> {t.port}
+                          </div>
                         </div>
                       ))
                   )}
                 </div>
+
+                {/* Add Target Form */}
                 <div className="shrink-0 space-y-4 pt-4 border-t border-gray-100">
                   <div className="flex space-x-2 items-end bg-gray-50 p-3 border border-gray-200">
                     <div className="flex-1">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Name</label>
+                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Main Server" className="w-full border border-gray-300 rounded-none px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
+                    </div>
+                    <div className="flex-1">
                       <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">IP Address</label>
-                      <input type="text" value={newIp} onChange={e => setNewIp(e.target.value)} placeholder="192.168.1.100" className="w-full border border-gray-300 rounded-none px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-sm" />
+                      <input type="text" value={newIp} onChange={e => setNewIp(e.target.value)} placeholder="192.168.1.50" className="w-full border border-gray-300 rounded-none px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
                     </div>
-                    <div className="w-24">
+                    <div className="w-20">
                       <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Port</label>
-                      <input type="number" value={newPort} onChange={e => setNewPort(e.target.value)} className="w-full border border-gray-300 rounded-none px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-sm" />
+                      <input type="number" value={newPort} onChange={e => setNewPort(e.target.value)} className="w-full border border-gray-300 rounded-none px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
                     </div>
-                    <button onClick={handleAddTarget} className="bg-gray-200 text-gray-700 hover:bg-gray-300 px-3 py-1.5 flex items-center font-bold text-xs uppercase transition-colors h-[34px]">
-                      <Plus size={14} className="mr-1" /> Add
+                    <button onClick={handleAddTarget} className="bg-gray-200 text-gray-700 hover:bg-gray-300 px-3 py-1.5 flex items-center font-bold text-xs uppercase transition-colors h-[30px]">
+                      <Plus size={14} />
                     </button>
                   </div>
                   

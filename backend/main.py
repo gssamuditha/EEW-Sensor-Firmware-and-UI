@@ -45,6 +45,7 @@ app.add_middleware(
 )
 
 class TargetModel(BaseModel):
+    name: str
     ip: str
     port: int
 
@@ -52,6 +53,7 @@ class SettingsModel(BaseModel):
     targets: list[TargetModel]
     latitude: float
     longitude: float
+    data_forwarding: bool = True
     device_name: str | None = None
     calibration_time: int | None = None
 
@@ -85,14 +87,31 @@ def api_system_restart():
     subprocess.Popen(["sudo", "reboot"])
     return {"status": "ok"}
 
+def get_active_wifi():
+    try:
+        result = subprocess.run(['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'], capture_output=True, text=True, timeout=2)
+        for line in result.stdout.split('\n'):
+            if line.startswith('yes:'):
+                return line.split('yes:')[1].strip()
+        return None
+    except Exception:
+        return None
+
 @app.get("/api/settings")
 def api_get_settings():
     s = get_settings()
-    targets_str = s.get("targets", '[{"ip": "127.0.0.1", "port": 2098}]')
+    targets_str = s.get("targets", '[{"name": "Main Server", "ip": "127.0.0.1", "port": 2098}]')
     try:
-        targets = json.loads(targets_str)
+        targets_raw = json.loads(targets_str)
+        targets = []
+        for t in targets_raw:
+            targets.append({
+                "name": t.get("name", "Unknown Node"),
+                "ip": t.get("ip", "127.0.0.1"),
+                "port": t.get("port", 2098)
+            })
     except Exception:
-        targets = [{"ip": "127.0.0.1", "port": 2098}]
+        targets = [{"name": "Main Server", "ip": "127.0.0.1", "port": 2098}]
         
     return {
         "targets": targets, 
@@ -101,16 +120,19 @@ def api_get_settings():
         "device_name": s.get("device_name", "CRISIS-NODE-01"),
         "calibration_time": int(s.get("calibration_time", 60)),
         "wifi_ssid": s.get("wifi_ssid", ""),
-        "wifi_password": s.get("wifi_password", "")
+        "wifi_password": s.get("wifi_password", ""),
+        "data_forwarding": s.get("data_forwarding", "true").lower() == "true",
+        "active_wifi": get_active_wifi()
     }
 
 @app.post("/api/settings")
 def api_set_settings(settings: SettingsModel):
-    targets_json = json.dumps([{"ip": t.ip, "port": t.port} for t in settings.targets])
+    targets_json = json.dumps([{"name": t.name, "ip": t.ip, "port": t.port} for t in settings.targets])
     settings_dict = {
         "targets": targets_json,
         "latitude": settings.latitude,
         "longitude": settings.longitude,
+        "data_forwarding": "true" if settings.data_forwarding else "false"
     }
     if settings.device_name is not None:
         settings_dict["device_name"] = settings.device_name
