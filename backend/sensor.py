@@ -270,6 +270,10 @@ class SensorManager:
                     targets = json.loads(targets_str)
                 except Exception:
                     targets = []
+                    
+                data_forwarding = True
+                if cached_settings:
+                    data_forwarding = cached_settings.get('data_forwarding', 'true').lower() == 'true'
 
                 if targets:
                     if len(udp_buffers[0]) == 0:
@@ -282,8 +286,9 @@ class SensorManager:
                         for i, name in enumerate(CHANNEL_NAMES):
                             packet = [name, timestamp] + udp_buffers[i]
                             data = str(packet).encode()
-                            for target in targets:
-                                self.sock.sendto(data, (target['ip'], target['port']))
+                            if data_forwarding:
+                                for target in targets:
+                                    self.sock.sendto(data, (target['ip'], target['port']))
                         udp_buffers = [[], [], []]
 
                 # Batch save to DB every 50 samples
