@@ -109,21 +109,6 @@ export default function Settings() {
     }
   };
 
-  const handleRecalibrate = async () => {
-    showStatus('Restarting sensor for recalibration...');
-    try {
-      const res = await fetch('/api/sensor/recalibrate', { method: 'POST' });
-      if (res.ok) {
-        showStatus('Sensor recalibration started successfully.');
-      } else {
-        showStatus('Error starting recalibration.', true);
-      }
-    } catch (e) {
-      console.error(e);
-      showStatus('Error starting recalibration.', true);
-    }
-  };
-
   const handleWifiConnect = async () => {
     showWifiStatus('Connecting to Wi-Fi...');
     try {
@@ -453,19 +438,13 @@ export default function Settings() {
                   <p className="text-xs text-gray-400 mt-2 font-mono">Recommended: 60 seconds</p>
                 </div>
 
-                <div className="flex space-x-4 pt-4 border-t border-gray-100">
+                <div className="flex justify-end pt-4 border-t border-gray-100">
                   <button 
                     onClick={handleSaveSettings}
-                    className="flex-1 bg-primary text-white font-bold tracking-widest uppercase py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity"
+                    className="bg-primary text-white font-bold tracking-widest uppercase px-6 py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity w-full"
                   >
                     <Save size={16} />
-                    <span>Save</span>
-                  </button>
-                  <button 
-                    onClick={handleRecalibrate}
-                    className="flex-1 bg-blue-50 text-blue-600 border border-blue-200 font-bold tracking-widest uppercase py-2 flex items-center justify-center hover:bg-blue-100 transition-colors"
-                  >
-                    <span>Recalibrate</span>
+                    <span>Save Calibration</span>
                   </button>
                 </div>
               </div>

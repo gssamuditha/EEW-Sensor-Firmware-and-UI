@@ -142,17 +142,6 @@ def api_set_settings(settings: SettingsModel):
     update_settings(settings_dict)
     return {"status": "ok"}
 
-@app.post("/api/sensor/recalibrate")
-def api_sensor_recalibrate():
-    try:
-        sensor_manager.stop()
-        # Sleep briefly to ensure socket is fully closed before rebinding
-        time.sleep(0.5)
-        sensor_manager.start()
-        return {"status": "ok"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
 def _check_internet():
     """Check if outbound internet connectivity is available."""
     try:
