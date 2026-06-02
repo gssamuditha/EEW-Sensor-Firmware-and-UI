@@ -233,6 +233,16 @@ if os.path.exists(frontend_dist_path):
     
     @app.get("/{catchall:path}")
     def serve_react_app(catchall: str):
+        # Prevent directory traversal
+        if ".." in catchall:
+            raise HTTPException(status_code=400, detail="Invalid path")
+            
+        # If the requested path is a specific file (like logo.png, favicon.svg) in the dist folder, serve it
+        if catchall:
+            file_path = os.path.join(frontend_dist_path, catchall)
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                return FileResponse(file_path)
+                
         # Serve index.html as a fallback for React Router
         index_path = os.path.join(frontend_dist_path, "index.html")
         if os.path.exists(index_path):
