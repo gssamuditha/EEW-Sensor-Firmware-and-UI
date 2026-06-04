@@ -76,7 +76,7 @@ def _get_active_ssid():
         return "Senz Cloud"  # mock for Windows dev
     try:
         result = subprocess.run(
-            ['sudo', 'nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'],
+            ['sudo', '/usr/bin/nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'],
             capture_output=True, text=True, timeout=5
         )
         for line in result.stdout.split('\n'):
@@ -98,7 +98,7 @@ def _get_saved_networks():
     try:
         active = _get_active_ssid()
         result = subprocess.run(
-            ['sudo', 'nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show'],
+            ['sudo', '/usr/bin/nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show'],
             capture_output=True, text=True, timeout=5
         )
         networks = []
@@ -127,18 +127,18 @@ def _delayed_wifi_switch(ssid, password=None):
         if password:
             # New network: use 'dev wifi connect' which creates a profile + connects
             subprocess.run(
-                ["sudo", "nmcli", "dev", "wifi", "connect", ssid, "password", password],
+                ["sudo", "/usr/bin/nmcli", "dev", "wifi", "connect", ssid, "password", password],
                 capture_output=True, text=True, timeout=30
             )
         else:
             # Saved network: try 'connection up' first (faster), fallback to 'dev wifi connect'
             result = subprocess.run(
-                ["sudo", "nmcli", "connection", "up", "id", ssid],
+                ["sudo", "/usr/bin/nmcli", "connection", "up", "id", ssid],
                 capture_output=True, text=True, timeout=30
             )
             if result.returncode != 0:
                 subprocess.run(
-                    ["sudo", "nmcli", "dev", "wifi", "connect", ssid],
+                    ["sudo", "/usr/bin/nmcli", "dev", "wifi", "connect", ssid],
                     capture_output=True, text=True, timeout=30
                 )
     except Exception:
@@ -197,7 +197,7 @@ def api_wifi_forget(wifi: WifiActionModel):
     
     try:
         result = subprocess.run(
-            ["sudo", "nmcli", "connection", "delete", "id", wifi.ssid],
+            ["sudo", "/usr/bin/nmcli", "connection", "delete", "id", wifi.ssid],
             capture_output=True, text=True, timeout=10
         )
         if result.returncode != 0:
@@ -209,7 +209,7 @@ def api_wifi_forget(wifi: WifiActionModel):
 
 @app.post("/api/system/restart")
 def api_system_restart():
-    subprocess.Popen(["sudo", "reboot"])
+    subprocess.Popen(["sudo", "/sbin/reboot"])
     return {"status": "ok"}
 
 @app.get("/api/settings")

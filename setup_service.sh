@@ -58,14 +58,18 @@ if [ -f "$REPO_DIR/backend/eew_sensor.db" ]; then
     sudo chmod 644 "$REPO_DIR/backend/eew_sensor.db"
 fi
 
-echo "Setting up passwordless sudo for nmcli (required for Wi-Fi management)..."
-# Allow the service user to run nmcli without a password prompt.
-# This is needed because systemd services have no interactive terminal
-# to type the sudo password into, causing all Wi-Fi commands to fail silently.
-SUDOERS_FILE="/etc/sudoers.d/eew-sensor-nmcli"
-sudo bash -c "echo '$USER ALL=(ALL) NOPASSWD: /usr/bin/nmcli' > $SUDOERS_FILE"
+echo "Setting up passwordless sudo for nmcli and reboot..."
+# Determine the real user (even if run via sudo)
+if [ -n "$SUDO_USER" ]; then
+    REALUSER="$SUDO_USER"
+else
+    REALUSER="$USER"
+fi
+
+SUDOERS_FILE="/etc/sudoers.d/eew-sensor-permissions"
+echo "$REALUSER ALL=(ALL) NOPASSWD: /usr/bin/nmcli, /bin/nmcli, /sbin/reboot, /usr/sbin/reboot" | sudo tee "$SUDOERS_FILE" > /dev/null
 sudo chmod 440 "$SUDOERS_FILE"
-echo "  -> $USER can now run 'sudo nmcli' without a password."
+echo "  -> $REALUSER can now run nmcli and reboot without a password."
 
 echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
