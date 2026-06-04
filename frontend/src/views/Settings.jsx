@@ -130,27 +130,15 @@ export default function Settings() {
       if (data.status === 'ok') {
         showWifiStatus('Wi-Fi Connected successfully.');
         setActiveWifi(ssid);
+        if (!savedNetworks.includes(ssid)) {
+          setSavedNetworks(prev => [...prev, ssid]);
+        }
       } else {
         showWifiStatus('Failed to connect: ' + data.message, true);
       }
     } catch (e) {
       console.error(e);
       showWifiStatus('Network error during Wi-Fi connect.', true);
-    }
-  };
-
-  const handleWifiForget = async () => {
-    try {
-      const res = await fetch('/api/wifi/forget', { method: 'POST' });
-      if (res.ok) {
-        setSsid('');
-        setPassword('');
-        setActiveWifi(null);
-        showWifiStatus('Wi-Fi Network Forgotten.');
-      }
-    } catch (e) {
-      console.error(e);
-      showWifiStatus('Failed to forget Wi-Fi.', true);
     }
   };
 
@@ -377,18 +365,12 @@ export default function Settings() {
                     {wifiStatus.msg}
                   </div>
                 )}
-                <div className="flex space-x-4 pt-4 border-t border-gray-100">
+                <div className="flex pt-4 border-t border-gray-100">
                   <button 
                     onClick={handleWifiConnect}
-                    className="flex-1 bg-primary text-white font-bold tracking-widest uppercase py-2 flex items-center justify-center hover:bg-opacity-90 transition-opacity"
+                    className="w-full bg-primary text-white font-bold tracking-widest uppercase py-2 flex items-center justify-center hover:bg-opacity-90 transition-opacity"
                   >
-                    Connect / Save
-                  </button>
-                  <button 
-                    onClick={handleWifiForget}
-                    className="flex-1 bg-red-50 text-red-600 border border-red-200 font-bold tracking-widest uppercase py-2 flex items-center justify-center hover:bg-red-100 transition-colors"
-                  >
-                    Forget Network
+                    Save
                   </button>
                 </div>
 
@@ -399,7 +381,7 @@ export default function Settings() {
                     <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
                       {savedNetworks.map((net, idx) => (
                         <div key={idx} className="flex items-center justify-between bg-gray-50 border border-gray-200 px-3 py-2">
-                          <span className="text-sm font-bold text-gray-700">{net}</span>
+                          <span className={`text-sm font-bold ${activeWifi === net ? 'text-green-600' : 'text-gray-700'}`}>{net}</span>
                           <div className="flex space-x-2">
                             <button 
                               onClick={() => handleWifiConnectSaved(net)}

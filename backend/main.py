@@ -123,7 +123,7 @@ def api_wifi_connect_saved(wifi: WifiActionModel):
                 error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
                 return {"status": "error", "message": error_msg}
             
-        update_settings({"wifi_ssid": wifi.ssid})
+        update_settings({"wifi_ssid": wifi.ssid, "wifi_password": ""})
         return {"status": "ok"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
