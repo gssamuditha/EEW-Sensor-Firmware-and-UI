@@ -40,6 +40,7 @@ export default function Settings() {
   
   const [dataForwarding, setDataForwarding] = useState(true);
   const [activeWifi, setActiveWifi] = useState(null);
+  const [savedNetworks, setSavedNetworks] = useState([]);
 
   const [status, setStatus] = useState(null);
   const [wifiStatus, setWifiStatus] = useState(null);
@@ -59,6 +60,13 @@ export default function Settings() {
         if (data.wifi_password) setPassword(data.wifi_password);
         if (data.active_wifi) setActiveWifi(data.active_wifi);
         if (data.data_forwarding !== undefined) setDataForwarding(data.data_forwarding);
+      })
+      .catch(console.error);
+
+    fetch('/api/wifi/saved')
+      .then(res => res.json())
+      .then(data => {
+        if (data.saved_networks) setSavedNetworks(data.saved_networks);
       })
       .catch(console.error);
   }, []);
@@ -138,6 +146,45 @@ export default function Settings() {
         setPassword('');
         setActiveWifi(null);
         showWifiStatus('Wi-Fi Network Forgotten.');
+      }
+    } catch (e) {
+      console.error(e);
+      showWifiStatus('Failed to forget Wi-Fi.', true);
+    }
+  };
+
+  const handleWifiConnectSaved = async (savedSsid) => {
+    showWifiStatus(`Connecting to ${savedSsid}...`);
+    try {
+      const res = await fetch('/api/wifi/connect_saved', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ssid: savedSsid })
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        showWifiStatus(`Connected to ${savedSsid} successfully.`);
+        setActiveWifi(savedSsid);
+      } else {
+        showWifiStatus('Failed to connect: ' + data.message, true);
+      }
+    } catch (e) {
+      console.error(e);
+      showWifiStatus('Network error during Wi-Fi connect.', true);
+    }
+  };
+
+  const handleWifiForgetSaved = async (savedSsid) => {
+    try {
+      const res = await fetch('/api/wifi/forget_saved', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ssid: savedSsid })
+      });
+      if (res.ok) {
+        setSavedNetworks(savedNetworks.filter(n => n !== savedSsid));
+        if (activeWifi === savedSsid) setActiveWifi(null);
+        showWifiStatus(`Network ${savedSsid} forgotten.`);
       }
     } catch (e) {
       console.error(e);
@@ -334,6 +381,35 @@ export default function Settings() {
                     Forget Network
                   </button>
                 </div>
+
+                {/* Saved Networks */}
+                {savedNetworks.length > 0 && (
+                  <div className="pt-4 border-t border-gray-100">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Saved Networks</h4>
+                    <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                      {savedNetworks.map((net, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-gray-50 border border-gray-200 px-3 py-2">
+                          <span className="text-sm font-bold text-gray-700">{net}</span>
+                          <div className="flex space-x-2">
+                            <button 
+                              onClick={() => handleWifiConnectSaved(net)}
+                              disabled={activeWifi === net}
+                              className={`px-3 py-1 text-xs font-bold uppercase ${activeWifi === net ? 'bg-gray-200 text-gray-400' : 'bg-primary text-white hover:bg-opacity-90'} transition-colors`}
+                            >
+                              {activeWifi === net ? 'Connected' : 'Connect'}
+                            </button>
+                            <button 
+                              onClick={() => handleWifiForgetSaved(net)}
+                              className="px-2 py-1 text-xs font-bold uppercase bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"
+                            >
+                              Forget
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -61,10 +61,21 @@ class WifiModel(BaseModel):
     ssid: str
     password: str
 
+class WifiActionModel(BaseModel):
+    ssid: str
+
 @app.post("/api/wifi/connect")
 def api_wifi_connect(wifi: WifiModel):
     try:
-        subprocess.run(["nmcli", "dev", "wifi", "connect", wifi.ssid, "password", wifi.password], check=True)
+        cmd = ["sudo", "nmcli", "dev", "wifi", "connect", wifi.ssid]
+        if wifi.password:
+            cmd.extend(["password", wifi.password])
+            
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+            return {"status": "error", "message": error_msg}
+            
         update_settings({"wifi_ssid": wifi.ssid, "wifi_password": wifi.password})
         return {"status": "ok"}
     except Exception as e:
@@ -76,8 +87,50 @@ def api_wifi_forget():
         s = get_settings()
         ssid = s.get("wifi_ssid")
         if ssid:
-            subprocess.run(["nmcli", "connection", "delete", "id", ssid])
+            subprocess.run(["sudo", "nmcli", "connection", "delete", "id", ssid], capture_output=True)
         update_settings({"wifi_ssid": "", "wifi_password": ""})
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/wifi/saved")
+def api_wifi_saved():
+    if sys.platform == 'win32':
+        return {"saved_networks": []}
+    try:
+        result = subprocess.run(['sudo', 'nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show'], capture_output=True, text=True)
+        saved = []
+        for line in result.stdout.split('\n'):
+            if '802-11-wireless' in line:
+                name = line.split(':')[0]
+                if name:
+                    saved.append(name)
+        return {"saved_networks": saved}
+    except Exception as e:
+        return {"saved_networks": []}
+
+@app.post("/api/wifi/connect_saved")
+def api_wifi_connect_saved(wifi: WifiActionModel):
+    try:
+        result = subprocess.run(["sudo", "nmcli", "connection", "up", "id", wifi.ssid], capture_output=True, text=True)
+        if result.returncode != 0:
+            error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+            return {"status": "error", "message": error_msg}
+            
+        update_settings({"wifi_ssid": wifi.ssid})
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/wifi/forget_saved")
+def api_wifi_forget_saved(wifi: WifiActionModel):
+    try:
+        subprocess.run(["sudo", "nmcli", "connection", "delete", "id", wifi.ssid], capture_output=True)
+        
+        s = get_settings()
+        if s.get("wifi_ssid") == wifi.ssid:
+            update_settings({"wifi_ssid": "", "wifi_password": ""})
+            
         return {"status": "ok"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -89,7 +142,7 @@ def api_system_restart():
 
 def get_active_wifi():
     try:
-        result = subprocess.run(['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'], capture_output=True, text=True, timeout=2)
+        result = subprocess.run(['sudo', 'nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'], capture_output=True, text=True, timeout=2)
         for line in result.stdout.split('\n'):
             if line.startswith('yes:'):
                 return line.split('yes:')[1].strip()
