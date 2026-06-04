@@ -96,12 +96,14 @@ def api_wifi_forget():
 @app.get("/api/wifi/saved")
 def api_wifi_saved():
     if sys.platform == 'win32':
-        return {"saved_networks": []}
+        # Provide mock data so the UI can be tested on Windows
+        return {"saved_networks": ["Senz Cloud", "Home Network"]}
     try:
         result = subprocess.run(['sudo', 'nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show'], capture_output=True, text=True)
         saved = []
         for line in result.stdout.split('\n'):
-            if '802-11-wireless' in line:
+            line_lower = line.lower()
+            if '802-11-wireless' in line_lower or 'wifi' in line_lower:
                 name = line.split(':')[0]
                 if name:
                     saved.append(name)
@@ -112,10 +114,14 @@ def api_wifi_saved():
 @app.post("/api/wifi/connect_saved")
 def api_wifi_connect_saved(wifi: WifiActionModel):
     try:
-        result = subprocess.run(["sudo", "nmcli", "connection", "up", "id", wifi.ssid], capture_output=True, text=True)
+        # First try device connect, which handles Wi-Fi discovery better
+        result = subprocess.run(["sudo", "nmcli", "dev", "wifi", "connect", wifi.ssid], capture_output=True, text=True)
         if result.returncode != 0:
-            error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
-            return {"status": "error", "message": error_msg}
+            # Fallback to direct connection up
+            result = subprocess.run(["sudo", "nmcli", "connection", "up", "id", wifi.ssid], capture_output=True, text=True)
+            if result.returncode != 0:
+                error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+                return {"status": "error", "message": error_msg}
             
         update_settings({"wifi_ssid": wifi.ssid})
         return {"status": "ok"}
