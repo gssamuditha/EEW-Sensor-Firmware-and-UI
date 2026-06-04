@@ -6,6 +6,7 @@ import json
 import psutil
 import socket
 import uuid
+import subprocess
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import StreamingResponse
@@ -18,7 +19,9 @@ from sensor import sensor_manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    sensor_manager.start()
+    # Run sensor init in a thread to avoid blocking the asyncio event loop
+    # (RealSensor.init_sensor sleeps ~11s, calibrate sleeps ~100s)
+    await asyncio.to_thread(sensor_manager.start)
     
     # Background task for cleanup
     async def cleanup_task():
@@ -42,6 +45,7 @@ app.add_middleware(
 )
 
 class TargetModel(BaseModel):
+    name: str
     ip: str
     port: int
 
@@ -49,27 +53,102 @@ class SettingsModel(BaseModel):
     targets: list[TargetModel]
     latitude: float
     longitude: float
+    data_forwarding: bool = True
+    device_name: str | None = None
+    calibration_time: int | None = None
+
+class WifiModel(BaseModel):
+    ssid: str
+    password: str
+
+@app.post("/api/wifi/connect")
+def api_wifi_connect(wifi: WifiModel):
+    try:
+        subprocess.run(["nmcli", "dev", "wifi", "connect", wifi.ssid, "password", wifi.password], check=True)
+        update_settings({"wifi_ssid": wifi.ssid, "wifi_password": wifi.password})
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/wifi/forget")
+def api_wifi_forget():
+    try:
+        s = get_settings()
+        ssid = s.get("wifi_ssid")
+        if ssid:
+            subprocess.run(["nmcli", "connection", "delete", "id", ssid])
+        update_settings({"wifi_ssid": "", "wifi_password": ""})
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/system/restart")
+def api_system_restart():
+    subprocess.Popen(["sudo", "reboot"])
+    return {"status": "ok"}
+
+def get_active_wifi():
+    try:
+        result = subprocess.run(['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'], capture_output=True, text=True, timeout=2)
+        for line in result.stdout.split('\n'):
+            if line.startswith('yes:'):
+                return line.split('yes:')[1].strip()
+        return None
+    except Exception:
+        return None
 
 @app.get("/api/settings")
 def api_get_settings():
     s = get_settings()
-    targets_str = s.get("targets", '[{"ip": "127.0.0.1", "port": 2098}]')
+    targets_str = s.get("targets", '[{"name": "Main Server", "ip": "127.0.0.1", "port": 2098}]')
     try:
-        targets = json.loads(targets_str)
-    except:
-        targets = [{"ip": "127.0.0.1", "port": 2098}]
+        targets_raw = json.loads(targets_str)
+        targets = []
+        for t in targets_raw:
+            targets.append({
+                "name": t.get("name", "Unknown Node"),
+                "ip": t.get("ip", "127.0.0.1"),
+                "port": t.get("port", 2098)
+            })
+    except Exception:
+        targets = [{"name": "Main Server", "ip": "127.0.0.1", "port": 2098}]
         
     return {
         "targets": targets, 
         "latitude": float(s.get("latitude", 0.0)),
-        "longitude": float(s.get("longitude", 0.0))
+        "longitude": float(s.get("longitude", 0.0)),
+        "device_name": s.get("device_name", "CRISIS-NODE-01"),
+        "calibration_time": int(s.get("calibration_time", 60)),
+        "wifi_ssid": s.get("wifi_ssid", ""),
+        "wifi_password": s.get("wifi_password", ""),
+        "data_forwarding": s.get("data_forwarding", "true").lower() == "true",
+        "active_wifi": get_active_wifi()
     }
 
 @app.post("/api/settings")
 def api_set_settings(settings: SettingsModel):
-    targets_json = json.dumps([{"ip": t.ip, "port": t.port} for t in settings.targets])
-    update_settings(targets_json, settings.latitude, settings.longitude)
+    targets_json = json.dumps([{"name": t.name, "ip": t.ip, "port": t.port} for t in settings.targets])
+    settings_dict = {
+        "targets": targets_json,
+        "latitude": settings.latitude,
+        "longitude": settings.longitude,
+        "data_forwarding": "true" if settings.data_forwarding else "false"
+    }
+    if settings.device_name is not None:
+        settings_dict["device_name"] = settings.device_name
+    if settings.calibration_time is not None:
+        settings_dict["calibration_time"] = settings.calibration_time
+        
+    update_settings(settings_dict)
     return {"status": "ok"}
+
+def _check_internet():
+    """Check if outbound internet connectivity is available."""
+    try:
+        socket.create_connection(("8.8.8.8", 53), timeout=2)
+        return True
+    except OSError:
+        return False
 
 @app.get("/api/system_status")
 def api_system_status():
@@ -102,7 +181,7 @@ def api_system_status():
             "uptime": uptime_str,
             "local_ip": ip,
             "mac_address": mac,
-            "internet_status": True,
+            "internet_status": _check_internet(),
             "server_status": True,
             "hardware_sps": sensor_manager.hardware_sps,
             "avg_sps": sensor_manager.avg_sps
@@ -154,6 +233,16 @@ if os.path.exists(frontend_dist_path):
     
     @app.get("/{catchall:path}")
     def serve_react_app(catchall: str):
+        # Prevent directory traversal
+        if ".." in catchall:
+            raise HTTPException(status_code=400, detail="Invalid path")
+            
+        # If the requested path is a specific file (like logo.png, favicon.svg) in the dist folder, serve it
+        if catchall:
+            file_path = os.path.join(frontend_dist_path, catchall)
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                return FileResponse(file_path)
+                
         # Serve index.html as a fallback for React Router
         index_path = os.path.join(frontend_dist_path, "index.html")
         if os.path.exists(index_path):

@@ -152,13 +152,21 @@ export default function LiveChart({ timeZone, updateSps, onChannelsFound, isExpa
     isPausedRef.current = isPaused;
   }, [isPaused]);
 
+  // Use refs for callbacks to keep WebSocket effect stable
+  const updateSpsRef = useRef(updateSps);
+  const onChannelsFoundRef = useRef(onChannelsFound);
+  const channelsInitializedRef = useRef(false);
+  
+  useEffect(() => { updateSpsRef.current = updateSps; }, [updateSps]);
+  useEffect(() => { onChannelsFoundRef.current = onChannelsFound; }, [onChannelsFound]);
+
   useEffect(() => {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     wsRef.current = new WebSocket(`${wsProtocol}//${window.location.host}/ws/stream`);
     
     let spsCounter = 0;
     const spsInterval = setInterval(() => {
-      if (updateSps) updateSps(spsCounter);
+      if (updateSpsRef.current) updateSpsRef.current(spsCounter);
       spsCounter = 0;
     }, 1000);
     
@@ -175,9 +183,10 @@ export default function LiveChart({ timeZone, updateSps, onChannelsFound, isExpa
       
       const newChannels = Object.keys(chData);
       
-      if (channels.length === 0 && newChannels.length > 0) {
+      if (!channelsInitializedRef.current && newChannels.length > 0) {
+        channelsInitializedRef.current = true;
         setChannels(newChannels);
-        if (onChannelsFound) onChannelsFound(newChannels);
+        if (onChannelsFoundRef.current) onChannelsFoundRef.current(newChannels);
         newChannels.forEach(ch => {
           dataRefs.current[ch] = [[], []];
           latestValues.current[ch] = 0;
@@ -189,7 +198,7 @@ export default function LiveChart({ timeZone, updateSps, onChannelsFound, isExpa
             dataRefs.current[ch] = [[], []];
             setChannels(prev => {
               const updated = [...prev, ch];
-              if (onChannelsFound) onChannelsFound(updated);
+              if (onChannelsFoundRef.current) onChannelsFoundRef.current(updated);
               return updated;
             });
         }
@@ -209,7 +218,7 @@ export default function LiveChart({ timeZone, updateSps, onChannelsFound, isExpa
       clearInterval(uiInterval);
       if (wsRef.current) wsRef.current.close();
     };
-  }, [updateSps, channels.length, onChannelsFound]);
+  }, []);  // Stable — runs once, no reconnect churn
 
   return (
     <div className="flex flex-col h-full overflow-hidden">

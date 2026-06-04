@@ -165,13 +165,18 @@ class SensorManager:
         self.running = False
         self.thread = None
         self.subscribers = []  # asyncio queues
+        self._sub_lock = threading.Lock()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.hardware_sps = 0
         self.avg_sps = 0
         
     def start(self):
+        from database import get_settings
+        settings = get_settings()
+        cal_time = int(settings.get('calibration_time', 60))
+        
         self.sensor.init_sensor()
-        self.sensor.calibrate()
+        self.sensor.calibrate(calibration_time_sec=cal_time)
         self.running = True
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
         self.thread.start()
@@ -180,13 +185,16 @@ class SensorManager:
         self.running = False
         if self.thread:
             self.thread.join()
+        self.sock.close()
             
     def subscribe(self, queue):
-        self.subscribers.append(queue)
+        with self._sub_lock:
+            self.subscribers.append(queue)
         
     def unsubscribe(self, queue):
-        if queue in self.subscribers:
-            self.subscribers.remove(queue)
+        with self._sub_lock:
+            if queue in self.subscribers:
+                self.subscribers.remove(queue)
             
     def _run_loop(self):
         from database import get_settings
@@ -220,17 +228,19 @@ class SensorManager:
                 sample_count += 1
 
                 # Push to websockets (evict oldest on overflow instead of dropping)
-                for q in self.subscribers:
+                with self._sub_lock:
+                    subs = list(self.subscribers)
+                for q in subs:
                     try:
                         q.put_nowait(record)
                     except asyncio.QueueFull:
                         try:
                             q.get_nowait()  # evict oldest
-                        except:
+                        except Exception:
                             pass
                         try:
                             q.put_nowait(record)
-                        except:
+                        except Exception:
                             pass
 
                 # SPS calculation per packet batch (matching ADXL354.py)
@@ -262,8 +272,12 @@ class SensorManager:
                 targets_str = cached_settings.get('targets', '[]') if cached_settings else '[]'
                 try:
                     targets = json.loads(targets_str)
-                except:
+                except Exception:
                     targets = []
+                    
+                data_forwarding = True
+                if cached_settings:
+                    data_forwarding = cached_settings.get('data_forwarding', 'true').lower() == 'true'
 
                 if targets:
                     if len(udp_buffers[0]) == 0:
@@ -276,8 +290,9 @@ class SensorManager:
                         for i, name in enumerate(CHANNEL_NAMES):
                             packet = [name, timestamp] + udp_buffers[i]
                             data = str(packet).encode()
-                            for target in targets:
-                                self.sock.sendto(data, (target['ip'], target['port']))
+                            if data_forwarding:
+                                for target in targets:
+                                    self.sock.sendto(data, (target['ip'], target['port']))
                         udp_buffers = [[], [], []]
 
                 # Batch save to DB every 50 samples
