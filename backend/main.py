@@ -6,7 +6,9 @@ import json
 import psutil
 import socket
 import uuid
+import sys
 import subprocess
+import threading
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import StreamingResponse
@@ -57,45 +59,158 @@ class SettingsModel(BaseModel):
     device_name: str | None = None
     calibration_time: int | None = None
 
-class WifiModel(BaseModel):
+class WifiConnectModel(BaseModel):
     ssid: str
-    password: str
+    password: str = ""
+
+class WifiActionModel(BaseModel):
+    ssid: str
+
+# ---------------------------------------------------------------------------
+# Wi-Fi Manager helpers
+# ---------------------------------------------------------------------------
+
+def _get_active_ssid():
+    """Return the SSID of the currently active Wi-Fi connection, or None."""
+    if sys.platform == 'win32':
+        return "Senz Cloud"  # mock for Windows dev
+    try:
+        result = subprocess.run(
+            ['sudo', '/usr/bin/nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'],
+            capture_output=True, text=True, timeout=5
+        )
+        for line in result.stdout.split('\n'):
+            if line.startswith('yes:'):
+                return line.split('yes:', 1)[1].strip()
+    except Exception:
+        pass
+    return None
+
+def _get_saved_networks():
+    """Return list of dicts: [{ssid, is_active}, ...]."""
+    if sys.platform == 'win32':
+        # Mock data for Windows development
+        active = "Senz Cloud"
+        return [
+            {"ssid": "Senz Cloud", "is_active": True},
+            {"ssid": "Home Network", "is_active": False},
+        ], active
+    try:
+        active = _get_active_ssid()
+        result = subprocess.run(
+            ['sudo', '/usr/bin/nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show'],
+            capture_output=True, text=True, timeout=5
+        )
+        networks = []
+        for line in result.stdout.split('\n'):
+            line_lower = line.lower()
+            if '802-11-wireless' in line_lower or ':wifi' in line_lower:
+                name = line.split(':')[0]
+                if name:
+                    networks.append({
+                        "ssid": name,
+                        "is_active": (name == active)
+                    })
+        return networks, active
+    except Exception:
+        return [], None
+
+def _delayed_wifi_switch(ssid, password=None):
+    """Execute the actual network switch after a delay.
+    
+    This runs in a background thread so the HTTP response can be sent first.
+    The 3-second delay gives the frontend time to receive the 200 OK and
+    display the network-switch modal before the Pi drops its current connection.
+    """
+    time.sleep(3)
+    try:
+        if password:
+            # New network: use 'dev wifi connect' which creates a profile + connects
+            subprocess.run(
+                ["sudo", "/usr/bin/nmcli", "dev", "wifi", "connect", ssid, "password", password],
+                capture_output=True, text=True, timeout=30
+            )
+        else:
+            # Saved network: try 'connection up' first (faster), fallback to 'dev wifi connect'
+            result = subprocess.run(
+                ["sudo", "/usr/bin/nmcli", "connection", "up", "id", ssid],
+                capture_output=True, text=True, timeout=30
+            )
+            if result.returncode != 0:
+                subprocess.run(
+                    ["sudo", "/usr/bin/nmcli", "dev", "wifi", "connect", ssid],
+                    capture_output=True, text=True, timeout=30
+                )
+    except Exception:
+        pass  # Nothing we can do — the frontend is already disconnected
+
+# ---------------------------------------------------------------------------
+# Wi-Fi API endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/wifi/networks")
+def api_wifi_networks():
+    """Return all saved Wi-Fi profiles and flag which one is currently active."""
+    networks, active_ssid = _get_saved_networks()
+    return {"networks": networks, "active_ssid": active_ssid}
 
 @app.post("/api/wifi/connect")
-def api_wifi_connect(wifi: WifiModel):
-    try:
-        subprocess.run(["nmcli", "dev", "wifi", "connect", wifi.ssid, "password", wifi.password], check=True)
-        update_settings({"wifi_ssid": wifi.ssid, "wifi_password": wifi.password})
-        return {"status": "ok"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+def api_wifi_connect(wifi: WifiConnectModel):
+    """Save a new Wi-Fi network and initiate connection (with graceful delay)."""
+    if not wifi.ssid:
+        return {"status": "error", "message": "SSID is required"}
+    if not wifi.password:
+        return {"status": "error", "message": "Password is required"}
+    
+    # Respond immediately, then switch in background
+    threading.Thread(
+        target=_delayed_wifi_switch,
+        args=(wifi.ssid, wifi.password),
+        daemon=True
+    ).start()
+    
+    return {"status": "ok", "message": f"Connecting to {wifi.ssid}..."}
+
+@app.post("/api/wifi/connect_saved")
+def api_wifi_connect_saved(wifi: WifiActionModel):
+    """Switch to a previously saved Wi-Fi network (with graceful delay)."""
+    if not wifi.ssid:
+        return {"status": "error", "message": "SSID is required"}
+    
+    # Respond immediately, then switch in background
+    threading.Thread(
+        target=_delayed_wifi_switch,
+        args=(wifi.ssid,),
+        daemon=True
+    ).start()
+    
+    return {"status": "ok", "message": f"Connecting to {wifi.ssid}..."}
 
 @app.post("/api/wifi/forget")
-def api_wifi_forget():
+def api_wifi_forget(wifi: WifiActionModel):
+    """Delete a saved Wi-Fi network profile."""
+    if not wifi.ssid:
+        return {"status": "error", "message": "SSID is required"}
+    
+    if sys.platform == 'win32':
+        return {"status": "ok"}
+    
     try:
-        s = get_settings()
-        ssid = s.get("wifi_ssid")
-        if ssid:
-            subprocess.run(["nmcli", "connection", "delete", "id", ssid])
-        update_settings({"wifi_ssid": "", "wifi_password": ""})
+        result = subprocess.run(
+            ["sudo", "/usr/bin/nmcli", "connection", "delete", "id", wifi.ssid],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+            return {"status": "error", "message": error_msg}
         return {"status": "ok"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @app.post("/api/system/restart")
 def api_system_restart():
-    subprocess.Popen(["sudo", "reboot"])
+    subprocess.Popen(["sudo", "/sbin/reboot"])
     return {"status": "ok"}
-
-def get_active_wifi():
-    try:
-        result = subprocess.run(['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'], capture_output=True, text=True, timeout=2)
-        for line in result.stdout.split('\n'):
-            if line.startswith('yes:'):
-                return line.split('yes:')[1].strip()
-        return None
-    except Exception:
-        return None
 
 @app.get("/api/settings")
 def api_get_settings():
@@ -119,10 +234,8 @@ def api_get_settings():
         "longitude": float(s.get("longitude", 0.0)),
         "device_name": s.get("device_name", "CRISIS-NODE-01"),
         "calibration_time": int(s.get("calibration_time", 60)),
-        "wifi_ssid": s.get("wifi_ssid", ""),
-        "wifi_password": s.get("wifi_password", ""),
         "data_forwarding": s.get("data_forwarding", "true").lower() == "true",
-        "active_wifi": get_active_wifi()
+        "active_wifi": _get_active_ssid()
     }
 
 @app.post("/api/settings")

@@ -58,6 +58,19 @@ if [ -f "$REPO_DIR/backend/eew_sensor.db" ]; then
     sudo chmod 644 "$REPO_DIR/backend/eew_sensor.db"
 fi
 
+echo "Setting up passwordless sudo for nmcli and reboot..."
+# Determine the real user (even if run via sudo)
+if [ -n "$SUDO_USER" ]; then
+    REALUSER="$SUDO_USER"
+else
+    REALUSER="$USER"
+fi
+
+SUDOERS_FILE="/etc/sudoers.d/eew-sensor-permissions"
+echo "$REALUSER ALL=(ALL) NOPASSWD: /usr/bin/nmcli, /bin/nmcli, /sbin/reboot, /usr/sbin/reboot" | sudo tee "$SUDOERS_FILE" > /dev/null
+sudo chmod 440 "$SUDOERS_FILE"
+echo "  -> $REALUSER can now run nmcli and reboot without a password."
+
 echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
 
