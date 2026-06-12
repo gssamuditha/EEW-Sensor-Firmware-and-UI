@@ -76,7 +76,38 @@ function ChannelPlot({ channelName, timeZone, dataRef, gapsRef, latestValue, tic
       },
       series: [
         { label: 'Time' },
-        { label: channelName, stroke: '#1a4162', width: 1.2, spanGaps: false }
+        {
+          label: channelName,
+          stroke: '#1a4162',
+          width: 1.2,
+          spanGaps: false,
+          // Custom path builder: explicitly breaks the line at null Y values.
+          // This guarantees gaps render as clean breaks regardless of uPlot version.
+          paths: (u, seriesIdx, idx0, idx1) => {
+            const xData = u.data[0];
+            const yData = u.data[seriesIdx];
+            let stroke = new Path2D();
+            let drawing = false;
+
+            for (let i = idx0; i <= idx1; i++) {
+              const yVal = yData[i];
+              if (yVal === null || yVal === undefined) {
+                drawing = false;
+                continue;
+              }
+              const cx = Math.round(u.valToPos(xData[i], 'x', true));
+              const cy = Math.round(u.valToPos(yVal,     'y', true));
+              if (!drawing) {
+                stroke.moveTo(cx, cy);
+                drawing = true;
+              } else {
+                stroke.lineTo(cx, cy);
+              }
+            }
+
+            return { stroke, fill: null, clip: null };
+          },
+        }
       ],
       axes: [
         {
