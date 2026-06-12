@@ -19,12 +19,6 @@ function ChannelPlot({ channelName, timeZone, dataRef, gapsRef, latestValue, tic
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const getColor = (name) => {
-      if (name.includes('Z')) return '#dc2626'; // red-600
-      if (name.includes('N')) return '#0d9488'; // teal-600
-      return '#ca8a04';                          // yellow-600
-    };
-
     const opts = {
       width: containerRef.current.clientWidth,
       height: containerRef.current.clientHeight,
@@ -82,7 +76,7 @@ function ChannelPlot({ channelName, timeZone, dataRef, gapsRef, latestValue, tic
       },
       series: [
         { label: 'Time' },
-        { label: channelName, stroke: getColor(channelName), width: 1.2 }
+        { label: channelName, stroke: '#1a4162', width: 1.2, spanGaps: false }
       ],
       axes: [
         {
