@@ -324,16 +324,32 @@ def api_export(start: float, end: float):
 @app.websocket("/ws/stream")
 async def websocket_stream(websocket: WebSocket):
     await websocket.accept()
-    queue = asyncio.Queue(maxsize=1000)
+    # 50 batches × 25 samples = ~12.5 s of backlog before drops
+    queue = asyncio.Queue(maxsize=50)
     sensor_manager.subscribe(queue)
     try:
         while True:
-            t, z, x, y = await queue.get()
-            await websocket.send_json({"t": t, "ENZ": z, "ENN": x, "ENE": y})
+            batch = await queue.get()
+            await websocket.send_json(batch)
     except WebSocketDisconnect:
         pass
     finally:
         sensor_manager.unsubscribe(queue)
+
+@app.get("/api/stream/stats")
+def api_stream_stats():
+    """Returns WebSocket batch delivery stats for client-side health monitoring."""
+    total = sensor_manager._ws_batches_sent + sensor_manager._ws_batches_dropped
+    drop_rate = (
+        sensor_manager._ws_batches_dropped / total * 100 if total > 0 else 0.0
+    )
+    return {
+        "batches_sent": sensor_manager._ws_batches_sent,
+        "batches_dropped": sensor_manager._ws_batches_dropped,
+        "drop_rate_pct": round(drop_rate, 2),
+        "hardware_sps": sensor_manager.hardware_sps,
+        "avg_sps": sensor_manager.avg_sps,
+    }
 
 import os
 from fastapi.staticfiles import StaticFiles

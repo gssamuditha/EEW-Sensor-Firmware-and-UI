@@ -169,6 +169,8 @@ class SensorManager:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.hardware_sps = 0
         self.avg_sps = 0
+        self._ws_batches_sent = 0
+        self._ws_batches_dropped = 0
         
     def start(self):
         from database import get_settings
@@ -198,17 +200,19 @@ class SensorManager:
             
     def _run_loop(self):
         from database import get_settings
-        buffer = []
-        udp_buffers = [[], [], []]
+        buffer = []              # DB write buffer
+        udp_buffers = [[], [], []]  # UDP forwarding buffers (one per channel)
+        ws_buffers = {ch: [] for ch in CHANNEL_NAMES}  # WS batch buffers
+        ws_batch_start_time = None  # timestamp of first sample in current WS batch
 
-        # SPS tracking (matching ADXL354.py)
+        # SPS tracking — mirrors ADXL354.py stream_udp()
         total_samples = 0
         total_time = 0
         packet_start_time = None
         sample_count = 0
 
         # Precise 100 SPS timing
-        target_interval = 1.0 / 100  # 10ms per sample
+        target_interval = 1.0 / 100  # 10 ms per sample
 
         # Cache settings to avoid DB hit every sample
         cached_settings = None
@@ -218,32 +222,26 @@ class SensorManager:
             try:
                 loop_start = time.monotonic()
 
-                # Track packet timing
+                # --- First sample of a new batch: capture start time ---
                 if sample_count == 0:
                     packet_start_time = time.time()
+                    ws_batch_start_time = None  # set on actual first read below
 
                 t, z, x, y = self.sensor.read_all()
                 record = (t, z, x, y)
                 buffer.append(record)
                 sample_count += 1
 
-                # Push to websockets (evict oldest on overflow instead of dropping)
-                with self._sub_lock:
-                    subs = list(self.subscribers)
-                for q in subs:
-                    try:
-                        q.put_nowait(record)
-                    except asyncio.QueueFull:
-                        try:
-                            q.get_nowait()  # evict oldest
-                        except Exception:
-                            pass
-                        try:
-                            q.put_nowait(record)
-                        except Exception:
-                            pass
+                # Record the wall-clock time of the very first sample in this WS batch
+                if ws_batch_start_time is None:
+                    ws_batch_start_time = t
 
-                # SPS calculation per packet batch (matching ADXL354.py)
+                # Accumulate into per-channel WS buffers
+                ws_vals = {'ENZ': z, 'ENN': x, 'ENE': y}
+                for ch in CHANNEL_NAMES:
+                    ws_buffers[ch].append(ws_vals[ch])
+
+                # --- When a full batch of SAMPLES_PER_PACKET is ready ---
                 if sample_count >= SAMPLES_PER_PACKET:
                     end_time = time.time()
                     elapsed = end_time - packet_start_time
@@ -260,21 +258,44 @@ class SensorManager:
                     for name in CHANNEL_NAMES:
                         print(f"   {name}: {sps:.2f} samples/sec (current), {overall_sps:.2f} samples/sec (avg)")
 
+                    # Build batch WebSocket message (same structure as ADXL354.py UDP packet:
+                    #   channel_name, start_timestamp, [samples...]  — but for all channels at once)
+                    batch_msg = {
+                        "t_start": ws_batch_start_time,
+                        "sps": 100,
+                        "samples": {ch: list(ws_buffers[ch]) for ch in CHANNEL_NAMES}
+                    }
+
+                    # Push to all WebSocket subscribers — skip silently if a client is congested
+                    with self._sub_lock:
+                        subs = list(self.subscribers)
+                    for q in subs:
+                        try:
+                            q.put_nowait(batch_msg)
+                            self._ws_batches_sent += 1
+                        except asyncio.QueueFull:
+                            self._ws_batches_dropped += 1
+                            print(f"WS queue full — batch dropped (total dropped: {self._ws_batches_dropped})")
+
+                    # Clear WS buffers for next batch
+                    for ch in CHANNEL_NAMES:
+                        ws_buffers[ch] = []
+                    ws_batch_start_time = None
                     sample_count = 0
 
-                # Refresh settings cache every 5 seconds (not every sample)
+                # Refresh settings cache every 5 seconds
                 now_mono = time.monotonic()
                 if now_mono - settings_refresh_time > 5.0:
                     cached_settings = get_settings()
                     settings_refresh_time = now_mono
 
-                # Prepare UDP
+                # --- UDP forwarding (unchanged from ADXL354.py pattern) ---
                 targets_str = cached_settings.get('targets', '[]') if cached_settings else '[]'
                 try:
                     targets = json.loads(targets_str)
                 except Exception:
                     targets = []
-                    
+
                 data_forwarding = True
                 if cached_settings:
                     data_forwarding = cached_settings.get('data_forwarding', 'true').lower() == 'true'
@@ -303,14 +324,13 @@ class SensorManager:
                 # Precise rate limiting: hybrid sleep + busy-wait for exact 100 SPS
                 remaining = target_interval - (time.monotonic() - loop_start)
                 if remaining > 0.002:
-                    time.sleep(remaining - 0.001)  # coarse sleep, leave 1ms margin
+                    time.sleep(remaining - 0.001)
                 while (time.monotonic() - loop_start) < target_interval:
-                    pass  # busy-wait the final sub-ms for precision
+                    pass
 
             except Exception as e:
                 print(f"Sensor read error: {e}")
                 time.sleep(1)
-                next_sample_time = time.monotonic()
 
 # Global manager instance
 sensor_manager = SensorManager(use_mock=sys.platform == 'win32')
