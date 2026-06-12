@@ -1,8 +1,8 @@
 # EEW Sensor Firmware & UI
 
-A real-time **Earthquake Early Warning (EEW)** sensor system built for deployment on a **Raspberry Pi 4**. The system reads triaxial acceleration data from an **ADXL354** accelerometer via SPI-connected ADCs, streams it over WebSocket, stores it in a local SQLite database, and visualizes it through a React-based dashboard — all served from a single FastAPI backend.
+A real-time **Earthquake Early Warning (EEW)** sensor system built for deployment on a **Raspberry Pi**. The system reads triaxial acceleration data from an **ADXL354** accelerometer via SPI-connected ADCs, streams it over WebSocket, stores it in a local SQLite database, and visualizes it through a React-based dashboard — all served from a single FastAPI backend.
 
-> **Developed at [CRISiS Lab](https://crisis.lk)**
+> **Developed at [CRISiS Lab](https://www.crisislab.org.nz/) and [SLIIT](https://www.sliit.lk/)**
 
 ---
 
@@ -38,40 +38,8 @@ A real-time **Earthquake Early Warning (EEW)** sensor system built for deploymen
 
 ## Architecture Overview
 
-```
-┌──────────────────────────────────────────────────────────┐
-│                     Raspberry Pi 4                       │
-│                                                          │
-│  ┌───────────┐    SPI Bus     ┌──────────────────────┐   │
-│  │  ADXL354  │───────────────▶│  3× ADS1220 ADCs     │   │
-│  │  Accel.   │    CS/DRDY     │  (24-bit, 100 SPS)   │   │
-│  └───────────┘    GPIO Pins   └──────────┬───────────┘   │
-│                                          │               │
-│                               ┌──────────▼───────────┐   │
-│                               │   sensor.py          │   │
-│                               │   (SPI Reader Thread)│   │
-│                               └──────────┬───────────┘   │
-│                                          │               │
-│                          ┌───────────────┼───────────┐   │
-│                          ▼               ▼           ▼   │
-│                    ┌──────────┐   ┌──────────┐  ┌──────┐ │
-│                    │ WebSocket│   │ SQLite DB│  │ UDP  │ │
-│                    │ Broadcast│   │ Storage  │  │ Relay│ │
-│                    └────┬─────┘   └──────────┘  └──────┘ │
-│                         │                                │
-│              ┌──────────▼───────────┐                    │
-│              │    FastAPI Server    │                    │
-│              │   (main.py:8000)     │                    │
-│              │  + Static Files      │                    │
-│              └──────────┬───────────┘                    │
-│                         │                                │
-└─────────────────────────┼────────────────────────────────┘
-                          │ HTTP / WS
-                ┌─────────▼──────────┐
-                │   React Dashboard  │
-                │   (Browser/LAN)    │
-                └────────────────────┘
-```
+![Alt text for the image](docs\Architecture_diagram.png)
+
 
 ---
 
@@ -202,8 +170,6 @@ Built with **React 19**, **Tailwind CSS v4**, **uPlot** for charts, and **Vite**
 
 The **original standalone** sensor firmware — predates the FastAPI architecture. Reads the same hardware, streams data via UDP only, with no web UI. **This file is superseded by `backend/sensor.py`** but is kept for reference.
 
-> ⚠️ **Note:** This file contains a syntax bug (missing comma in the IP list at line 194-195) that causes silent string concatenation. Do not use in production.
-
 ---
 
 ### Deployment Scripts
@@ -223,11 +189,9 @@ A bash script that:
 
 | Component | Specification |
 |-----------|--------------|
-| **SBC** | Raspberry Pi 4 Model B (4GB+ RAM recommended) |
-| **Accelerometer** | Analog Devices ADXL354 (±2g/±4g/±8g, low noise) |
-| **ADCs** | 3× Texas Instruments ADS1220 (24-bit, SPI) |
+| **SBC** | Raspberry Pi 3 Model B (4GB+ RAM recommended) |
 | **Power** | 5V 3A USB-C (official Raspberry Pi power supply recommended) |
-| **Storage** | 16GB+ microSD (Class 10 / A2 recommended) |
+| **Storage** | 8GB+ microSD (Class 10 / A2 recommended) |
 | **Network** | Ethernet or Wi-Fi for dashboard access |
 
 ---
@@ -419,16 +383,16 @@ chmod +x setup_service.sh
 ```
 
 This script will:
-- ✅ Create a systemd service file at `/etc/systemd/system/eew-sensor.service`
-- ✅ Set the working directory to `backend/`
-- ✅ Run uvicorn on **port 80** (standard HTTP — no port number needed in browser)
-- ✅ Grant the `CAP_NET_BIND_SERVICE` capability (allows non-root binding to port 80)
-- ✅ Configure `Restart=always` with a 5-second delay
-- ✅ Enable the service to start on every boot
+- Create a systemd service file at `/etc/systemd/system/eew-sensor.service`
+- Set the working directory to `backend/`
+- Run uvicorn on **port 80** (standard HTTP — no port number needed in browser)
+- Grant the `CAP_NET_BIND_SERVICE` capability (allows non-root binding to port 80)
+- Configure `Restart=always` with a 5-second delay
+- Enable the service to start on every boot
 
 After running, the dashboard is accessible at:
 ```
-http://eew-sensor.local
+http://cl.local
 ```
 
 ### Manual systemd Configuration
@@ -572,6 +536,7 @@ This means the ADC data-ready pin didn't assert within 150ms. Check:
 ### Can't Access Dashboard from Another Device
 
 - Ensure both devices are on the same network
+- Log in to the Pi and check the logs: `sudo journalctl -u eew-sensor.service -f`
 - Check the Pi's IP: `hostname -I`
 - Verify the service is listening: `ss -tlnp | grep 80`
 - Try accessing by IP directly: `http://192.168.x.x`
@@ -580,4 +545,4 @@ This means the ADC data-ready pin didn't assert within 150ms. Check:
 
 ## License
 
-This project is developed by CRISiS Lab for research purposes.
+This project is developed by CRISiS Lab and SLIIT for research purposes.
