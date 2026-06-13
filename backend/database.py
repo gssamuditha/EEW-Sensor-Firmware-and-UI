@@ -1,23 +1,92 @@
 import sqlite3
 import time
+import queue
+import threading
 from threading import Lock
 
 DB_PATH = "eew_sensor.db"
 db_lock = Lock()
 
+# --- Background DB writer ---------------------------------------------------
+# The sensor loop must never block on disk I/O.  All writes go through a
+# thread-safe queue and are flushed by a dedicated writer thread.
+_db_write_queue = queue.Queue()
+_writer_running = False
+
+def _db_writer_loop():
+    """Drain _db_write_queue and write batches to SQLite in the background."""
+    while _writer_running:
+        try:
+            batch = _db_write_queue.get(timeout=1.0)
+        except queue.Empty:
+            continue
+        try:
+            with db_lock:
+                with sqlite3.connect(DB_PATH) as conn:
+                    cursor = conn.cursor()
+                    cursor.executemany('''
+                        INSERT INTO sensor_data (timestamp, z, x, y)
+                        VALUES (?, ?, ?, ?)
+                    ''', batch)
+                    conn.commit()
+        except Exception as e:
+            print(f"DB write error: {e}")
+
+def start_db_writer():
+    """Start the background DB writer thread.  Called once at startup."""
+    global _writer_running
+    _writer_running = True
+    t = threading.Thread(target=_db_writer_loop, daemon=True, name="db-writer")
+    t.start()
+
+def stop_db_writer():
+    global _writer_running
+    _writer_running = False
+
+# -----------------------------------------------------------------------------
+
 def init_db():
     with db_lock:
         with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS sensor_data (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp REAL,
-                    z REAL,
-                    x REAL,
-                    y REAL
-                )
-            ''')
+
+            # Check if the existing sensor_data table has the correct schema.
+            # If the timestamp column was created as INTEGER (older versions),
+            # we need to migrate it to REAL so float precision is preserved.
+            cursor.execute("PRAGMA table_info(sensor_data)")
+            columns = {row[1]: row[2] for row in cursor.fetchall()}
+
+            if 'timestamp' in columns and columns['timestamp'].upper() != 'REAL':
+                print(f"⚠️  Migrating sensor_data.timestamp from {columns['timestamp']} → REAL")
+                cursor.execute('ALTER TABLE sensor_data RENAME TO sensor_data_old')
+                cursor.execute('''
+                    CREATE TABLE sensor_data (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp REAL,
+                        z REAL,
+                        x REAL,
+                        y REAL
+                    )
+                ''')
+                cursor.execute('''
+                    INSERT INTO sensor_data (id, timestamp, z, x, y)
+                    SELECT id, CAST(timestamp AS REAL), z, x, y
+                    FROM sensor_data_old
+                ''')
+                cursor.execute('DROP TABLE sensor_data_old')
+                print("✅  Migration complete.")
+            elif 'timestamp' not in columns:
+                # Fresh install — create the table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS sensor_data (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp REAL,
+                        z REAL,
+                        x REAL,
+                        y REAL
+                    )
+                ''')
+
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS settings (
                     key TEXT PRIMARY KEY,
@@ -33,16 +102,14 @@ def init_db():
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_timestamp ON sensor_data(timestamp)')
             conn.commit()
 
+    # Start the background writer after schema is ready
+    start_db_writer()
+
 def insert_batch(records):
-    # records is list of (timestamp, z, x, y)
-    with db_lock:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.executemany('''
-                INSERT INTO sensor_data (timestamp, z, x, y)
-                VALUES (?, ?, ?, ?)
-            ''', records)
-            conn.commit()
+    """Queue a batch for async DB write.  Never blocks the caller."""
+    # Ensure timestamps are float (guards against any int truncation)
+    safe_records = [(float(t), z, x, y) for t, z, x, y in records]
+    _db_write_queue.put(safe_records)
 
 def cleanup_old_data():
     # 24 hours = 86400 seconds

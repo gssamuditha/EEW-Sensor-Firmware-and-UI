@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from database import init_db, cleanup_old_data, get_data_for_export, get_settings, update_settings
+from database import init_db, cleanup_old_data, get_data_for_export, get_settings, update_settings, stop_db_writer
 from sensor import sensor_manager
 
 @asynccontextmanager
@@ -34,6 +34,7 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(cleanup_task())
     yield
     sensor_manager.stop()
+    stop_db_writer()
     task.cancel()
 
 app = FastAPI(lifespan=lifespan)
@@ -313,9 +314,9 @@ def api_export(start: float, end: float):
     writer = csv.writer(output, lineterminator='\n')
     writer.writerow(["time", "ENZ", "ENN", "ENE"])
     for row in data:
-        # row: timestamp, z, x, y
+        # row: timestamp, z, x, y — cast timestamp to float in case DB stored as int
         t, z, x, y = row
-        writer.writerow([f"{t:.6f}", f"{z:.6f}", f"{x:.6f}", f"{y:.6f}"])
+        writer.writerow([f"{float(t):.6f}", f"{z:.6f}", f"{x:.6f}", f"{y:.6f}"])
         
     response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
     response.headers["Content-Disposition"] = f"attachment; filename=eew_export_{int(time.time())}.csv"

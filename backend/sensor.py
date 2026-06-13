@@ -35,7 +35,7 @@ class MockSensor:
     def init_sensor(self):
         print("Mock sensor initialized")
         
-    def calibrate(self):
+    def calibrate(self, calibration_time_sec=1):
         print("Mock sensor calibrated")
         time.sleep(1)
         
