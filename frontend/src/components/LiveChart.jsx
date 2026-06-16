@@ -232,8 +232,7 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
         });
       }
 
-      if (isPausedRef.current) return;
-
+      // Removed isPausedRef early return to allow data to accumulate in the background
       channelNames.forEach(ch => {
         if (!dataRefs.current[ch]) {
           dataRefs.current[ch] = [];
@@ -331,13 +330,13 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
   const statusBadge = () => {
     if (connectionStatus === 'connected') return null;
     const cfg = {
-      connecting: { bg: 'bg-yellow-100 border-yellow-300 text-yellow-800', label: 'Connecting…' },
-      no_data: { bg: 'bg-orange-100 border-orange-300 text-orange-800', label: '⚠ No Data' },
-      disconnected: { bg: 'bg-red-100   border-red-300   text-red-800', label: '✕ Disconnected — retrying…' },
+      connecting: { bg: 'bg-white border-yellow-200 text-yellow-600', label: 'Connecting…' },
+      no_data: { bg: 'bg-white border-orange-200 text-orange-600', label: 'No Data' },
+      disconnected: { bg: 'bg-white border-red-200 text-red-600', label: 'Disconnected — retrying…' },
     }[connectionStatus];
     if (!cfg) return null;
     return (
-      <div className={`absolute top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded-full border text-[10px] font-bold shadow-sm ${cfg.bg}`}>
+      <div className={`absolute top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded border text-[10px] font-bold shadow-sm transition-colors ${cfg.bg}`}>
         {cfg.label}
       </div>
     );

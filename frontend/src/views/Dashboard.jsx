@@ -77,12 +77,12 @@ export default function Dashboard() {
         <div className="flex items-center space-x-3">
           <h2 className="text-xl font-bold text-primary tracking-wide">LIVE TELEMETRY</h2>
           {/* Sensor-side (hardware) SPS */}
-          <div className="px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full border border-green-200 shadow-sm flex items-center space-x-2">
+          <div className="px-3 py-1 bg-white text-gray-600 text-xs font-bold rounded border border-gray-200 shadow-sm flex items-center space-x-2">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            <span>HW {systemStats.hardware_sps} sps</span>
+            <span>SENSOR {systemStats.hardware_sps} sps</span>
           </div>
           {/* Client-side (browser) SPS */}
-          <div className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full border border-blue-200 shadow-sm flex items-center space-x-2">
+          <div className="px-3 py-1 bg-white text-gray-600 text-xs font-bold rounded border border-gray-200 shadow-sm flex items-center space-x-2">
             <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
             <span>CLIENT {clientSps} sps</span>
           </div>
