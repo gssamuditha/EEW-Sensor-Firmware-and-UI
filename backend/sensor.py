@@ -217,6 +217,8 @@ class SensorManager:
         # Cache settings to avoid DB hit every sample
         cached_settings = None
         settings_refresh_time = 0
+        cached_targets = []
+        cached_data_forwarding = True
 
         while self.running:
             try:
@@ -288,19 +290,18 @@ class SensorManager:
                 if now_mono - settings_refresh_time > 5.0:
                     cached_settings = get_settings()
                     settings_refresh_time = now_mono
+                    
+                    targets_str = cached_settings.get('targets', '[]') if cached_settings else '[]'
+                    try:
+                        cached_targets = json.loads(targets_str)
+                    except Exception:
+                        cached_targets = []
+                        
+                    if cached_settings:
+                        cached_data_forwarding = cached_settings.get('data_forwarding', 'true').lower() == 'true'
 
                 # --- UDP forwarding (unchanged from ADXL354.py pattern) ---
-                targets_str = cached_settings.get('targets', '[]') if cached_settings else '[]'
-                try:
-                    targets = json.loads(targets_str)
-                except Exception:
-                    targets = []
-
-                data_forwarding = True
-                if cached_settings:
-                    data_forwarding = cached_settings.get('data_forwarding', 'true').lower() == 'true'
-
-                if targets:
+                if cached_targets:
                     if len(udp_buffers[0]) == 0:
                         timestamp = t
                     udp_buffers[0].append(z)
@@ -311,8 +312,8 @@ class SensorManager:
                         for i, name in enumerate(CHANNEL_NAMES):
                             packet = [name, timestamp] + udp_buffers[i]
                             data = str(packet).encode()
-                            if data_forwarding:
-                                for target in targets:
+                            if cached_data_forwarding:
+                                for target in cached_targets:
                                     self.sock.sendto(data, (target['ip'], target['port']))
                         udp_buffers = [[], [], []]
 
@@ -331,6 +332,11 @@ class SensorManager:
             except Exception as e:
                 print(f"Sensor read error: {e}")
                 time.sleep(1)
+
+        # Flush any remaining buffer on shutdown
+        if len(buffer) > 0:
+            insert_batch(buffer)
+            buffer = []
 
 # Global manager instance
 sensor_manager = SensorManager(use_mock=sys.platform == 'win32')

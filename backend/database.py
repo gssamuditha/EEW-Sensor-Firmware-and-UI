@@ -50,42 +50,15 @@ def init_db():
         with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
 
-            # Check if the existing sensor_data table has the correct schema.
-            # If the timestamp column was created as INTEGER (older versions),
-            # we need to migrate it to REAL so float precision is preserved.
-            cursor.execute("PRAGMA table_info(sensor_data)")
-            columns = {row[1]: row[2] for row in cursor.fetchall()}
-
-            if 'timestamp' in columns and columns['timestamp'].upper() != 'REAL':
-                print(f"⚠️  Migrating sensor_data.timestamp from {columns['timestamp']} → REAL")
-                cursor.execute('ALTER TABLE sensor_data RENAME TO sensor_data_old')
-                cursor.execute('''
-                    CREATE TABLE sensor_data (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        timestamp REAL,
-                        z REAL,
-                        x REAL,
-                        y REAL
-                    )
-                ''')
-                cursor.execute('''
-                    INSERT INTO sensor_data (id, timestamp, z, x, y)
-                    SELECT id, CAST(timestamp AS REAL), z, x, y
-                    FROM sensor_data_old
-                ''')
-                cursor.execute('DROP TABLE sensor_data_old')
-                print("✅  Migration complete.")
-            elif 'timestamp' not in columns:
-                # Fresh install — create the table
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS sensor_data (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        timestamp REAL,
-                        z REAL,
-                        x REAL,
-                        y REAL
-                    )
-                ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS sensor_data (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp REAL,
+                    z REAL,
+                    x REAL,
+                    y REAL
+                )
+            ''')
 
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS settings (
