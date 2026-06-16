@@ -8,8 +8,8 @@ import {
   doubleClickCopyPlugin,
 } from '@crisislab/timeline';
 
-const MAX_POINTS = 600;          // ~6 s at 100 SPS
-const TIME_WINDOW_MS = 30000;     // 30-second sliding window
+const MAX_POINTS = 3000;         // ~30 s at 100 SPS
+const TIME_WINDOW_MS = 30000;    // 30-second sliding window
 const HEARTBEAT_CHECK_MS = 3000; // how often to check for missing data
 const NO_DATA_TIMEOUT_MS = 5000; // silence threshold before "NO DATA" overlay
 
