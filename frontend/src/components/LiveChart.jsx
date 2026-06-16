@@ -3,7 +3,6 @@ import {
   TimeLine,
   timeAxisPlugin,
   valueAxisPlugin,
-  axisLabelPlugin,
   pointerCrosshairPlugin,
   highlightNearestPointPlugin,
   doubleClickCopyPlugin,
@@ -31,7 +30,7 @@ const cursorSync = {
 
     return {
       _setSyncX(x) { syncX = x; },
-      _getSyncX() { return syncX; },
+      _clearSyncX() { syncX = -1; },
       construct: (chart) => {
         cursorSync.register(chart);
       },
@@ -41,9 +40,16 @@ const cursorSync = {
           const myX = chart.helpfulInfo.cursor.chartX;
           cursorSync.charts.forEach(other => {
             if (other !== chart) {
-              // Find the sync plugin on the other chart and set its syncX
               const otherPlugin = other.plugins.find(p => p && typeof p._setSyncX === 'function');
               if (otherPlugin) otherPlugin._setSyncX(myX);
+            }
+          });
+        } else {
+          // Mouse left this chart — clear sync line on all OTHER charts
+          cursorSync.charts.forEach(other => {
+            if (other !== chart) {
+              const otherPlugin = other.plugins.find(p => p && typeof p._clearSyncX === 'function');
+              if (otherPlugin) otherPlugin._clearSyncX();
             }
           });
         }
@@ -81,10 +87,12 @@ function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
       container: containerRef.current,
       data: dataRef.current,
       timeWindow: TIME_WINDOW_MS,
-      timeAxisLabel: 'Time',
-      valueAxisLabel: 'm/s²',
+      timeAxisLabel: '',
+      valueAxisLabel: '',
       lineWidth: 1.2,
-      padding: { left: 5, right: 5, top: 5, bottom: 5 },
+      // NOTE: Do NOT set padding here — the axis plugins add their own padding
+      // in their construct() hooks. Setting base padding = 0 lets the plugins
+      // control the layout entirely.
       plugins: [
         timeAxisPlugin((x) => {
           try {
@@ -95,7 +103,8 @@ function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
           } catch { return ''; }
         }),
         valueAxisPlugin((v) => v.toFixed(3)),
-        axisLabelPlugin(),
+        // axisLabelPlugin removed: it adds ~40px of extra padding for "Time"/"m/s²"
+        // labels that are redundant (channel name header already shows the unit)
         pointerCrosshairPlugin(),
         highlightNearestPointPlugin(),
         doubleClickCopyPlugin(),
@@ -103,8 +112,8 @@ function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
       ],
     });
 
-    // Style: dark line on white background (matching previous look)
-    chart.foregroundColour = '#1a4162';
+    // Use neutral dark color for axes/border; the data line also uses this
+    chart.foregroundColour = '#374151'; // gray-700 — readable for axes
     chart.backgroundColour = '#ffffff';
 
     chartRef.current = chart;
@@ -112,10 +121,9 @@ function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
     return () => {
       // Unregister from cursor sync
       cursorSync.unregister(chart);
-      // Clean up canvas created by TimeLine
+      // Clean up canvas and any plugin-created DOM elements (axis labels etc.)
       if (containerRef.current) {
-        const canvas = containerRef.current.querySelector('canvas');
-        if (canvas) canvas.remove();
+        containerRef.current.innerHTML = '';
       }
     };
   }, [timeZone, channelName]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -134,7 +142,7 @@ function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-[100px] mb-[2px] bg-white border border-gray-100 shadow-sm p-1 rounded">
+    <div className="flex flex-col flex-1 min-h-[100px] mb-[2px] bg-white shadow-sm p-1 rounded">
       <div className="flex items-center justify-between mb-0 px-1">
         <span className="font-bold text-gray-500 text-[10px] tracking-widest leading-none">{channelName}</span>
         <div className="flex items-center space-x-1.5">
@@ -144,7 +152,9 @@ function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
           <span className="text-[10px] text-gray-400 leading-none">m/s²</span>
         </div>
       </div>
-      <div ref={containerRef} className="w-full flex-1 min-h-0 overflow-hidden" />
+      {/* No overflow-hidden: axis plugins create positioned elements that must not be clipped.
+          position:relative is set by TimeLine constructor on the container. */}
+      <div ref={containerRef} className="w-full flex-1 min-h-0" />
     </div>
   );
 }
@@ -161,7 +171,6 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
   const [tick, setTick] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const isPausedRef = useRef(false);
-  const chartRefs = useRef({});         // { ch: TimeLine } — for pause/resume
 
   // Connection state
   const [connectionStatus, setConnectionStatus] = useState('connecting');
@@ -310,12 +319,10 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
   }, [connect]);
 
   // ------------------------------------------------------------------
-  // Pause / Resume — uses TimeLine's built-in methods
+  // Pause / Resume
   // ------------------------------------------------------------------
   const togglePause = () => {
-    const newPaused = !isPaused;
-    setIsPaused(newPaused);
-    // TimeLine charts handle pause/resume via recompute gating in the tick effect
+    setIsPaused(!isPaused);
   };
 
   // ------------------------------------------------------------------
