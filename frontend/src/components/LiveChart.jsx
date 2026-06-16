@@ -9,7 +9,7 @@ import {
 } from '@crisislab/timeline';
 
 const MAX_POINTS = 600;          // ~6 s at 100 SPS
-const TIME_WINDOW_MS = 6000;     // 6-second sliding window
+const TIME_WINDOW_MS = 30000;     // 30-second sliding window
 const HEARTBEAT_CHECK_MS = 3000; // how often to check for missing data
 const NO_DATA_TIMEOUT_MS = 5000; // silence threshold before "NO DATA" overlay
 
@@ -290,7 +290,7 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
     // Client-side SPS report (sample count ÷ 1 s)
     const spsInterval = setInterval(() => {
       if (onClientSpsRef.current) onClientSpsRef.current(clientSpsCounter.current);
-      if (updateSpsRef.current)   updateSpsRef.current(clientSpsCounter.current);
+      if (updateSpsRef.current) updateSpsRef.current(clientSpsCounter.current);
       clientSpsCounter.current = 0;
     }, 1000);
 
@@ -331,9 +331,9 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
   const statusBadge = () => {
     if (connectionStatus === 'connected') return null;
     const cfg = {
-      connecting:   { bg: 'bg-yellow-100 border-yellow-300 text-yellow-800', label: 'Connecting…' },
-      no_data:      { bg: 'bg-orange-100 border-orange-300 text-orange-800', label: '⚠ No Data' },
-      disconnected: { bg: 'bg-red-100   border-red-300   text-red-800',      label: '✕ Disconnected — retrying…' },
+      connecting: { bg: 'bg-yellow-100 border-yellow-300 text-yellow-800', label: 'Connecting…' },
+      no_data: { bg: 'bg-orange-100 border-orange-300 text-orange-800', label: '⚠ No Data' },
+      disconnected: { bg: 'bg-red-100   border-red-300   text-red-800', label: '✕ Disconnected — retrying…' },
     }[connectionStatus];
     if (!cfg) return null;
     return (
