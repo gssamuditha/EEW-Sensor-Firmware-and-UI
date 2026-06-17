@@ -77,12 +77,12 @@ def _get_active_ssid():
         return "Senz Cloud"  # mock for Windows dev
     try:
         result = subprocess.run(
-            ['sudo', '/usr/bin/nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'],
+            ['sudo', '/usr/bin/nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show', '--active'],
             capture_output=True, text=True, timeout=5
         )
         for line in result.stdout.split('\n'):
-            if line.startswith('yes:'):
-                return line.split('yes:', 1)[1].strip()
+            if '802-11-wireless' in line.lower() or ':wifi' in line.lower():
+                return line.split(':')[0]
     except Exception:
         pass
     return None
@@ -264,8 +264,11 @@ def _check_internet():
     except OSError:
         return False
 
+_cached_mac = None
+
 @app.get("/api/system_status")
 def api_system_status():
+    global _cached_mac
     try:
         cpu = psutil.cpu_percent(interval=0.1) # short blocking is okay for this stats
         disk = psutil.disk_usage('/').percent
@@ -286,15 +289,16 @@ def api_system_status():
         finally:
             s.close()
             
-        mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) 
-                        for ele in range(0,8*6,8)][::-1])
+        if _cached_mac is None:
+            _cached_mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) 
+                                    for ele in range(0,8*6,8)][::-1])
                         
         return {
             "cpu_percent": cpu,
             "disk_percent": disk,
             "uptime": uptime_str,
             "local_ip": ip,
-            "mac_address": mac,
+            "mac_address": _cached_mac,
             "internet_status": _check_internet(),
             "server_status": True,
             "hardware_sps": sensor_manager.hardware_sps,
