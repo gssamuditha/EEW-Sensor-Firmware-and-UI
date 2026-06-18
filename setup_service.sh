@@ -80,6 +80,13 @@ sudo systemctl enable eew-sensor.service
 echo "Restarting eew-sensor service..."
 sudo systemctl restart eew-sensor.service
 
+echo "Configuring Auto-Update Cron Job..."
+chmod +x "$REPO_DIR/auto_update.sh"
+CRON_JOB="0 * * * * $REPO_DIR/auto_update.sh"
+# Check if the cron job already exists to avoid duplicates
+(crontab -l 2>/dev/null | grep -F "$REPO_DIR/auto_update.sh") || (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+echo "  -> Auto-update scheduled to run hourly."
+
 echo "=================================================================="
 echo "Service setup complete!"
 echo "The sensor and UI will now start automatically when the Pi boots."
