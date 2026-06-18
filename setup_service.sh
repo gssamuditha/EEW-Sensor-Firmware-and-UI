@@ -67,7 +67,7 @@ else
 fi
 
 SUDOERS_FILE="/etc/sudoers.d/eew-sensor-permissions"
-echo "$REALUSER ALL=(ALL) NOPASSWD: /usr/bin/nmcli, /bin/nmcli, /sbin/reboot, /usr/sbin/reboot" | sudo tee "$SUDOERS_FILE" > /dev/null
+echo "$REALUSER ALL=(ALL) NOPASSWD: /usr/bin/nmcli, /bin/nmcli, /sbin/reboot, /usr/sbin/reboot, /usr/bin/systemctl, /bin/systemctl" | sudo tee "$SUDOERS_FILE" > /dev/null
 sudo chmod 440 "$SUDOERS_FILE"
 echo "  -> $REALUSER can now run nmcli and reboot without a password."
 
@@ -82,10 +82,10 @@ sudo systemctl restart eew-sensor.service
 
 echo "Configuring Auto-Update Cron Job..."
 chmod +x "$REPO_DIR/auto_update.sh"
-CRON_JOB="0 * * * * $REPO_DIR/auto_update.sh"
+CRON_JOB="*/30 * * * * $REPO_DIR/auto_update.sh"
 # Check if the cron job already exists to avoid duplicates
-(crontab -l 2>/dev/null | grep -F "$REPO_DIR/auto_update.sh") || (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
-echo "  -> Auto-update scheduled to run hourly."
+(crontab -l 2>/dev/null | grep -v "$REPO_DIR/auto_update.sh"; echo "$CRON_JOB") | crontab -
+echo "  -> Auto-update scheduled to run every 30 minutes."
 
 echo "=================================================================="
 echo "Service setup complete!"

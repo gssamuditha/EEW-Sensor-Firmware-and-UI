@@ -6,7 +6,7 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$DIR"
 
-LOG_FILE="/var/log/eew_auto_update.log"
+LOG_FILE="$DIR/eew_auto_update.log"
 VERSION_FILE=".current_version"
 REPO_URL="https://api.github.com/repos/gssamuditha/EEW-Sensor-Firmware-and-UI/releases/latest"
 
@@ -50,8 +50,8 @@ log "New version found: $TAG_NAME. Updating from $CURRENT_VERSION..."
 # 3. Pull Latest Code
 log "Fetching latest tags and code..."
 git fetch --tags origin
-# Checkout the new tag. Using detached HEAD is fine for execution
-git checkout "tags/$TAG_NAME"
+# Checkout the new tag and force reset to discard any local modifications
+git reset --hard "tags/$TAG_NAME"
 
 # 4. Update Backend Dependencies
 log "Updating backend dependencies..."
