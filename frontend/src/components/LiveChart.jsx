@@ -1,248 +1,373 @@
-import { useEffect, useRef, useState } from 'react';
-import uPlot from 'uplot';
-import 'uplot/dist/uPlot.min.css';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import {
+  TimeLine,
+  timeAxisPlugin,
+  valueAxisPlugin,
+  pointerCrosshairPlugin,
+  highlightNearestPointPlugin,
+  doubleClickCopyPlugin,
+} from '@crisislab/timeline';
 
-const sync = uPlot.sync("eew");
-const MAX_POINTS = 500;
+const MAX_POINTS = 3000;         // ~30 s at 100 SPS
+const TIME_WINDOW_MS = 30000;    // 30-second sliding window
+const HEARTBEAT_CHECK_MS = 3000; // how often to check for missing data
+const NO_DATA_TIMEOUT_MS = 5000; // silence threshold before "NO DATA" overlay
 
+// ---------------------------------------------------------------------------
+// Shared cursor sync — broadcasts cursor position from one chart to all others
+// ---------------------------------------------------------------------------
+const cursorSync = {
+  charts: [],
+  register(chart) {
+    this.charts.push(chart);
+  },
+  unregister(chart) {
+    this.charts = this.charts.filter(c => c !== chart);
+  },
+  // Returns a plugin that draws a vertical sync line from other charts' cursor
+  plugin() {
+    let syncX = -1; // chart-relative X from the source chart
+
+    return {
+      _setSyncX(x) { syncX = x; },
+      _clearSyncX() { syncX = -1; },
+      construct: (chart) => {
+        cursorSync.register(chart);
+      },
+      'draw:after': (chart) => {
+        // Broadcast this chart's cursor to all other charts
+        if (chart.helpfulInfo.cursor.overChart) {
+          const myX = chart.helpfulInfo.cursor.chartX;
+          cursorSync.charts.forEach(other => {
+            if (other !== chart) {
+              const otherPlugin = other.plugins.find(p => p && typeof p._setSyncX === 'function');
+              if (otherPlugin) otherPlugin._setSyncX(myX);
+            }
+          });
+        } else {
+          // Mouse left this chart — clear sync line on all OTHER charts
+          cursorSync.charts.forEach(other => {
+            if (other !== chart) {
+              const otherPlugin = other.plugins.find(p => p && typeof p._clearSyncX === 'function');
+              if (otherPlugin) otherPlugin._clearSyncX();
+            }
+          });
+        }
+
+        // Draw sync line from another chart's cursor
+        if (syncX >= 0 && !chart.helpfulInfo.cursor.overChart) {
+          const ctx = chart.ctx;
+          ctx.save();
+          ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(syncX, chart.padding.top);
+          ctx.lineTo(syncX, chart.padding.top + chart.heightInsidePadding);
+          ctx.stroke();
+          ctx.restore();
+        }
+      },
+    };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// ChannelPlot — renders a single TimeLine chart per channel
+// ---------------------------------------------------------------------------
 function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
   const containerRef = useRef(null);
-  const uPlotRef = useRef(null);
+  const chartRef = useRef(null);
 
+  // Build TimeLine instance once
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const opts = {
-      width: containerRef.current.clientWidth,
-      height: containerRef.current.clientHeight, // Maximize plot height
-      legend: { show: false }, // Remove legend
-      cursor: { sync: { key: sync.key } },
-      scales: {
-        x: {
-          time: true,
-          range: (u, dataMin, dataMax) => {
-            if (dataMax == null) {
-              const now = Date.now() / 1000;
-              return [now - 5, now];
-            }
-            return [dataMax - 5, dataMax];
-          }
-        },
-        y: {
-          range: (u, dataMin, dataMax) => {
-            if (dataMin == null || dataMax == null) return [-1, 1];
-            // Add tiny 5% padding so peaks don't hit the exact pixel edge, 
-            // but keep it tightly bound to visible data
-            const diff = dataMax - dataMin;
-            const pad = diff === 0 ? 0.1 : diff * 0.05;
-            return [dataMin - pad, dataMax + pad];
-          }
-        }
-      },
-      series: [
-        { label: "Time" },
-        { label: channelName, stroke: "#1a4162", width: 1.2 }
+    const chart = new TimeLine({
+      container: containerRef.current,
+      data: dataRef.current,
+      timeWindow: TIME_WINDOW_MS,
+      timeAxisLabel: '',
+      valueAxisLabel: '',
+      lineWidth: 1.2,
+      // NOTE: Do NOT set padding here — the axis plugins add their own padding
+      // in their construct() hooks. Setting base padding = 0 lets the plugins
+      // control the layout entirely.
+      plugins: [
+        timeAxisPlugin((x) => {
+          try {
+            return new Intl.DateTimeFormat('en-US', {
+              timeZone, hour12: false,
+              hour: 'numeric', minute: '2-digit', second: '2-digit'
+            }).format(new Date(x));
+          } catch { return ''; }
+        }),
+        valueAxisPlugin((v) => v.toFixed(3)),
+        // axisLabelPlugin removed: it adds ~40px of extra padding for "Time"/"m/s²"
+        // labels that are redundant (channel name header already shows the unit)
+        pointerCrosshairPlugin(),
+        highlightNearestPointPlugin(),
+        doubleClickCopyPlugin(),
+        cursorSync.plugin(),
       ],
-      axes: [
-        {
-          space: 60,
-          splits: (u, axisIdx, scaleMin, scaleMax) => {
-             // Fixed positions relative to the max visible time (right edge)
-             return [
-                scaleMax - 5,
-                scaleMax - 4,
-                scaleMax - 3,
-                scaleMax - 2,
-                scaleMax - 1,
-                scaleMax
-             ];
-          },
-          values: (u, splits) => splits.map(s => {
-             const d = new Date(s * 1000);
-             try {
-                 return new Intl.DateTimeFormat('en-US', {
-                   timeZone: timeZone,
-                   hour12: false,
-                   hour: 'numeric', minute: '2-digit', second: '2-digit'
-                 }).format(d);
-             } catch(e) {
-                 return s;
-             }
-          })
-        },
-        {
-          size: 50,
-          splits: (u, axisIdx, scaleMin, scaleMax) => {
-            const diff = scaleMax - scaleMin;
-            if (diff === 0) return [scaleMin];
-            const step = diff / 4;
-            return [
-              scaleMin,
-              scaleMin + step,
-              scaleMin + 2 * step,
-              scaleMin + 3 * step,
-              scaleMax
-            ];
-          },
-          values: (u, vals) => vals.map(v => v.toFixed(3))
-        }
-      ]
-    };
+    });
 
-    const u = new uPlot(opts, [[], []], containerRef.current);
-    uPlotRef.current = u;
+    // Use neutral dark color for axes/border; the data line also uses this
+    chart.foregroundColour = '#374151'; // gray-700 — readable for axes
+    chart.backgroundColour = '#ffffff';
 
-    const handleResize = () => {
-      if (containerRef.current) {
-        u.setSize({ 
-          width: containerRef.current.clientWidth, 
-          height: containerRef.current.clientHeight 
-        });
-      }
-    };
-    window.addEventListener('resize', handleResize);
-    // Initial size fix in case of flex layout taking a moment
-    setTimeout(handleResize, 50);
+    chartRef.current = chart;
 
     return () => {
-      window.removeEventListener('resize', handleResize);
-      u.destroy();
+      // Unregister from cursor sync
+      cursorSync.unregister(chart);
+      // Clean up canvas and any plugin-created DOM elements (axis labels etc.)
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
+      }
     };
-  }, [timeZone, channelName]);
+  }, [timeZone, channelName]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Trigger recompute on tick (TimeLine reads the mutated data array directly)
   useEffect(() => {
-    if (uPlotRef.current && dataRef.current) {
-      uPlotRef.current.setData(dataRef.current);
+    if (chartRef.current) {
+      chartRef.current.recompute();
     }
   }, [tick]);
 
-  const getColor = (name) => {
+  const labelColor = (name) => {
     if (name.includes('Z')) return 'text-red-600';
     if (name.includes('N')) return 'text-teal-600';
-    if (name.includes('E')) return 'text-yellow-600';
-    return 'text-blue-600';
+    return 'text-yellow-600';
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-[100px] mb-[2px] bg-white border border-gray-100 shadow-sm p-1 rounded">
+    <div className="flex flex-col flex-1 min-h-[100px] mb-[2px] bg-white shadow-sm p-1 rounded">
       <div className="flex items-center justify-between mb-0 px-1">
         <span className="font-bold text-gray-500 text-[10px] tracking-widest leading-none">{channelName}</span>
         <div className="flex items-center space-x-1.5">
-          <span className={`text-sm font-mono font-bold leading-none ${getColor(channelName)}`}>
-            {latestValue !== null ? latestValue.toFixed(4) : "0.0000"}
+          <span className={`text-sm font-mono font-bold leading-none ${labelColor(channelName)}`}>
+            {latestValue !== null ? latestValue.toFixed(4) : '0.0000'}
           </span>
           <span className="text-[10px] text-gray-400 leading-none">m/s²</span>
         </div>
       </div>
-      <div ref={containerRef} className="w-full flex-1 min-h-0 overflow-hidden"></div>
+      {/* No overflow-hidden: axis plugins create positioned elements that must not be clipped.
+          position:relative is set by TimeLine constructor on the container. */}
+      <div ref={containerRef} className="w-full flex-1 min-h-0" />
     </div>
   );
 }
 
-export default function LiveChart({ timeZone, updateSps, onChannelsFound, isExpanded }) {
+// ---------------------------------------------------------------------------
+// LiveChart — WebSocket manager + data ingestion
+// ---------------------------------------------------------------------------
+export default function LiveChart({ timeZone, updateSps, onClientSps, onChannelsFound, isExpanded }) {
   const wsRef = useRef(null);
   const [channels, setChannels] = useState([]);
-  const dataRefs = useRef({}); 
+  const dataRefs = useRef({});          // { ch: [{time, value}, ...] }
   const latestValues = useRef({});
+  const lastBatchEndTime = useRef({});  // { ch: number } — expected next t_start
   const [tick, setTick] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const isPausedRef = useRef(isPaused);
-  
-  useEffect(() => {
-    isPausedRef.current = isPaused;
-  }, [isPaused]);
+  const isPausedRef = useRef(false);
 
-  // Use refs for callbacks to keep WebSocket effect stable
+  // Connection state
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
+  const lastMsgTimeRef = useRef(0);
+  const reconnectDelayRef = useRef(1000);
+
+  // SPS refs — stable across re-renders
   const updateSpsRef = useRef(updateSps);
+  const onClientSpsRef = useRef(onClientSps);
   const onChannelsFoundRef = useRef(onChannelsFound);
-  const channelsInitializedRef = useRef(false);
-  
+  const channelsInitRef = useRef(false);
+  const clientSpsCounter = useRef(0);
+
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
   useEffect(() => { updateSpsRef.current = updateSps; }, [updateSps]);
+  useEffect(() => { onClientSpsRef.current = onClientSps; }, [onClientSps]);
   useEffect(() => { onChannelsFoundRef.current = onChannelsFound; }, [onChannelsFound]);
 
-  useEffect(() => {
+  // ------------------------------------------------------------------
+  // connect() — creates (or re-creates) the WebSocket, wires all handlers
+  // ------------------------------------------------------------------
+  const connect = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.onclose = null; // prevent reconnect loop on intentional close
+      wsRef.current.close();
+    }
+    setConnectionStatus('connecting');
+
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    wsRef.current = new WebSocket(`${wsProtocol}//${window.location.host}/ws/stream`);
-    
-    let spsCounter = 0;
-    const spsInterval = setInterval(() => {
-      if (updateSpsRef.current) updateSpsRef.current(spsCounter);
-      spsCounter = 0;
-    }, 1000);
-    
-    const uiInterval = setInterval(() => {
-      if (!isPausedRef.current) {
-        setTick(t => t + 1);
-      }
-    }, 200);
-    
-    wsRef.current.onmessage = (event) => {
-      spsCounter++;
-      const data = JSON.parse(event.data);
-      const { t, ...chData } = data;
-      
-      const newChannels = Object.keys(chData);
-      
-      if (!channelsInitializedRef.current && newChannels.length > 0) {
-        channelsInitializedRef.current = true;
-        setChannels(newChannels);
-        if (onChannelsFoundRef.current) onChannelsFoundRef.current(newChannels);
-        newChannels.forEach(ch => {
-          dataRefs.current[ch] = [[], []];
+    const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/stream`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setConnectionStatus('connected');
+      reconnectDelayRef.current = 1000; // reset backoff
+    };
+
+    ws.onmessage = (event) => {
+      lastMsgTimeRef.current = Date.now();
+      setConnectionStatus('connected');
+
+      const msg = JSON.parse(event.data);
+      const { t_start, sps, samples } = msg;
+      const channelNames = Object.keys(samples);
+      const nSamples = samples[channelNames[0]].length;
+
+      // Count samples for client-side SPS
+      clientSpsCounter.current += nSamples;
+
+      // First-time channel discovery
+      if (!channelsInitRef.current && channelNames.length > 0) {
+        channelsInitRef.current = true;
+        setChannels(channelNames);
+        if (onChannelsFoundRef.current) onChannelsFoundRef.current(channelNames);
+        channelNames.forEach(ch => {
+          dataRefs.current[ch] = [];
           latestValues.current[ch] = 0;
+          lastBatchEndTime.current[ch] = null;
         });
       }
-      
-      newChannels.forEach(ch => {
+
+      // Removed isPausedRef early return to allow data to accumulate in the background
+      channelNames.forEach(ch => {
         if (!dataRefs.current[ch]) {
-            dataRefs.current[ch] = [[], []];
-            setChannels(prev => {
-              const updated = [...prev, ch];
-              if (onChannelsFoundRef.current) onChannelsFoundRef.current(updated);
-              return updated;
-            });
+          dataRefs.current[ch] = [];
+          latestValues.current[ch] = 0;
+          lastBatchEndTime.current[ch] = null;
+          setChannels(prev => {
+            const updated = [...prev, ch];
+            if (onChannelsFoundRef.current) onChannelsFoundRef.current(updated);
+            return updated;
+          });
         }
-        dataRefs.current[ch][0].push(t);
-        dataRefs.current[ch][1].push(chData[ch]);
-        latestValues.current[ch] = chData[ch];
-        
-        if (dataRefs.current[ch][0].length > MAX_POINTS) {
-          dataRefs.current[ch][0].shift();
-          dataRefs.current[ch][1].shift();
+
+        // Expand batch: reconstruct per-sample timestamps
+        // t_start is in seconds from the backend; TimeLine uses milliseconds
+        const chSamples = samples[ch];
+        for (let i = 0; i < chSamples.length; i++) {
+          dataRefs.current[ch].push({
+            time: (t_start + i / sps) * 1000,
+            value: chSamples[i],
+          });
+        }
+
+        latestValues.current[ch] = chSamples[chSamples.length - 1];
+        lastBatchEndTime.current[ch] = t_start + nSamples / sps;
+
+        // Trim to MAX_POINTS
+        const arr = dataRefs.current[ch];
+        if (arr.length > MAX_POINTS) {
+          arr.splice(0, arr.length - MAX_POINTS);
         }
       });
     };
 
+    ws.onclose = () => {
+      setConnectionStatus('disconnected');
+      // Exponential backoff reconnect (max 30 s)
+      const delay = Math.min(reconnectDelayRef.current, 30000);
+      reconnectDelayRef.current = delay * 2;
+      console.log(`WS closed. Reconnecting in ${delay} ms…`);
+      setTimeout(connect, delay);
+    };
+
+    ws.onerror = () => {
+      ws.close(); // triggers onclose → reconnect
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ------------------------------------------------------------------
+  // Mount effect: connect + set up intervals
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    connect();
+
+    // Client-side SPS report (sample count ÷ 1 s)
+    const spsInterval = setInterval(() => {
+      if (onClientSpsRef.current) onClientSpsRef.current(clientSpsCounter.current);
+      if (updateSpsRef.current) updateSpsRef.current(clientSpsCounter.current);
+      clientSpsCounter.current = 0;
+    }, 1000);
+
+    // UI render tick (200 ms) — triggers chart.recompute() via tick state
+    const uiInterval = setInterval(() => {
+      if (!isPausedRef.current) setTick(t => t + 1);
+    }, 200);
+
+    // Heartbeat: detect silence
+    const heartbeatInterval = setInterval(() => {
+      if (lastMsgTimeRef.current > 0) {
+        const silence = Date.now() - lastMsgTimeRef.current;
+        if (silence > NO_DATA_TIMEOUT_MS) setConnectionStatus('no_data');
+      }
+    }, HEARTBEAT_CHECK_MS);
+
     return () => {
       clearInterval(spsInterval);
       clearInterval(uiInterval);
-      if (wsRef.current) wsRef.current.close();
+      clearInterval(heartbeatInterval);
+      if (wsRef.current) {
+        wsRef.current.onclose = null; // prevent reconnect on unmount
+        wsRef.current.close();
+      }
     };
-  }, []);  // Stable — runs once, no reconnect churn
+  }, [connect]);
+
+  // ------------------------------------------------------------------
+  // Pause / Resume
+  // ------------------------------------------------------------------
+  const togglePause = () => {
+    setIsPaused(!isPaused);
+  };
+
+  // ------------------------------------------------------------------
+  // Status overlay badge
+  // ------------------------------------------------------------------
+  const statusBadge = () => {
+    if (connectionStatus === 'connected') return null;
+    const cfg = {
+      connecting: { bg: 'bg-white border-yellow-200 text-yellow-600', label: 'Connecting…' },
+      no_data: { bg: 'bg-white border-orange-200 text-orange-600', label: 'No Data' },
+      disconnected: { bg: 'bg-white border-red-200 text-red-600', label: 'Disconnected — retrying…' },
+    }[connectionStatus];
+    if (!cfg) return null;
+    return (
+      <div className={`absolute top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded border text-[10px] font-bold shadow-sm transition-colors ${cfg.bg}`}>
+        {cfg.label}
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex-1 min-h-0 flex flex-col pr-1 overflow-y-auto">
+      {/* Charts area */}
+      <div className="relative flex-1 min-h-0 flex flex-col pr-1 overflow-y-auto">
+        {statusBadge()}
         {channels.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-sm text-gray-400">Waiting for data...</div>
+          <div className="flex items-center justify-center h-full text-sm text-gray-400">Waiting for data…</div>
         ) : (
           channels.map(ch => (
-            <ChannelPlot 
-              key={ch} 
-              channelName={ch} 
-              timeZone={timeZone} 
-              dataRef={{ current: dataRefs.current[ch] }} 
+            <ChannelPlot
+              key={ch}
+              channelName={ch}
+              timeZone={timeZone}
+              dataRef={{ current: dataRefs.current[ch] }}
               latestValue={latestValues.current[ch]}
               tick={tick}
             />
           ))
         )}
       </div>
-      
+
+      {/* Controls */}
       <div className="flex-shrink-0 mt-2 flex items-center gap-2">
-        <button 
-          onClick={() => setIsPaused(!isPaused)}
-          className={`flex items-center space-x-1.5 bg-primary hover:bg-opacity-90 text-white rounded font-bold transition-colors shadow-sm px-2.5 py-1 text-[10px]`}
+        <button
+          onClick={togglePause}
+          className="flex items-center space-x-1.5 bg-primary hover:bg-opacity-90 text-white rounded font-bold transition-colors shadow-sm px-2.5 py-1 text-[10px]"
         >
           {isPaused ? (
             <>
@@ -256,6 +381,7 @@ export default function LiveChart({ timeZone, updateSps, onChannelsFound, isExpa
             </>
           )}
         </button>
+
         {!isExpanded && (
           <button
             onClick={() => window.open('/expanded', '_blank')}

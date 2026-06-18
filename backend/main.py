@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from database import init_db, cleanup_old_data, get_data_for_export, get_settings, update_settings
+from database import init_db, cleanup_old_data, get_data_for_export, get_settings, update_settings, stop_db_writer
 from sensor import sensor_manager
 
 @asynccontextmanager
@@ -34,6 +34,7 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(cleanup_task())
     yield
     sensor_manager.stop()
+    stop_db_writer()
     task.cancel()
 
 app = FastAPI(lifespan=lifespan)
@@ -313,9 +314,9 @@ def api_export(start: float, end: float):
     writer = csv.writer(output, lineterminator='\n')
     writer.writerow(["time", "ENZ", "ENN", "ENE"])
     for row in data:
-        # row: timestamp, z, x, y
+        # row: timestamp, z, x, y — cast timestamp to float in case DB stored as int
         t, z, x, y = row
-        writer.writerow([f"{t:.6f}", f"{z:.6f}", f"{x:.6f}", f"{y:.6f}"])
+        writer.writerow([f"{float(t):.6f}", f"{z:.6f}", f"{x:.6f}", f"{y:.6f}"])
         
     response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
     response.headers["Content-Disposition"] = f"attachment; filename=eew_export_{int(time.time())}.csv"
@@ -324,16 +325,32 @@ def api_export(start: float, end: float):
 @app.websocket("/ws/stream")
 async def websocket_stream(websocket: WebSocket):
     await websocket.accept()
-    queue = asyncio.Queue(maxsize=1000)
+    # 50 batches × 25 samples = ~12.5 s of backlog before drops
+    queue = asyncio.Queue(maxsize=50)
     sensor_manager.subscribe(queue)
     try:
         while True:
-            t, z, x, y = await queue.get()
-            await websocket.send_json({"t": t, "ENZ": z, "ENN": x, "ENE": y})
+            batch = await queue.get()
+            await websocket.send_json(batch)
     except WebSocketDisconnect:
         pass
     finally:
         sensor_manager.unsubscribe(queue)
+
+@app.get("/api/stream/stats")
+def api_stream_stats():
+    """Returns WebSocket batch delivery stats for client-side health monitoring."""
+    total = sensor_manager._ws_batches_sent + sensor_manager._ws_batches_dropped
+    drop_rate = (
+        sensor_manager._ws_batches_dropped / total * 100 if total > 0 else 0.0
+    )
+    return {
+        "batches_sent": sensor_manager._ws_batches_sent,
+        "batches_dropped": sensor_manager._ws_batches_dropped,
+        "drop_rate_pct": round(drop_rate, 2),
+        "hardware_sps": sensor_manager.hardware_sps,
+        "avg_sps": sensor_manager.avg_sps,
+    }
 
 import os
 from fastapi.staticfiles import StaticFiles

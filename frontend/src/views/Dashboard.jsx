@@ -6,6 +6,7 @@ export default function Dashboard() {
   const { timeZone, setTimeZone, TIMEZONES } = useTimeZone();
 
   const [sps, setSps] = useState(0);
+  const [clientSps, setClientSps] = useState(0);
   const [activeChannels, setActiveChannels] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [sensorSettings, setSensorSettings] = useState({ latitude: 0.0, longitude: 0.0, device_name: 'Loading...' });
@@ -62,6 +63,10 @@ export default function Dashboard() {
     setSps(val);
   }, []);
 
+  const handleClientSps = useCallback((val) => {
+    setClientSps(val);
+  }, []);
+
   const handleChannelsFound = useCallback((channels) => {
     setActiveChannels(channels);
   }, []);
@@ -69,11 +74,17 @@ export default function Dashboard() {
   return (
     <div className="p-6 h-full flex flex-col bg-gray-50 overflow-hidden">
       <div className="flex justify-between items-center mb-4 flex-shrink-0">
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
           <h2 className="text-xl font-bold text-primary tracking-wide">LIVE TELEMETRY</h2>
-          <div className="px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full border border-green-200 shadow-sm flex items-center space-x-2">
+          {/* Sensor-side (hardware) SPS */}
+          <div className="px-3 py-1 bg-white text-gray-600 text-xs font-bold rounded border border-gray-200 shadow-sm flex items-center space-x-2">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            <span>{systemStats.hardware_sps} Samples/sec</span>
+            <span>SENSOR {systemStats.hardware_sps} sps</span>
+          </div>
+          {/* Client-side (browser) SPS */}
+          <div className="px-3 py-1 bg-white text-gray-600 text-xs font-bold rounded border border-gray-200 shadow-sm flex items-center space-x-2">
+            <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+            <span>CLIENT {clientSps} sps</span>
           </div>
         </div>
         <div className="flex items-center space-x-3 text-sm">
@@ -140,7 +151,7 @@ export default function Dashboard() {
 
         {/* Middle Column: Widget 3 */}
         <div className="col-span-2 bg-white border border-gray-200 p-4 shadow-sm flex flex-col min-h-0 overflow-hidden">
-          <LiveChart timeZone={timeZone} updateSps={updateSps} onChannelsFound={handleChannelsFound} />
+          <LiveChart timeZone={timeZone} updateSps={updateSps} onClientSps={handleClientSps} onChannelsFound={handleChannelsFound} />
         </div>
 
         {/* Right Column */}
