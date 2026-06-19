@@ -2,6 +2,10 @@
 # EEW Sensor Auto-Update Script
 # Runs via cron to check for new GitHub releases.
 
+# Define the desired cron schedule here. If you change this in Git, 
+# the sensors will automatically update their own cron jobs to match it!
+DESIRED_CRON="*/30 * * * *"
+
 # Set repository directory (assumes running from the out-of-tree updater location)
 REPO_DIR="$HOME/EEW-Sensor-Firmware-and-UI"
 cd "$REPO_DIR" || exit 1
@@ -74,5 +78,14 @@ fi
 echo "$TAG_NAME" > "$VERSION_FILE"
 log "Update complete. Restarting eew-sensor service..."
 sudo systemctl restart eew-sensor.service
+
+# 7. Self-Adjust Cron Schedule
+CURRENT_CRON=$(crontab -l 2>/dev/null | grep "\.eew_updater\.sh")
+EXPECTED_CRON="$DESIRED_CRON $HOME/.eew_updater.sh"
+
+if [ "$CURRENT_CRON" != "$EXPECTED_CRON" ]; then
+    log "Updating cron schedule to: $DESIRED_CRON"
+    (crontab -l 2>/dev/null | grep -v "\.eew_updater\.sh"; echo "$EXPECTED_CRON") | crontab -
+fi
 
 log "Service restarted successfully."
