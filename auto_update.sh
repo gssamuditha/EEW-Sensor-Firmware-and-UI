@@ -4,7 +4,7 @@
 
 # Define the desired cron schedule here. If you change this in Git, 
 # the sensors will automatically update their own cron jobs to match it!
-DESIRED_CRON="*/10 * * * *"
+DESIRED_CRON="*/15 * * * *"
 
 # Set repository directory (assumes running from the out-of-tree updater location)
 REPO_DIR="$HOME/EEW-Sensor-Firmware-and-UI"
