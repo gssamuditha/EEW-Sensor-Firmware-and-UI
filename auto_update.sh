@@ -4,7 +4,7 @@
 
 # Define the desired cron schedule here. If you change this in Git, 
 # the sensors will automatically update their own cron jobs to match it!
-DESIRED_CRON="*/15 * * * *"
+DESIRED_CRON="0 * * * *"
 
 # Set repository directory (assumes running from the out-of-tree updater location)
 REPO_DIR="$HOME/EEW-Sensor-Firmware-and-UI"
@@ -19,7 +19,23 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
 }
 
-# 1. Check Internet Connection
+# 0. Self-Adjust Cron Schedule
+# This MUST run at the top of the script so it executes even if no update is needed.
+CURRENT_CRON=$(crontab -l 2>/dev/null | grep "\.eew_updater\.sh")
+EXPECTED_CRON="$DESIRED_CRON $HOME/.eew_updater.sh"
+
+if [ "$CURRENT_CRON" != "$EXPECTED_CRON" ]; then
+    log "Updating cron schedule to: $DESIRED_CRON"
+    (crontab -l 2>/dev/null | grep -v "\.eew_updater\.sh"; echo "$EXPECTED_CRON") | crontab -
+fi
+
+# 1. Stagger Execution to prevent GitHub API rate limits
+# Sleeps for a random time between 0 and 900 seconds (15 minutes)
+STAGGER=$((RANDOM % 300))
+log "Staggering check by $STAGGER seconds to spread out API requests..."
+sleep $STAGGER
+
+# 2. Check Internet Connection
 if ! ping -c 1 8.8.8.8 &> /dev/null; then
     # We only log this to avoid spamming the log if offline for a long time, 
     # but for debugging it's useful to see it attempted.
@@ -78,14 +94,5 @@ fi
 echo "$TAG_NAME" > "$VERSION_FILE"
 log "Update complete. Restarting eew-sensor service..."
 sudo systemctl restart eew-sensor.service
-
-# 7. Self-Adjust Cron Schedule
-CURRENT_CRON=$(crontab -l 2>/dev/null | grep "\.eew_updater\.sh")
-EXPECTED_CRON="$DESIRED_CRON $HOME/.eew_updater.sh"
-
-if [ "$CURRENT_CRON" != "$EXPECTED_CRON" ]; then
-    log "Updating cron schedule to: $DESIRED_CRON"
-    (crontab -l 2>/dev/null | grep -v "\.eew_updater\.sh"; echo "$EXPECTED_CRON") | crontab -
-fi
 
 log "Service restarted successfully."
