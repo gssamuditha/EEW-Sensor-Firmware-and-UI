@@ -80,12 +80,13 @@ sudo systemctl enable eew-sensor.service
 echo "Restarting eew-sensor service..."
 sudo systemctl restart eew-sensor.service
 
-echo "Configuring Auto-Update Cron Job..."
-chmod +x "$REPO_DIR/auto_update.sh"
-CRON_JOB="*/30 * * * * $REPO_DIR/auto_update.sh"
-# Check if the cron job already exists to avoid duplicates
-(crontab -l 2>/dev/null | grep -v "$REPO_DIR/auto_update.sh"; echo "$CRON_JOB") | crontab -
-echo "  -> Auto-update scheduled to run every 30 minutes."
+echo "Configuring Safe Out-of-Tree Auto-Updater..."
+cp "$REPO_DIR/auto_update.sh" "$HOME/.eew_updater.sh"
+chmod +x "$HOME/.eew_updater.sh"
+CRON_JOB="*/30 * * * * $HOME/.eew_updater.sh"
+# Remove any old update jobs and add the new safe one
+(crontab -l 2>/dev/null | grep -v "\.eew_updater\.sh" | grep -v "auto_update\.sh"; echo "$CRON_JOB") | crontab -
+echo "  -> Auto-update scheduled to run every 30 minutes (Safe Mode)."
 
 echo "=================================================================="
 echo "Service setup complete!"

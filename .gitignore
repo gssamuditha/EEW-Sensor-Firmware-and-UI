@@ -1,6 +1,8 @@
 # Logs
 logs
 *.log
+eew_auto_update.log
+.current_version
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

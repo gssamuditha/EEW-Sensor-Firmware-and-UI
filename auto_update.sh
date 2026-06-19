@@ -2,12 +2,12 @@
 # EEW Sensor Auto-Update Script
 # Runs via cron to check for new GitHub releases.
 
-# Ensure we are executing in the repository root directory
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$DIR"
+# Set repository directory (assumes running from the out-of-tree updater location)
+REPO_DIR="$HOME/EEW-Sensor-Firmware-and-UI"
+cd "$REPO_DIR" || exit 1
 
-LOG_FILE="$DIR/eew_auto_update.log"
-VERSION_FILE=".current_version"
+LOG_FILE="$REPO_DIR/eew_auto_update.log"
+VERSION_FILE="$REPO_DIR/.current_version"
 REPO_URL="https://api.github.com/repos/gssamuditha/EEW-Sensor-Firmware-and-UI/releases/latest"
 
 # Helper to log with timestamps
@@ -59,6 +59,15 @@ if [ -d ".venv" ]; then
     .venv/bin/pip install -r backend/requirements.txt
 else
     log "Warning: .venv not found. Ensure setup_service.sh was run."
+fi
+
+# 5. Self-Update the Updater Script (Safe Out-of-Tree Pattern)
+if [ -f "$REPO_DIR/auto_update.sh" ]; then
+    log "Updating the out-of-tree updater script..."
+    cp "$REPO_DIR/auto_update.sh" "$HOME/.eew_updater.sh"
+    chmod +x "$HOME/.eew_updater.sh"
+else
+    log "Warning: auto_update.sh missing from release. Safe outer updater preserved."
 fi
 
 # 6. Save new version and Restart Service
