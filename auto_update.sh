@@ -1,0 +1,98 @@
+#!/bin/bash
+# EEW Sensor Auto-Update Script
+# Runs via cron to check for new GitHub releases.
+
+# Define the desired cron schedule here. If you change this in Git, 
+# the sensors will automatically update their own cron jobs to match it!
+DESIRED_CRON="0 * * * *"
+
+# Set repository directory (assumes running from the out-of-tree updater location)
+REPO_DIR="$HOME/EEW-Sensor-Firmware-and-UI"
+cd "$REPO_DIR" || exit 1
+
+LOG_FILE="$REPO_DIR/eew_auto_update.log"
+VERSION_FILE="$REPO_DIR/.current_version"
+REPO_URL="https://api.github.com/repos/gssamuditha/EEW-Sensor-Firmware-and-UI/releases/latest"
+
+# Helper to log with timestamps
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
+}
+
+# 0. Self-Adjust Cron Schedule
+# This MUST run at the top of the script so it executes even if no update is needed.
+CURRENT_CRON=$(crontab -l 2>/dev/null | grep "\.eew_updater\.sh")
+EXPECTED_CRON="$DESIRED_CRON $HOME/.eew_updater.sh"
+
+if [ "$CURRENT_CRON" != "$EXPECTED_CRON" ]; then
+    log "Updating cron schedule to: $DESIRED_CRON"
+    (crontab -l 2>/dev/null | grep -v "\.eew_updater\.sh"; echo "$EXPECTED_CRON") | crontab -
+fi
+
+# 1. Stagger Execution to prevent GitHub API rate limits
+# Sleeps for a random time between 0 and 900 seconds (15 minutes)
+STAGGER=$((RANDOM % 300))
+log "Staggering check by $STAGGER seconds to spread out API requests..."
+sleep $STAGGER
+
+# 2. Check Internet Connection
+if ! ping -c 1 8.8.8.8 &> /dev/null; then
+    # We only log this to avoid spamming the log if offline for a long time, 
+    # but for debugging it's useful to see it attempted.
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - No internet connection. Skipping update." >> "$LOG_FILE"
+    exit 0
+fi
+
+# 2. Fetch Latest Release from GitHub API
+log "Checking for new releases..."
+LATEST_RELEASE=$(curl -s $REPO_URL)
+
+# Extract tag_name using grep and sed to avoid needing 'jq' installed
+TAG_NAME=$(echo "$LATEST_RELEASE" | grep -m 1 '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" == "null" ]; then
+    log "Failed to fetch release or no releases found."
+    exit 1
+fi
+
+CURRENT_VERSION=""
+if [ -f "$VERSION_FILE" ]; then
+    CURRENT_VERSION=$(cat "$VERSION_FILE")
+fi
+
+if [ "$TAG_NAME" == "$CURRENT_VERSION" ]; then
+    log "Already up-to-date with version $TAG_NAME."
+    exit 0
+fi
+
+log "New version found: $TAG_NAME. Updating from $CURRENT_VERSION..."
+
+# 3. Pull Latest Code
+log "Fetching latest tags and code..."
+git fetch --tags origin
+# Checkout the new tag and force reset to discard any local modifications
+git reset --hard "tags/$TAG_NAME"
+
+# 4. Update Backend Dependencies
+log "Updating backend dependencies..."
+if [ -d ".venv" ]; then
+    .venv/bin/pip install -r backend/requirements.txt
+else
+    log "Warning: .venv not found. Ensure setup_service.sh was run."
+fi
+
+# 5. Self-Update the Updater Script (Safe Out-of-Tree Pattern)
+if [ -f "$REPO_DIR/auto_update.sh" ]; then
+    log "Updating the out-of-tree updater script..."
+    cp "$REPO_DIR/auto_update.sh" "$HOME/.eew_updater.sh"
+    chmod +x "$HOME/.eew_updater.sh"
+else
+    log "Warning: auto_update.sh missing from release. Safe outer updater preserved."
+fi
+
+# 6. Save new version and Restart Service
+echo "$TAG_NAME" > "$VERSION_FILE"
+log "Update complete. Restarting eew-sensor service..."
+sudo systemctl restart eew-sensor.service
+
+log "Service restarted successfully."

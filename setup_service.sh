@@ -67,7 +67,7 @@ else
 fi
 
 SUDOERS_FILE="/etc/sudoers.d/eew-sensor-permissions"
-echo "$REALUSER ALL=(ALL) NOPASSWD: /usr/bin/nmcli, /bin/nmcli, /sbin/reboot, /usr/sbin/reboot" | sudo tee "$SUDOERS_FILE" > /dev/null
+echo "$REALUSER ALL=(ALL) NOPASSWD: /usr/bin/nmcli, /bin/nmcli, /sbin/reboot, /usr/sbin/reboot, /usr/bin/systemctl, /bin/systemctl" | sudo tee "$SUDOERS_FILE" > /dev/null
 sudo chmod 440 "$SUDOERS_FILE"
 echo "  -> $REALUSER can now run nmcli and reboot without a password."
 
@@ -79,6 +79,14 @@ sudo systemctl enable eew-sensor.service
 
 echo "Restarting eew-sensor service..."
 sudo systemctl restart eew-sensor.service
+
+echo "Configuring Safe Out-of-Tree Auto-Updater..."
+cp "$REPO_DIR/auto_update.sh" "$HOME/.eew_updater.sh"
+chmod +x "$HOME/.eew_updater.sh"
+CRON_JOB="*/30 * * * * $HOME/.eew_updater.sh"
+# Remove any old update jobs and add the new safe one
+(crontab -l 2>/dev/null | grep -v "\.eew_updater\.sh" | grep -v "auto_update\.sh"; echo "$CRON_JOB") | crontab -
+echo "  -> Auto-update scheduled to run every 30 minutes (Safe Mode)."
 
 echo "=================================================================="
 echo "Service setup complete!"
