@@ -8,14 +8,17 @@ import {
 } from '@crisislab/timeline';
 
 /**
- * FilteredChart — WebSocket-driven filtered waveform charts for the Analysis tab.
+ * FilteredChart — Hybrid historical + real-time filtered waveform charts.
  *
- * Connects to /ws/analysis for real-time filtered data and fetches historical
- * buffered data from /api/analysis/window on mount / window change.
+ * 1. On mount / window change: fetches historical data from /api/analysis/window
+ * 2. Connects to /ws/analysis for real-time filtered data (live tail)
+ * 3. Uses stable refs so TimeLine sees data mutations correctly
  */
 
+const CHANNELS = ['ENZ', 'ENN', 'ENE'];
+
 // ---------------------------------------------------------------------------
-// Cursor sync (shared across all FilteredChart instances on the Analysis page)
+// Cursor sync (shared across all analysis chart instances)
 // ---------------------------------------------------------------------------
 const analysisCursorSync = {
   charts: [],
@@ -72,7 +75,7 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
     if (!containerRef.current) return;
     const chart = new TimeLine({
       container: containerRef.current,
-      data: dataRef.current,
+      data: dataRef.current[channelName],    // TimeLine holds this reference permanently
       timeWindow: timeWindowMs,
       timeAxisLabel: '',
       valueAxisLabel: '',
@@ -100,13 +103,14 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
       analysisCursorSync.unregister(chart);
       if (containerRef.current) containerRef.current.innerHTML = '';
     };
-  }, [timeZone, channelName, timeWindowMs]);
+  }, [timeZone, channelName]); // Note: NOT timeWindowMs — we update it dynamically below
 
+  // Recompute on tick (data was mutated in-place on the same array ref)
   useEffect(() => {
     if (chartRef.current) chartRef.current.recompute();
   }, [tick]);
 
-  // Update timeWindow dynamically
+  // Update timeWindow dynamically without recreating the chart
   useEffect(() => {
     if (chartRef.current) {
       chartRef.current.timeWindow = timeWindowMs;
@@ -140,73 +144,100 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
 }
 
 // ---------------------------------------------------------------------------
-// FilteredChart — main component managing WS connection + data ingestion
+// FilteredChart — manages WS connection + historical data + data ingestion
 // ---------------------------------------------------------------------------
-export default function FilteredChart({ timeZone, timeWindowMinutes = 1 }) {
-  const CHANNELS = ['ENZ', 'ENN', 'ENE'];
+export default function FilteredChart({ timeZone, timeWindowMinutes = 1, filterVersion = 0 }) {
   const timeWindowMs = timeWindowMinutes * 60 * 1000;
 
-  // Dynamic MAX_POINTS based on window + decimation
-  const effectiveSps = timeWindowMinutes > 5 ? 10 : 100;
-  const maxPoints = timeWindowMinutes * 60 * effectiveSps;
+  // Max points to keep: based on window and effective SPS after decimation
+  const getMaxPoints = (windowMin) => {
+    const secs = windowMin * 60;
+    if (secs <= 300) return secs * 100;       // 100 SPS
+    if (secs <= 1800) return secs * 10;       // 10 SPS
+    if (secs <= 21600) return secs * 1;       // 1 SPS
+    return secs * 0.1;                        // 0.1 SPS
+  };
+  const maxPointsRef = useRef(getMaxPoints(timeWindowMinutes));
 
-  const wsRef = useRef(null);
+  // *** STABLE REFS — these arrays persist across renders ***
+  // TimeLine is constructed with dataRefs[ch] and reads that same array object.
   const dataRefs = useRef({});
   const latestValues = useRef({});
+
+  // Ensure arrays exist (runs once)
+  if (!dataRefs.current.ENZ) {
+    CHANNELS.forEach(ch => {
+      dataRefs.current[ch] = [];
+      latestValues.current[ch] = 0;
+    });
+  }
+
+  const wsRef = useRef(null);
   const [tick, setTick] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
+  const [loading, setLoading] = useState(false);
   const reconnectDelayRef = useRef(1000);
   const lastMsgTimeRef = useRef(0);
-  const [initialLoaded, setInitialLoaded] = useState(false);
   const isPausedRef = useRef(false);
   const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
-  // Initialise data arrays
+  // Update maxPoints when window changes
   useEffect(() => {
-    CHANNELS.forEach(ch => {
-      if (!dataRefs.current[ch]) {
-        dataRefs.current[ch] = [];
-        latestValues.current[ch] = 0;
-      }
-    });
-  }, []);
+    maxPointsRef.current = getMaxPoints(timeWindowMinutes);
+  }, [timeWindowMinutes]);
 
-  // Fetch initial buffered data when window changes
+  // -----------------------------------------------------------------------
+  // Fetch historical data from DB when window or filter changes
+  // -----------------------------------------------------------------------
   useEffect(() => {
     const seconds = timeWindowMinutes * 60;
     const protocol = window.location.protocol;
     const host = window.location.host;
 
+    setLoading(true);
     fetch(`${protocol}//${host}/api/analysis/window?seconds=${seconds}`)
       .then(r => r.json())
       .then(data => {
-        if (!data.timestamps || data.timestamps.length === 0) return;
-        const decFactor = data.decimation_factor || 1;
-        const sps = (data.sps || 100) / decFactor;
+        if (!data.timestamps || data.timestamps.length === 0) {
+          // Clear existing data
+          CHANNELS.forEach(ch => {
+            dataRefs.current[ch].length = 0;
+          });
+          setLoading(false);
+          setTick(t => t + 1);
+          return;
+        }
 
         CHANNELS.forEach(ch => {
           const samples = data.samples[ch] || [];
-          const points = [];
+          // IMPORTANT: mutate the existing array, don't replace it.
+          // TimeLine holds a reference to this exact array object.
+          const arr = dataRefs.current[ch];
+          arr.length = 0;  // clear in-place
           for (let i = 0; i < samples.length; i++) {
-            points.push({
+            arr.push({
               time: data.timestamps[i] * 1000,
               value: samples[i],
             });
           }
-          dataRefs.current[ch] = points;
           if (samples.length > 0) {
             latestValues.current[ch] = samples[samples.length - 1];
           }
         });
-        setInitialLoaded(true);
+        setLoading(false);
         setTick(t => t + 1);
       })
-      .catch(err => console.error('Failed to load analysis window:', err));
-  }, [timeWindowMinutes]);
+      .catch(err => {
+        console.error('Failed to load analysis window:', err);
+        setLoading(false);
+      });
+  }, [timeWindowMinutes, filterVersion]);
 
-  // WebSocket connection to /ws/analysis
+  // -----------------------------------------------------------------------
+  // WebSocket connection to /ws/analysis — appends live filtered samples
+  // -----------------------------------------------------------------------
   const connect = useCallback(() => {
     if (wsRef.current) {
       wsRef.current.onclose = null;
@@ -228,16 +259,13 @@ export default function FilteredChart({ timeZone, timeWindowMinutes = 1 }) {
       setConnectionStatus('connected');
 
       const msg = JSON.parse(event.data);
-      const { t_start, sps, samples, decimation_factor } = msg;
-      const decFactor = decimation_factor || 1;
-      const effectiveSps = sps / decFactor;
+      const { t_start, sps, samples } = msg;
 
       CHANNELS.forEach(ch => {
-        if (!dataRefs.current[ch]) dataRefs.current[ch] = [];
-
+        const arr = dataRefs.current[ch];
         const chSamples = samples[ch] || [];
         for (let i = 0; i < chSamples.length; i++) {
-          dataRefs.current[ch].push({
+          arr.push({
             time: (t_start + i / sps) * 1000,
             value: chSamples[i],
           });
@@ -247,10 +275,10 @@ export default function FilteredChart({ timeZone, timeWindowMinutes = 1 }) {
           latestValues.current[ch] = chSamples[chSamples.length - 1];
         }
 
-        // Trim to maxPoints
-        const arr = dataRefs.current[ch];
-        if (arr.length > maxPoints) {
-          arr.splice(0, arr.length - maxPoints);
+        // Trim to maxPoints — remove from the front
+        const max = maxPointsRef.current;
+        if (arr.length > max) {
+          arr.splice(0, arr.length - max);
         }
       });
     };
@@ -263,17 +291,17 @@ export default function FilteredChart({ timeZone, timeWindowMinutes = 1 }) {
     };
 
     ws.onerror = () => { ws.close(); };
-  }, [maxPoints]);
+  }, []);
 
   useEffect(() => {
     connect();
 
-    // UI render tick (250 ms)
+    // UI render tick (250 ms) — triggers chart.recompute()
     const uiInterval = setInterval(() => {
       if (!isPausedRef.current) setTick(t => t + 1);
     }, 250);
 
-    // Heartbeat
+    // Heartbeat: detect silence
     const heartbeatInterval = setInterval(() => {
       if (lastMsgTimeRef.current > 0 && Date.now() - lastMsgTimeRef.current > 5000) {
         setConnectionStatus('no_data');
@@ -290,7 +318,17 @@ export default function FilteredChart({ timeZone, timeWindowMinutes = 1 }) {
     };
   }, [connect]);
 
+  // -----------------------------------------------------------------------
+  // Status badge
+  // -----------------------------------------------------------------------
   const statusBadge = () => {
+    if (loading) {
+      return (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded border text-[10px] font-bold shadow-sm bg-white border-blue-200 text-blue-600">
+          Loading historical data…
+        </div>
+      );
+    }
     if (connectionStatus === 'connected') return null;
     const cfg = {
       connecting: { bg: 'bg-white border-yellow-200 text-yellow-600', label: 'Connecting…' },
@@ -314,7 +352,7 @@ export default function FilteredChart({ timeZone, timeWindowMinutes = 1 }) {
             key={ch}
             channelName={ch}
             timeZone={timeZone}
-            dataRef={{ current: dataRefs.current[ch] || [] }}
+            dataRef={dataRefs}  // Pass the stable parent ref — child accesses .current[ch]
             latestValue={latestValues.current[ch] || 0}
             tick={tick}
             timeWindowMs={timeWindowMs}

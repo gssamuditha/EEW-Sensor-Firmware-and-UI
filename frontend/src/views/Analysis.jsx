@@ -8,7 +8,11 @@ const WINDOW_OPTIONS = [
   { label: '5 min', value: 5 },
   { label: '10 min', value: 10 },
   { label: '30 min', value: 30 },
-  { label: '60 min', value: 60 },
+  { label: '1 hour', value: 60 },
+  { label: '2 hours', value: 120 },
+  { label: '6 hours', value: 360 },
+  { label: '12 hours', value: 720 },
+  { label: '24 hours', value: 1440 },
 ];
 
 export default function Analysis() {
@@ -21,6 +25,8 @@ export default function Analysis() {
   const [activeFilter, setActiveFilter] = useState(null);
   const [filterStatus, setFilterStatus] = useState('loading');
   const [errorMsg, setErrorMsg] = useState('');
+  // Incremented on every successful filter apply — triggers FilteredChart re-fetch
+  const [filterVersion, setFilterVersion] = useState(0);
 
   // Fetch current filter on mount
   useEffect(() => {
@@ -58,6 +64,8 @@ export default function Analysis() {
       .then(data => {
         setActiveFilter(data);
         setFilterStatus('active');
+        // Bump version to trigger FilteredChart to re-fetch with new filter
+        setFilterVersion(v => v + 1);
       })
       .catch(e => {
         setErrorMsg(e.message);
@@ -187,6 +195,7 @@ export default function Analysis() {
           <FilteredChart
             timeZone={timeZone}
             timeWindowMinutes={windowMinutes}
+            filterVersion={filterVersion}
           />
         </div>
       </div>

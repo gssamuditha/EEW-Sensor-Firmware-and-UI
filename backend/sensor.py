@@ -5,10 +5,9 @@ import asyncio
 import random
 import sys
 import json
-from collections import deque
 
-from database import insert_batch
-from filters import BandpassFilter, downsample
+from database import insert_batch, get_data_for_analysis
+from filters import BandpassFilter
 import numpy as np
 
 # === ADC Config ===
@@ -157,9 +156,6 @@ class RealSensor:
             readings.append(ms2)
         return (time.time(), readings[0], readings[1], readings[2])
 
-# Maximum ring buffer size: 60 min × 100 SPS = 360,000 samples per channel
-MAX_RING_BUFFER = 360000
-
 class SensorManager:
     def __init__(self, use_mock=False):
         self.use_mock = use_mock
@@ -187,11 +183,6 @@ class SensorManager:
             for ch in CHANNEL_NAMES
         }
         self._filter_lock = threading.Lock()
-        # Ring buffers for filtered data (timestamps + values per channel)
-        self._filtered_timestamps = deque(maxlen=MAX_RING_BUFFER)
-        self._filtered_buffers = {
-            ch: deque(maxlen=MAX_RING_BUFFER) for ch in CHANNEL_NAMES
-        }
         
     def start(self):
         from database import get_settings
@@ -230,56 +221,76 @@ class SensorManager:
                 self.analysis_subscribers.remove(queue)
 
     def update_filter(self, low_hz: float, high_hz: float):
-        """Update bandpass filter cutoffs. Resets filter state."""
+        """Update bandpass filter cutoffs. Resets real-time filter state."""
         with self._filter_lock:
             for ch in CHANNEL_NAMES:
                 self._filters[ch].update_params(low_hz, high_hz)
-            # Clear filtered ring buffers on parameter change
-            self._filtered_timestamps.clear()
-            for ch in CHANNEL_NAMES:
-                self._filtered_buffers[ch].clear()
 
     def get_filter_params(self) -> dict:
         """Return current filter parameters."""
         with self._filter_lock:
             return self._filters[CHANNEL_NAMES[0]].params
 
-    def get_filtered_window(self, window_seconds: float) -> dict:
-        """Return the last N seconds of filtered data from the ring buffer."""
-        now = time.time()
-        cutoff = now - window_seconds
-        result = {"timestamps": [], "samples": {ch: [] for ch in CHANNEL_NAMES}}
+    def get_historical_filtered(self, window_seconds: float) -> dict:
+        """
+        Query raw data from the SQLite database for the given time window,
+        apply the current bandpass filter, and return decimated results.
 
-        timestamps = list(self._filtered_timestamps)
-        if not timestamps:
-            return result
+        Decimation tiers (keeps chart points <= ~36,000):
+          <= 5 min   : 1x   (full 100 SPS)
+          5-30 min   : 10x  (10 SPS)
+          30 min-6 h : 100x (1 SPS)
+          6-24 h     : 1000x(0.1 SPS)
+        """
+        # Determine decimation factor
+        if window_seconds <= 300:         # <= 5 min
+            dec_factor = 1
+        elif window_seconds <= 1800:      # 5-30 min
+            dec_factor = 10
+        elif window_seconds <= 21600:     # 30 min - 6 h
+            dec_factor = 100
+        else:                             # 6-24 h
+            dec_factor = 1000
 
-        # Find start index via binary search
-        start_idx = 0
-        for i, t in enumerate(timestamps):
-            if t >= cutoff:
-                start_idx = i
-                break
-        else:
-            return result  # all data is older than cutoff
+        # Query from DB with server-side decimation
+        rows = get_data_for_analysis(window_seconds, dec_factor)
 
-        result["timestamps"] = timestamps[start_idx:]
+        if not rows:
+            return {
+                "timestamps": [],
+                "samples": {ch: [] for ch in CHANNEL_NAMES},
+                "sps": 100,
+                "decimation_factor": dec_factor,
+            }
+
+        # Unpack into numpy arrays for batch filtering
+        timestamps = np.array([r[0] for r in rows], dtype=np.float64)
+        raw_z = np.array([r[1] for r in rows], dtype=np.float64)
+        raw_x = np.array([r[2] for r in rows], dtype=np.float64)
+        raw_y = np.array([r[3] for r in rows], dtype=np.float64)
+        raw = {'ENZ': raw_z, 'ENN': raw_x, 'ENE': raw_y}
+
+        # Apply bandpass filter (batch mode — uses fresh filter, no state carryover)
+        effective_sps = 100.0 / dec_factor
+        filtered_samples = {}
         for ch in CHANNEL_NAMES:
-            buf = list(self._filtered_buffers[ch])
-            result["samples"][ch] = buf[start_idx:]
+            if len(raw[ch]) < 13:  # Need enough samples for the filter
+                filtered_samples[ch] = raw[ch].tolist()
+            else:
+                filt = BandpassFilter(
+                    low_hz=self._filters[ch].low_hz,
+                    high_hz=min(self._filters[ch].high_hz, effective_sps / 2 * 0.9),
+                    fs=effective_sps,
+                    order=4,
+                )
+                filtered_samples[ch] = filt.apply(raw[ch]).tolist()
 
-        # Decimation for large windows (>5 min → downsample to 10 SPS)
-        n_samples = len(result["timestamps"])
-        decimation_factor = 1
-        if window_seconds > 300:  # > 5 min
-            decimation_factor = 10
-            result["timestamps"] = list(downsample(np.array(result["timestamps"]), decimation_factor))
-            for ch in CHANNEL_NAMES:
-                result["samples"][ch] = list(downsample(np.array(result["samples"][ch]), decimation_factor))
-
-        result["sps"] = 100
-        result["decimation_factor"] = decimation_factor
-        return result
+        return {
+            "timestamps": timestamps.tolist(),
+            "samples": filtered_samples,
+            "sps": 100,
+            "decimation_factor": dec_factor,
+        }
             
     def _run_loop(self):
         from database import get_settings
@@ -330,15 +341,12 @@ class SensorManager:
                 for ch in CHANNEL_NAMES:
                     ws_buffers[ch].append(ws_vals[ch])
 
-                # --- Apply bandpass filter per-axis and store ---
+                # --- Apply bandpass filter per-axis for live stream ---
                 with self._filter_lock:
                     filtered_vals = {}
                     for ch in CHANNEL_NAMES:
                         filtered_vals[ch] = self._filters[ch].apply_realtime(ws_vals[ch])
-                # Store in ring buffers
-                self._filtered_timestamps.append(t)
                 for ch in CHANNEL_NAMES:
-                    self._filtered_buffers[ch].append(filtered_vals[ch])
                     analysis_buffers[ch].append(filtered_vals[ch])
                 if analysis_batch_start_time is None:
                     analysis_batch_start_time = t

@@ -107,6 +107,40 @@ def get_data_for_export(start_time, end_time):
             rows = cursor.fetchall()
             return rows
 
+def get_data_for_analysis(window_seconds, decimation_factor=1):
+    """
+    Query the last N seconds of raw sensor data with optional decimation.
+    
+    For large windows (e.g. 24h = 8.6M rows at 100 SPS), decimation_factor
+    controls how many rows to skip.  Uses SQL to return only every Nth row,
+    keeping memory usage bounded on the RPi 3.
+    
+    Returns list of tuples: [(timestamp, z, x, y), ...]
+    """
+    cutoff = time.time() - window_seconds
+    with db_lock:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            if decimation_factor <= 1:
+                cursor.execute('''
+                    SELECT timestamp, z, x, y FROM sensor_data
+                    WHERE timestamp >= ?
+                    ORDER BY timestamp ASC
+                ''', (cutoff,))
+            else:
+                # Use ROW_NUMBER to pick every Nth row server-side
+                cursor.execute('''
+                    SELECT timestamp, z, x, y FROM (
+                        SELECT timestamp, z, x, y,
+                               ROW_NUMBER() OVER (ORDER BY timestamp ASC) AS rn
+                        FROM sensor_data
+                        WHERE timestamp >= ?
+                    ) WHERE rn % ? = 1
+                    ORDER BY timestamp ASC
+                ''', (cutoff, decimation_factor))
+            return cursor.fetchall()
+
+
 def get_settings():
     with db_lock:
         with sqlite3.connect(DB_PATH) as conn:

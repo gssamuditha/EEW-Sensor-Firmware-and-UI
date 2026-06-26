@@ -373,11 +373,13 @@ def api_set_filter(params: FilterModel):
     return {"status": "ok", **sensor_manager.get_filter_params()}
 
 @app.get("/api/analysis/window")
-def api_analysis_window(seconds: float = 60):
-    """Return buffered filtered data for the last N seconds."""
-    if seconds < 1 or seconds > 3600:
-        raise HTTPException(status_code=400, detail="seconds must be between 1 and 3600")
-    return sensor_manager.get_filtered_window(seconds)
+async def api_analysis_window(seconds: float = 60):
+    """Return filtered historical data from the DB for the last N seconds."""
+    if seconds < 1 or seconds > 86400:
+        raise HTTPException(status_code=400, detail="seconds must be between 1 and 86400")
+    # Run in thread — large windows can take 1-2 seconds for DB query + filtering
+    result = await asyncio.to_thread(sensor_manager.get_historical_filtered, seconds)
+    return result
 
 @app.websocket("/ws/analysis")
 async def websocket_analysis(websocket: WebSocket):
