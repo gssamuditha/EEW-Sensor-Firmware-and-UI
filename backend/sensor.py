@@ -5,8 +5,11 @@ import asyncio
 import random
 import sys
 import json
+from collections import deque
 
 from database import insert_batch
+from filters import BandpassFilter, downsample
+import numpy as np
 
 # === ADC Config ===
 CS_PINS = [35, 33, 36]        # Acc Z, Acc X, Acc Y
@@ -154,6 +157,9 @@ class RealSensor:
             readings.append(ms2)
         return (time.time(), readings[0], readings[1], readings[2])
 
+# Maximum ring buffer size: 60 min × 100 SPS = 360,000 samples per channel
+MAX_RING_BUFFER = 360000
+
 class SensorManager:
     def __init__(self, use_mock=False):
         self.use_mock = use_mock
@@ -164,13 +170,28 @@ class SensorManager:
             
         self.running = False
         self.thread = None
-        self.subscribers = []  # asyncio queues
+        self.subscribers = []  # asyncio queues (raw stream)
         self._sub_lock = threading.Lock()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.hardware_sps = 0
         self.avg_sps = 0
         self._ws_batches_sent = 0
         self._ws_batches_dropped = 0
+
+        # --- Analysis / Filter state ---
+        self.analysis_subscribers = []  # asyncio queues (filtered stream)
+        self._analysis_lock = threading.Lock()
+        # Per-axis bandpass filters (default: earthquake band 0.1–20 Hz)
+        self._filters = {
+            ch: BandpassFilter(low_hz=0.1, high_hz=20.0, fs=100.0, order=4)
+            for ch in CHANNEL_NAMES
+        }
+        self._filter_lock = threading.Lock()
+        # Ring buffers for filtered data (timestamps + values per channel)
+        self._filtered_timestamps = deque(maxlen=MAX_RING_BUFFER)
+        self._filtered_buffers = {
+            ch: deque(maxlen=MAX_RING_BUFFER) for ch in CHANNEL_NAMES
+        }
         
     def start(self):
         from database import get_settings
@@ -197,6 +218,68 @@ class SensorManager:
         with self._sub_lock:
             if queue in self.subscribers:
                 self.subscribers.remove(queue)
+
+    # --- Analysis subscriber methods ---
+    def subscribe_analysis(self, queue):
+        with self._analysis_lock:
+            self.analysis_subscribers.append(queue)
+
+    def unsubscribe_analysis(self, queue):
+        with self._analysis_lock:
+            if queue in self.analysis_subscribers:
+                self.analysis_subscribers.remove(queue)
+
+    def update_filter(self, low_hz: float, high_hz: float):
+        """Update bandpass filter cutoffs. Resets filter state."""
+        with self._filter_lock:
+            for ch in CHANNEL_NAMES:
+                self._filters[ch].update_params(low_hz, high_hz)
+            # Clear filtered ring buffers on parameter change
+            self._filtered_timestamps.clear()
+            for ch in CHANNEL_NAMES:
+                self._filtered_buffers[ch].clear()
+
+    def get_filter_params(self) -> dict:
+        """Return current filter parameters."""
+        with self._filter_lock:
+            return self._filters[CHANNEL_NAMES[0]].params
+
+    def get_filtered_window(self, window_seconds: float) -> dict:
+        """Return the last N seconds of filtered data from the ring buffer."""
+        now = time.time()
+        cutoff = now - window_seconds
+        result = {"timestamps": [], "samples": {ch: [] for ch in CHANNEL_NAMES}}
+
+        timestamps = list(self._filtered_timestamps)
+        if not timestamps:
+            return result
+
+        # Find start index via binary search
+        start_idx = 0
+        for i, t in enumerate(timestamps):
+            if t >= cutoff:
+                start_idx = i
+                break
+        else:
+            return result  # all data is older than cutoff
+
+        result["timestamps"] = timestamps[start_idx:]
+        for ch in CHANNEL_NAMES:
+            buf = list(self._filtered_buffers[ch])
+            result["samples"][ch] = buf[start_idx:]
+
+        # Decimation for large windows (>5 min → downsample to 10 SPS)
+        n_samples = len(result["timestamps"])
+        decimation_factor = 1
+        if window_seconds > 300:  # > 5 min
+            decimation_factor = 10
+            result["timestamps"] = list(downsample(np.array(result["timestamps"]), decimation_factor))
+            for ch in CHANNEL_NAMES:
+                result["samples"][ch] = list(downsample(np.array(result["samples"][ch]), decimation_factor))
+
+        result["sps"] = 100
+        result["decimation_factor"] = decimation_factor
+        return result
             
     def _run_loop(self):
         from database import get_settings
@@ -204,6 +287,10 @@ class SensorManager:
         udp_buffers = [[], [], []]  # UDP forwarding buffers (one per channel)
         ws_buffers = {ch: [] for ch in CHANNEL_NAMES}  # WS batch buffers
         ws_batch_start_time = None  # timestamp of first sample in current WS batch
+
+        # Analysis filtered batch buffers
+        analysis_buffers = {ch: [] for ch in CHANNEL_NAMES}
+        analysis_batch_start_time = None
 
         # SPS tracking — mirrors ADXL354.py stream_udp()
         total_samples = 0
@@ -242,6 +329,19 @@ class SensorManager:
                 ws_vals = {'ENZ': z, 'ENN': x, 'ENE': y}
                 for ch in CHANNEL_NAMES:
                     ws_buffers[ch].append(ws_vals[ch])
+
+                # --- Apply bandpass filter per-axis and store ---
+                with self._filter_lock:
+                    filtered_vals = {}
+                    for ch in CHANNEL_NAMES:
+                        filtered_vals[ch] = self._filters[ch].apply_realtime(ws_vals[ch])
+                # Store in ring buffers
+                self._filtered_timestamps.append(t)
+                for ch in CHANNEL_NAMES:
+                    self._filtered_buffers[ch].append(filtered_vals[ch])
+                    analysis_buffers[ch].append(filtered_vals[ch])
+                if analysis_batch_start_time is None:
+                    analysis_batch_start_time = t
 
                 # --- When a full batch of SAMPLES_PER_PACKET is ready ---
                 if sample_count >= SAMPLES_PER_PACKET:
@@ -284,6 +384,25 @@ class SensorManager:
                         ws_buffers[ch] = []
                     ws_batch_start_time = None
                     sample_count = 0
+
+                    # --- Push filtered batch to analysis subscribers ---
+                    analysis_msg = {
+                        "t_start": analysis_batch_start_time,
+                        "sps": 100,
+                        "samples": {ch: list(analysis_buffers[ch]) for ch in CHANNEL_NAMES},
+                        "decimation_factor": 1,
+                    }
+                    with self._analysis_lock:
+                        a_subs = list(self.analysis_subscribers)
+                    for q in a_subs:
+                        try:
+                            q.put_nowait(analysis_msg)
+                        except asyncio.QueueFull:
+                            pass  # drop silently for slow analysis clients
+                    # Clear analysis buffers
+                    for ch in CHANNEL_NAMES:
+                        analysis_buffers[ch] = []
+                    analysis_batch_start_time = None
 
                 # Refresh settings cache every 5 seconds
                 now_mono = time.monotonic()

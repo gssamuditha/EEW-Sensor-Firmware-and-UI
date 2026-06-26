@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from database import init_db, cleanup_old_data, get_data_for_export, get_settings, update_settings, stop_db_writer
 from sensor import sensor_manager
@@ -66,6 +66,24 @@ class WifiConnectModel(BaseModel):
 
 class WifiActionModel(BaseModel):
     ssid: str
+
+class FilterModel(BaseModel):
+    low_hz: float
+    high_hz: float
+
+    @field_validator('low_hz')
+    @classmethod
+    def low_hz_positive(cls, v):
+        if v < 0.01:
+            raise ValueError('low_hz must be >= 0.01')
+        return v
+
+    @field_validator('high_hz')
+    @classmethod
+    def high_hz_valid(cls, v):
+        if v > 50.0:
+            raise ValueError('high_hz must be <= 50.0')
+        return v
 
 # ---------------------------------------------------------------------------
 # Wi-Fi Manager helpers
@@ -336,6 +354,45 @@ async def websocket_stream(websocket: WebSocket):
         pass
     finally:
         sensor_manager.unsubscribe(queue)
+
+# ---------------------------------------------------------------------------
+# Analysis endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/analysis/filter")
+def api_get_filter():
+    """Return current bandpass filter parameters."""
+    return sensor_manager.get_filter_params()
+
+@app.post("/api/analysis/filter")
+def api_set_filter(params: FilterModel):
+    """Update bandpass filter cutoff frequencies."""
+    if params.low_hz >= params.high_hz:
+        raise HTTPException(status_code=400, detail="low_hz must be less than high_hz")
+    sensor_manager.update_filter(params.low_hz, params.high_hz)
+    return {"status": "ok", **sensor_manager.get_filter_params()}
+
+@app.get("/api/analysis/window")
+def api_analysis_window(seconds: float = 60):
+    """Return buffered filtered data for the last N seconds."""
+    if seconds < 1 or seconds > 3600:
+        raise HTTPException(status_code=400, detail="seconds must be between 1 and 3600")
+    return sensor_manager.get_filtered_window(seconds)
+
+@app.websocket("/ws/analysis")
+async def websocket_analysis(websocket: WebSocket):
+    """Stream filtered (bandpass) data batches to the analysis frontend."""
+    await websocket.accept()
+    queue = asyncio.Queue(maxsize=50)
+    sensor_manager.subscribe_analysis(queue)
+    try:
+        while True:
+            batch = await queue.get()
+            await websocket.send_json(batch)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        sensor_manager.unsubscribe_analysis(queue)
 
 @app.get("/api/stream/stats")
 def api_stream_stats():
