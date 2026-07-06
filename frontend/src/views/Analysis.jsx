@@ -85,13 +85,12 @@ export default function Analysis() {
       .catch(() => {});
   }, []);
 
-  // Update end time every 30s when in live mode
+  // When switching to live mode, snap the end time to now.
+  // We DO NOT update this continuously, otherwise it triggers massive
+  // historical data re-fetches every tick. FilteredChart handles the live tail.
   useEffect(() => {
     if (!isLive) return;
-    const update = () => setEndEpoch(floorMinute(nowEpoch()));
-    update();
-    const interval = setInterval(update, 30000);
-    return () => clearInterval(interval);
+    setEndEpoch(floorMinute(nowEpoch()));
   }, [isLive]);
 
   // Duration in minutes

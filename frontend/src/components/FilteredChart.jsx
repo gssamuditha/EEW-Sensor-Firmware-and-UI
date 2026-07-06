@@ -153,11 +153,12 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
 export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive = false, filterVersion = 0 }) {
   const timeWindowMs = (endEpoch - startEpoch) * 1000;
 
-  // Max points to keep in live mode: based on window
+  // Max points to keep in live mode: based on window.
+  // The WS always sends at 100 SPS regardless of the window.
+  // We must set the max capacity to (window at 100 SPS) + (historical downsampled points)
+  // to prevent the array from prematurely trimming the historical data off the left side.
   const getMaxPoints = (windowSecs) => {
-    if (windowSecs <= 300) return windowSecs * 100;       // 100 SPS for ≤ 5 min
-    if (windowSecs <= 1800) return windowSecs * 10;       // 10 SPS for ≤ 30 min
-    return windowSecs * 2;                                // 2 SPS for up to 1 hour
+    return (windowSecs * 100) + 5000;
   };
   const maxPointsRef = useRef(getMaxPoints(endEpoch - startEpoch));
 

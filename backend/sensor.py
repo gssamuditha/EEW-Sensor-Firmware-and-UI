@@ -266,11 +266,16 @@ class SensorManager:
             }
 
         # Unpack into numpy arrays (float64)
-        timestamps = np.array([r[0] for r in rows], dtype=np.float64)
-        raw_z = np.array([r[1] for r in rows], dtype=np.float64)
-        raw_x = np.array([r[2] for r in rows], dtype=np.float64)
-        raw_y = np.array([r[3] for r in rows], dtype=np.float64)
-        raw = {'ENZ': raw_z, 'ENN': raw_x, 'ENE': raw_y}
+        # We convert the entire list of tuples to a 2D array at once.
+        # This is implemented in C and avoids blocking the Python GIL with
+        # massive list comprehensions, preventing sensor SPS drops.
+        arr = np.array(rows, dtype=np.float64)
+        timestamps = arr[:, 0]
+        raw = {
+            'ENZ': arr[:, 1],
+            'ENN': arr[:, 2],
+            'ENE': arr[:, 3]
+        }
         # Free the row list immediately
         del rows
 
