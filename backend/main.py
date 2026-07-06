@@ -15,7 +15,8 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
-from database import init_db, cleanup_old_data, get_data_for_export, get_settings, update_settings, stop_db_writer
+from database import init_db, cleanup_old_data, get_data_for_export, get_settings, update_settings, stop_db_writer, get_data_availability
+from filters import FILTER_PRESETS
 from sensor import sensor_manager
 
 @asynccontextmanager
@@ -373,13 +374,53 @@ def api_set_filter(params: FilterModel):
     return {"status": "ok", **sensor_manager.get_filter_params()}
 
 @app.get("/api/analysis/window")
-async def api_analysis_window(seconds: float = 60):
-    """Return filtered historical data from the DB for the last N seconds."""
-    if seconds < 1 or seconds > 86400:
-        raise HTTPException(status_code=400, detail="seconds must be between 1 and 86400")
-    # Run in thread — large windows can take 1-2 seconds for DB query + filtering
-    result = await asyncio.to_thread(sensor_manager.get_historical_filtered, seconds)
+async def api_analysis_window(start: float = None, end: float = None, seconds: float = None):
+    """Return filtered historical data for a time range.
+    
+    Accepts either:
+      - start + end (absolute epoch timestamps)
+      - seconds (shorthand for 'last N seconds' — backward compat)
+    
+    Max window: 3600 seconds (1 hour).
+    """
+    import time as _time
+    now = _time.time()
+
+    if seconds is not None:
+        # Backward-compatible mode: 'last N seconds'
+        if seconds < 300 or seconds > 3600:
+            raise HTTPException(status_code=400, detail="seconds must be between 300 and 3600")
+        end = now
+        start = now - seconds
+    elif start is not None and end is not None:
+        if end < start:
+            raise HTTPException(status_code=400, detail="end must be after start")
+        window = end - start
+        if window < 300 or window > 3600:
+            raise HTTPException(status_code=400, detail="Window must be between 5 minutes and 1 hour")
+        # Don't allow queries into the future
+        if start > now:
+            raise HTTPException(status_code=400, detail="Start time is in the future")
+    else:
+        # Default: last 5 minutes
+        end = now
+        start = now - 300
+
+    # Run in thread — filtering 1 hour of data can take 1-3 seconds on RPi 3
+    result = await asyncio.to_thread(sensor_manager.get_historical_filtered, start, end)
     return result
+
+
+@app.get("/api/analysis/availability")
+def api_analysis_availability():
+    """Return the earliest and latest data timestamps in the DB."""
+    return get_data_availability()
+
+
+@app.get("/api/analysis/presets")
+def api_analysis_presets():
+    """Return available filter presets."""
+    return {"presets": FILTER_PRESETS}
 
 @app.websocket("/ws/analysis")
 async def websocket_analysis(websocket: WebSocket):

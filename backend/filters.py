@@ -8,7 +8,19 @@ Typical earthquake frequency band: 0.1 Hz – 20 Hz.
 """
 
 import numpy as np
-from scipy.signal import butter, sosfilt, sosfilt_zi
+from scipy.signal import butter, sosfilt, sosfilt_zi, sosfiltfilt
+
+
+# ---------------------------------------------------------------------------
+# Filter presets — standard seismological frequency bands
+# ---------------------------------------------------------------------------
+FILTER_PRESETS = {
+    "global":      {"label": "Global (Teleseismic)",  "low_hz": 0.1,  "high_hz": 0.8},
+    "regional":    {"label": "Regional",              "low_hz": 0.7,  "high_hz": 2.0},
+    "local":       {"label": "Local",                 "low_hz": 3.0,  "high_hz": 8.0},
+    "hyper_local": {"label": "Hyper-Local",           "low_hz": 3.0,  "high_hz": 20.0},
+    "default":     {"label": "Full Earthquake Band",  "low_hz": 0.1,  "high_hz": 20.0},
+}
 
 
 class BandpassFilter:
@@ -16,9 +28,10 @@ class BandpassFilter:
     Real-time IIR Butterworth bandpass filter using second-order sections
     (SOS) for numerical stability.
 
-    Supports two modes:
-      1. apply(data)           stateless batch filtering (for historical data)
-      2. apply_realtime(sample) stateful sample-by-sample filtering (for live stream)
+    Supports three modes:
+      1. apply(data)              stateless causal batch filtering
+      2. apply_zerophase(data)    zero-phase batch filtering (for historical data)
+      3. apply_realtime(sample)   stateful sample-by-sample filtering (for live stream)
     """
 
     def __init__(self, low_hz: float, high_hz: float, fs: float = 100.0, order: int = 4):
@@ -69,7 +82,7 @@ class BandpassFilter:
 
     def apply(self, data: np.ndarray) -> np.ndarray:
         """
-        Stateless batch filter — apply bandpass to an entire array.
+        Stateless causal batch filter — apply bandpass to an entire array.
         Does NOT affect the real-time filter state.
 
         Parameters
@@ -83,6 +96,29 @@ class BandpassFilter:
         if len(data) == 0:
             return data
         return sosfilt(self._sos, data)
+
+    def apply_zerophase(self, data: np.ndarray) -> np.ndarray:
+        """
+        Zero-phase (forward-backward) batch filter for historical data.
+
+        Uses sosfiltfilt which applies the filter forward and backward,
+        resulting in zero phase distortion.  This preserves exact P/S wave
+        arrival timing and is the gold standard for offline seismic analysis.
+
+        The effective filter order is doubled (4th order → equivalent to 8th).
+
+        Parameters
+        ----------
+        data : 1-D numpy array of samples (minimum 13 samples required)
+
+        Returns
+        -------
+        Filtered 1-D numpy array (same length)
+        """
+        if len(data) < 13:
+            # sosfiltfilt needs enough samples for the padlen
+            return data
+        return sosfiltfilt(self._sos, data)
 
     def apply_realtime(self, sample: float) -> float:
         """
@@ -113,6 +149,66 @@ class BandpassFilter:
             "fs": self.fs,
             "order": self.order,
         }
+
+
+def minmax_downsample(timestamps: np.ndarray, data: np.ndarray,
+                      target_points: int = 4000) -> tuple:
+    """
+    Min-max envelope downsampling for seismic waveform visualisation.
+
+    For each pixel-width bucket, keeps both the minimum and maximum value.
+    This guarantees that no peak or trough (e.g. P-wave first arrival,
+    maximum ground acceleration) is hidden by the downsampling — unlike
+    simple stride decimation which can miss peaks between strides.
+
+    Parameters
+    ----------
+    timestamps   : 1-D numpy array of epoch timestamps
+    data         : 1-D numpy array of amplitude values (same length)
+    target_points: Approximate number of output points (default 4000)
+
+    Returns
+    -------
+    (out_timestamps, out_data) — both 1-D numpy arrays, length ≤ target_points
+    """
+    n = len(data)
+    if n <= target_points:
+        return timestamps, data
+
+    # Each bucket produces 2 points (min + max), so we need target/2 buckets
+    n_buckets = max(1, target_points // 2)
+    bucket_size = n / n_buckets
+
+    out_t = np.empty(n_buckets * 2, dtype=np.float64)
+    out_v = np.empty(n_buckets * 2, dtype=np.float64)
+    idx = 0
+
+    for i in range(n_buckets):
+        start = int(i * bucket_size)
+        end = min(int((i + 1) * bucket_size), n)
+        if start >= end:
+            continue
+
+        chunk_data = data[start:end]
+        chunk_time = timestamps[start:end]
+
+        min_idx = np.argmin(chunk_data)
+        max_idx = np.argmax(chunk_data)
+
+        # Emit in chronological order to preserve waveform shape
+        if min_idx <= max_idx:
+            out_t[idx] = chunk_time[min_idx]
+            out_v[idx] = chunk_data[min_idx]
+            out_t[idx + 1] = chunk_time[max_idx]
+            out_v[idx + 1] = chunk_data[max_idx]
+        else:
+            out_t[idx] = chunk_time[max_idx]
+            out_v[idx] = chunk_data[max_idx]
+            out_t[idx + 1] = chunk_time[min_idx]
+            out_v[idx + 1] = chunk_data[min_idx]
+        idx += 2
+
+    return out_t[:idx], out_v[:idx]
 
 
 def downsample(data: np.ndarray, factor: int) -> np.ndarray:

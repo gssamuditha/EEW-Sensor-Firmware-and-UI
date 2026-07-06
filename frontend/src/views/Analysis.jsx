@@ -1,38 +1,70 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import FilteredChart from '../components/FilteredChart';
 import { useTimeZone } from '../TimeZoneContext';
 
-const WINDOW_OPTIONS = [
-  { label: '1 min', value: 1 },
-  { label: '2 min', value: 2 },
-  { label: '5 min', value: 5 },
-  { label: '10 min', value: 10 },
+// Quick-select durations (minutes)
+const QUICK_OPTIONS = [
+  { label: '5 min',  value: 5 },
+  { label: '15 min', value: 15 },
   { label: '30 min', value: 30 },
   { label: '1 hour', value: 60 },
-  { label: '2 hours', value: 120 },
-  { label: '6 hours', value: 360 },
-  { label: '12 hours', value: 720 },
-  { label: '24 hours', value: 1440 },
 ];
+
+// Convert epoch seconds to local datetime-local string (minute precision)
+function epochToLocal(epoch, tz) {
+  const d = new Date(epoch * 1000);
+  // Format as YYYY-MM-DDTHH:mm in the target timezone
+  const parts = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d);
+  const get = (type) => (parts.find(p => p.type === type) || {}).value || '';
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+}
+
+// Convert local datetime-local string to epoch seconds
+function localToEpoch(dtStr, tz) {
+  // datetime-local gives "YYYY-MM-DDTHH:mm"
+  // We need to interpret this in the user's timezone
+  const d = new Date(dtStr);
+  return d.getTime() / 1000;
+}
+
+// Round epoch down to the nearest minute
+function floorMinute(epoch) {
+  return Math.floor(epoch / 60) * 60;
+}
+
 
 export default function Analysis() {
   const { timeZone } = useTimeZone();
 
-  // Filter state
+  // --- Filter state ---
   const [lowHz, setLowHz] = useState(0.1);
   const [highHz, setHighHz] = useState(20.0);
-  const [windowMinutes, setWindowMinutes] = useState(1);
   const [activeFilter, setActiveFilter] = useState(null);
   const [filterStatus, setFilterStatus] = useState('loading');
   const [errorMsg, setErrorMsg] = useState('');
-  // Incremented on every successful filter apply — triggers FilteredChart re-fetch
   const [filterVersion, setFilterVersion] = useState(0);
 
-  // Fetch current filter on mount
+  // --- Filter presets ---
+  const [presets, setPresets] = useState({});
+  const [activePreset, setActivePreset] = useState(null);
+
+  // --- Time range state ---
+  const nowEpoch = () => Math.floor(Date.now() / 1000);
+  const [startEpoch, setStartEpoch] = useState(() => floorMinute(nowEpoch() - 300));
+  const [endEpoch, setEndEpoch] = useState(() => floorMinute(nowEpoch()));
+  const [isLive, setIsLive] = useState(true); // true = end time tracks "now"
+
+  // --- Data availability ---
+  const [availability, setAvailability] = useState(null);
+
+  // Fetch filter, presets, and availability on mount
   useEffect(() => {
-    const protocol = window.location.protocol;
-    const host = window.location.host;
-    fetch(`${protocol}//${host}/api/analysis/filter`)
+    const base = `${window.location.protocol}//${window.location.host}`;
+
+    fetch(`${base}/api/analysis/filter`)
       .then(r => r.json())
       .then(data => {
         setLowHz(data.low_hz);
@@ -41,18 +73,49 @@ export default function Analysis() {
         setFilterStatus('active');
       })
       .catch(() => setFilterStatus('error'));
+
+    fetch(`${base}/api/analysis/presets`)
+      .then(r => r.json())
+      .then(data => setPresets(data.presets || {}))
+      .catch(() => {});
+
+    fetch(`${base}/api/analysis/availability`)
+      .then(r => r.json())
+      .then(data => setAvailability(data))
+      .catch(() => {});
   }, []);
 
+  // Update end time every 30s when in live mode
+  useEffect(() => {
+    if (!isLive) return;
+    const update = () => setEndEpoch(floorMinute(nowEpoch()));
+    update();
+    const interval = setInterval(update, 30000);
+    return () => clearInterval(interval);
+  }, [isLive]);
+
+  // Duration in minutes
+  const durationMinutes = useMemo(() => {
+    return Math.round((endEpoch - startEpoch) / 60);
+  }, [startEpoch, endEpoch]);
+
+  // Validate duration
+  const durationError = useMemo(() => {
+    if (durationMinutes < 5) return 'Minimum duration is 5 minutes';
+    if (durationMinutes > 60) return 'Maximum duration is 1 hour';
+    return null;
+  }, [durationMinutes]);
+
+  // Apply filter
   const applyFilter = useCallback(() => {
     setErrorMsg('');
     if (lowHz >= highHz) {
       setErrorMsg('Low frequency must be less than high frequency');
       return;
     }
-    const protocol = window.location.protocol;
-    const host = window.location.host;
+    const base = `${window.location.protocol}//${window.location.host}`;
     setFilterStatus('updating');
-    fetch(`${protocol}//${host}/api/analysis/filter`, {
+    fetch(`${base}/api/analysis/filter`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ low_hz: lowHz, high_hz: highHz }),
@@ -64,7 +127,6 @@ export default function Analysis() {
       .then(data => {
         setActiveFilter(data);
         setFilterStatus('active');
-        // Bump version to trigger FilteredChart to re-fetch with new filter
         setFilterVersion(v => v + 1);
       })
       .catch(e => {
@@ -72,6 +134,108 @@ export default function Analysis() {
         setFilterStatus('error');
       });
   }, [lowHz, highHz]);
+
+  // Apply preset
+  const applyPreset = useCallback((key) => {
+    const preset = presets[key];
+    if (!preset) return;
+    setLowHz(preset.low_hz);
+    setHighHz(preset.high_hz);
+    setActivePreset(key);
+    // Also apply immediately
+    setErrorMsg('');
+    const base = `${window.location.protocol}//${window.location.host}`;
+    setFilterStatus('updating');
+    fetch(`${base}/api/analysis/filter`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ low_hz: preset.low_hz, high_hz: preset.high_hz }),
+    })
+      .then(r => {
+        if (!r.ok) return r.json().then(d => { throw new Error(d.detail || 'Failed'); });
+        return r.json();
+      })
+      .then(data => {
+        setActiveFilter(data);
+        setFilterStatus('active');
+        setFilterVersion(v => v + 1);
+      })
+      .catch(e => {
+        setErrorMsg(e.message);
+        setFilterStatus('error');
+      });
+  }, [presets]);
+
+  // Quick select: set start = now - minutes, end = now, go live
+  const quickSelect = useCallback((minutes) => {
+    const now = floorMinute(nowEpoch());
+    setStartEpoch(now - minutes * 60);
+    setEndEpoch(now);
+    setIsLive(true);
+  }, []);
+
+  // Handle start time change
+  const handleStartChange = (e) => {
+    const epoch = localToEpoch(e.target.value, timeZone);
+    if (!isNaN(epoch)) {
+      setStartEpoch(floorMinute(epoch));
+    }
+  };
+
+  // Handle end time change
+  const handleEndChange = (e) => {
+    const epoch = localToEpoch(e.target.value, timeZone);
+    if (!isNaN(epoch)) {
+      setEndEpoch(floorMinute(epoch));
+      setIsLive(false);
+    }
+  };
+
+  // Toggle live mode
+  const toggleLive = () => {
+    if (!isLive) {
+      // Switch to live: set end to now
+      const now = floorMinute(nowEpoch());
+      setEndEpoch(now);
+      // Adjust start if window too large
+      if (now - startEpoch > 3600) {
+        setStartEpoch(now - 3600);
+      }
+    }
+    setIsLive(!isLive);
+  };
+
+  // Min datetime for the picker (24 hours ago or earliest data)
+  const minDatetime = useMemo(() => {
+    const twentyFourHoursAgo = nowEpoch() - 86400;
+    const earliest = availability?.earliest || twentyFourHoursAgo;
+    return epochToLocal(Math.max(earliest, twentyFourHoursAgo), timeZone);
+  }, [availability, timeZone]);
+
+  const maxDatetime = useMemo(() => {
+    return epochToLocal(nowEpoch(), timeZone);
+  }, [timeZone]);
+
+  // Format duration for display
+  const durationStr = useMemo(() => {
+    const mins = durationMinutes;
+    if (mins < 60) return `${mins}m`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }, [durationMinutes]);
+
+  // Check if custom low/high match any preset
+  useEffect(() => {
+    let matched = null;
+    for (const [key, preset] of Object.entries(presets)) {
+      if (Math.abs(preset.low_hz - lowHz) < 0.001 && Math.abs(preset.high_hz - highHz) < 0.001) {
+        matched = key;
+        break;
+      }
+    }
+    setActivePreset(matched);
+  }, [lowHz, highHz, presets]);
 
   return (
     <div className="p-6 h-full flex flex-col bg-gray-50 overflow-hidden">
@@ -93,110 +257,210 @@ export default function Analysis() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col gap-4">
-        {/* Filter Control Card */}
+      <div className="flex-1 min-h-0 flex flex-col gap-3">
+        {/* Controls Row */}
         <div className="bg-white border border-gray-200 p-4 shadow-sm flex-shrink-0">
-          <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Bandpass Filter Configuration</div>
-          <div className="flex flex-wrap items-end gap-6">
-            {/* Low Frequency */}
-            <div className="flex flex-col">
-              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Low Cutoff (Hz)</label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="range"
-                  id="analysis-low-hz-slider"
-                  min="0.01"
-                  max="10"
-                  step="0.01"
-                  value={lowHz}
-                  onChange={e => setLowHz(parseFloat(e.target.value))}
-                  className="w-32 accent-primary"
-                />
-                <input
-                  type="number"
-                  id="analysis-low-hz-input"
-                  min="0.01"
-                  max="10"
-                  step="0.01"
-                  value={lowHz}
-                  onChange={e => setLowHz(parseFloat(e.target.value) || 0.01)}
-                  className="w-20 border border-gray-300 rounded px-2 py-1 text-sm font-mono text-center focus:outline-none focus:border-primary"
-                />
+          <div className="flex flex-col gap-4">
+
+            {/* Row 1: Time Range */}
+            <div>
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Time Range</div>
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Start time */}
+                <div className="flex flex-col">
+                  <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">Start</label>
+                  <input
+                    type="datetime-local"
+                    id="analysis-start-time"
+                    value={epochToLocal(startEpoch, timeZone)}
+                    onChange={handleStartChange}
+                    min={minDatetime}
+                    max={maxDatetime}
+                    className="border border-gray-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-primary bg-white shadow-sm"
+                  />
+                </div>
+
+                <span className="text-gray-300 font-bold text-xs mt-3">→</span>
+
+                {/* End time */}
+                <div className="flex flex-col">
+                  <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">End</label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="datetime-local"
+                      id="analysis-end-time"
+                      value={epochToLocal(endEpoch, timeZone)}
+                      onChange={handleEndChange}
+                      min={minDatetime}
+                      max={maxDatetime}
+                      disabled={isLive}
+                      className={`border border-gray-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-primary bg-white shadow-sm ${isLive ? 'opacity-50' : ''}`}
+                    />
+                    <button
+                      id="analysis-live-toggle"
+                      onClick={toggleLive}
+                      className={`px-2.5 py-1 rounded text-[10px] font-bold tracking-wider transition-colors shadow-sm border ${
+                        isLive
+                          ? 'bg-green-500 text-white border-green-500'
+                          : 'bg-white text-gray-500 border-gray-300 hover:border-green-400 hover:text-green-600'
+                      }`}
+                    >
+                      {isLive ? '● LIVE' : 'NOW'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Duration badge */}
+                <div className={`px-2.5 py-1 rounded text-[10px] font-bold font-mono mt-3 border ${
+                  durationError
+                    ? 'bg-red-50 text-red-500 border-red-200'
+                    : 'bg-gray-50 text-gray-500 border-gray-200'
+                }`}>
+                  {durationStr}
+                </div>
+
+                {/* Quick select buttons */}
+                <div className="flex items-center gap-1 mt-3">
+                  {QUICK_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => quickSelect(opt.value)}
+                      className="px-2 py-1 rounded text-[10px] font-bold text-gray-500 bg-gray-100 hover:bg-primary hover:text-white transition-colors border border-gray-200 hover:border-primary"
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
+              {durationError && (
+                <div className="mt-1 text-[10px] text-red-500 font-bold">{durationError}</div>
+              )}
             </div>
 
-            {/* High Frequency */}
-            <div className="flex flex-col">
-              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">High Cutoff (Hz)</label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="range"
-                  id="analysis-high-hz-slider"
-                  min="0.5"
-                  max="50"
-                  step="0.5"
-                  value={highHz}
-                  onChange={e => setHighHz(parseFloat(e.target.value))}
-                  className="w-32 accent-primary"
-                />
-                <input
-                  type="number"
-                  id="analysis-high-hz-input"
-                  min="0.5"
-                  max="50"
-                  step="0.5"
-                  value={highHz}
-                  onChange={e => setHighHz(parseFloat(e.target.value) || 0.5)}
-                  className="w-20 border border-gray-300 rounded px-2 py-1 text-sm font-mono text-center focus:outline-none focus:border-primary"
-                />
+            {/* Divider */}
+            <div className="border-t border-gray-100"></div>
+
+            {/* Row 2: Bandpass Filter */}
+            <div>
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Bandpass Filter</div>
+              <div className="flex flex-wrap items-end gap-4">
+                {/* Presets */}
+                {Object.keys(presets).length > 0 && (
+                  <div className="flex flex-col">
+                    <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">Presets</label>
+                    <div className="flex items-center gap-1">
+                      {Object.entries(presets).map(([key, preset]) => (
+                        <button
+                          key={key}
+                          onClick={() => applyPreset(key)}
+                          title={`${preset.low_hz}–${preset.high_hz} Hz`}
+                          className={`px-2 py-1 rounded text-[10px] font-bold transition-colors border ${
+                            activePreset === key
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-primary hover:text-primary'
+                          }`}
+                        >
+                          {preset.label.split(' ')[0]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Low Frequency */}
+                <div className="flex flex-col">
+                  <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">Low Cutoff (Hz)</label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="range"
+                      id="analysis-low-hz-slider"
+                      min="0.01"
+                      max="10"
+                      step="0.01"
+                      value={lowHz}
+                      onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }}
+                      className="w-28 accent-primary"
+                    />
+                    <input
+                      type="number"
+                      id="analysis-low-hz-input"
+                      min="0.01"
+                      max="10"
+                      step="0.01"
+                      value={lowHz}
+                      onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }}
+                      className="w-16 border border-gray-300 rounded px-2 py-1 text-xs font-mono text-center focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                </div>
+
+                {/* High Frequency */}
+                <div className="flex flex-col">
+                  <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">High Cutoff (Hz)</label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="range"
+                      id="analysis-high-hz-slider"
+                      min="0.5"
+                      max="50"
+                      step="0.5"
+                      value={highHz}
+                      onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }}
+                      className="w-28 accent-primary"
+                    />
+                    <input
+                      type="number"
+                      id="analysis-high-hz-input"
+                      min="0.5"
+                      max="50"
+                      step="0.5"
+                      value={highHz}
+                      onChange={e => { setHighHz(parseFloat(e.target.value) || 0.5); setActivePreset(null); }}
+                      className="w-16 border border-gray-300 rounded px-2 py-1 text-xs font-mono text-center focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                </div>
+
+                {/* Apply Button */}
+                <button
+                  id="analysis-apply-filter"
+                  onClick={applyFilter}
+                  className="bg-primary hover:bg-opacity-90 text-white rounded font-bold transition-colors shadow-sm px-4 py-1.5 text-xs tracking-wider"
+                >
+                  APPLY FILTER
+                </button>
+
+                {/* Filter info */}
+                {activeFilter && (
+                  <div className="text-[10px] text-gray-400 font-mono ml-auto self-center">
+                    Order: {activeFilter.order} · Fs: {activeFilter.fs} Hz · Zero-Phase Butterworth
+                  </div>
+                )}
               </div>
+
+              {/* Error message */}
+              {errorMsg && (
+                <div className="mt-2 text-xs text-red-500 font-bold">{errorMsg}</div>
+              )}
             </div>
-
-            {/* Time Window */}
-            <div className="flex flex-col">
-              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Time Window</label>
-              <select
-                id="analysis-time-window"
-                value={windowMinutes}
-                onChange={e => setWindowMinutes(parseInt(e.target.value))}
-                className="border border-gray-300 rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:border-primary bg-white shadow-sm"
-              >
-                {WINDOW_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Apply Button */}
-            <button
-              id="analysis-apply-filter"
-              onClick={applyFilter}
-              className="bg-primary hover:bg-opacity-90 text-white rounded font-bold transition-colors shadow-sm px-4 py-1.5 text-xs tracking-wider"
-            >
-              APPLY FILTER
-            </button>
-
-            {/* Filter info */}
-            {activeFilter && (
-              <div className="text-[10px] text-gray-400 font-mono ml-auto self-center">
-                Order: {activeFilter.order} · Fs: {activeFilter.fs} Hz · Butterworth IIR
-              </div>
-            )}
           </div>
-
-          {/* Error message */}
-          {errorMsg && (
-            <div className="mt-2 text-xs text-red-500 font-bold">{errorMsg}</div>
-          )}
         </div>
 
         {/* Filtered Waveform Charts */}
         <div className="flex-1 min-h-0 bg-white border border-gray-200 p-4 shadow-sm flex flex-col overflow-hidden">
-          <FilteredChart
-            timeZone={timeZone}
-            timeWindowMinutes={windowMinutes}
-            filterVersion={filterVersion}
-          />
+          {durationError ? (
+            <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+              {durationError}. Adjust the time range above.
+            </div>
+          ) : (
+            <FilteredChart
+              timeZone={timeZone}
+              startEpoch={startEpoch}
+              endEpoch={endEpoch}
+              isLive={isLive}
+              filterVersion={filterVersion}
+            />
+          )}
         </div>
       </div>
     </div>

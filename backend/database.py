@@ -141,6 +141,49 @@ def get_data_for_analysis(window_seconds, decimation_factor=1):
             return cursor.fetchall()
 
 
+def get_data_for_range(start_time, end_time):
+    """
+    Query raw sensor data between two absolute timestamps at full 100 SPS.
+    
+    No decimation — returns ALL samples so the bandpass filter can operate
+    at the original sample rate (Nyquist = 50 Hz).
+    
+    Max window should be capped by the caller (≤ 3600s = 360k samples).
+    
+    Returns list of tuples: [(timestamp, z, x, y), ...]
+    """
+    with db_lock:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT timestamp, z, x, y FROM sensor_data
+                WHERE timestamp >= ? AND timestamp <= ?
+                ORDER BY timestamp ASC
+            ''', (start_time, end_time))
+            return cursor.fetchall()
+
+
+def get_data_availability():
+    """
+    Return the earliest and latest timestamps in the sensor_data table.
+    
+    Used by the frontend time-range picker to show what data is available.
+    Returns dict: {"earliest": float|None, "latest": float|None, "count": int}
+    """
+    with db_lock:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT MIN(timestamp), MAX(timestamp), COUNT(*) FROM sensor_data
+            ''')
+            row = cursor.fetchone()
+            return {
+                "earliest": row[0],
+                "latest": row[1],
+                "count": row[2] or 0,
+            }
+
+
 def get_settings():
     with db_lock:
         with sqlite3.connect(DB_PATH) as conn:

@@ -6,8 +6,8 @@ import random
 import sys
 import json
 
-from database import insert_batch, get_data_for_analysis
-from filters import BandpassFilter
+from database import insert_batch, get_data_for_range, get_data_availability
+from filters import BandpassFilter, minmax_downsample, FILTER_PRESETS
 import numpy as np
 
 # === ADC Config ===
@@ -231,66 +231,41 @@ class SensorManager:
         with self._filter_lock:
             return self._filters[CHANNEL_NAMES[0]].params
 
-    def get_historical_filtered(self, window_seconds: float) -> dict:
+    def get_historical_filtered(self, start_time: float, end_time: float,
+                                target_display_points: int = 4000) -> dict:
         """
-        Query raw data from the SQLite database for the given time window,
-        apply the current bandpass filter, and return decimated results.
+        Query raw data from the SQLite database between start_time and end_time,
+        apply zero-phase bandpass filter at FULL 100 SPS, then min-max
+        envelope downsample for display.
 
-        Strategy: SQL-decimate only as much as the filter allows (Nyquist
-        must stay above high_hz), filter at that rate, then stride-decimate
-        further in Python to keep chart points manageable.
+        Corrected pipeline (filter-first):
+          DB (100 SPS, no decimation)
+            → Zero-phase bandpass filter at 100 SPS (sosfiltfilt)
+            → Min-max envelope downsample to ~4000 display points
 
-        Memory budget: cap SQL query at ~500k samples to stay within
-        RPi 3's 1 GB RAM.
+        This ensures seismic events are visible at any time scale because
+        the filter always operates above the Nyquist frequency.
+
+        Max window: 3600 seconds (1 hour = 360k samples × 3 axes ≈ 17 MB).
         """
-        high_hz = self._filters[CHANNEL_NAMES[0]].high_hz
-        low_hz = self._filters[CHANNEL_NAMES[0]].low_hz
+        window_seconds = end_time - start_time
 
-        # --- 1. Target display decimation (keeps chart points <= ~36k) ---
-        if window_seconds <= 300:           # <= 5 min
-            display_dec = 1
-        elif window_seconds <= 1800:        # 5–30 min
-            display_dec = 10
-        elif window_seconds <= 21600:       # 30 min – 6 h
-            display_dec = 100
-        else:                               # 6–24 h
-            display_dec = 1000
+        with self._filter_lock:
+            high_hz = self._filters[CHANNEL_NAMES[0]].high_hz
+            low_hz = self._filters[CHANNEL_NAMES[0]].low_hz
 
-        # --- 2. Max SQL decimation the filter permits ---
-        # Nyquist of decimated signal must exceed high_hz
-        # effective_sps = 100 / sql_dec  →  Nyquist = 50 / sql_dec
-        # Need: 50 / sql_dec > high_hz  →  sql_dec < 50 / high_hz
-        max_filter_dec = max(1, int(50.0 / high_hz))  # e.g. high=20 → max_dec=2
-
-        # --- 3. Memory cap: limit raw samples loaded to ~500k ---
-        total_raw = window_seconds * 100
-        min_memory_dec = max(1, int(total_raw / 500000))
-
-        # SQL decimation = the larger of memory-cap and 1 (but not more than filter allows)
-        sql_dec = max(1, min_memory_dec)
-
-        # Can we actually filter at this SQL decimation level?
-        can_filter = (sql_dec <= max_filter_dec)
-        if can_filter:
-            # Keep SQL dec within what the filter allows
-            sql_dec = max(sql_dec, 1)
-        else:
-            # Filter band exceeds Nyquist at any feasible decimation.
-            # Use the display decimation and skip filtering.
-            sql_dec = display_dec
-
-        # --- 4. Query from DB ---
-        rows = get_data_for_analysis(window_seconds, sql_dec)
+        # --- 1. Query ALL raw samples at full 100 SPS (no SQL decimation) ---
+        rows = get_data_for_range(start_time, end_time)
 
         if not rows:
             return {
                 "timestamps": [],
                 "samples": {ch: [] for ch in CHANNEL_NAMES},
                 "sps": 100,
-                "decimation_factor": display_dec,
+                "window_seconds": window_seconds,
             }
 
-        # Unpack into numpy arrays
+        # Unpack into numpy arrays (float64)
         timestamps = np.array([r[0] for r in rows], dtype=np.float64)
         raw_z = np.array([r[1] for r in rows], dtype=np.float64)
         raw_x = np.array([r[2] for r in rows], dtype=np.float64)
@@ -299,40 +274,42 @@ class SensorManager:
         # Free the row list immediately
         del rows
 
-        # --- 5. Apply bandpass filter (if feasible) ---
-        effective_sps = 100.0 / sql_dec
+        # --- 2. Apply ZERO-PHASE bandpass filter at full 100 SPS ---
+        # sosfiltfilt runs forward+backward, giving zero phase distortion
+        # and preserving exact P/S wave arrival timing.
         filtered = {}
         for ch in CHANNEL_NAMES:
-            if not can_filter or len(raw[ch]) < 13:
-                # Not enough data or Nyquist too low — return raw
+            if len(raw[ch]) < 13:
+                # Not enough data for sosfiltfilt — return raw
                 filtered[ch] = raw[ch]
             else:
-                clamped_high = min(high_hz, effective_sps / 2.0 * 0.9)
-                clamped_low = min(low_hz, clamped_high * 0.9)
-                if clamped_low >= clamped_high:
-                    filtered[ch] = raw[ch]
-                else:
-                    filt = BandpassFilter(
-                        low_hz=clamped_low,
-                        high_hz=clamped_high,
-                        fs=effective_sps,
-                        order=4,
-                    )
-                    filtered[ch] = filt.apply(raw[ch])
+                filt = BandpassFilter(
+                    low_hz=low_hz,
+                    high_hz=high_hz,
+                    fs=100.0,
+                    order=4,
+                )
+                filtered[ch] = filt.apply_zerophase(raw[ch])
 
-        # --- 6. Python-side stride decimation to hit display target ---
-        python_dec = max(1, display_dec // sql_dec) if sql_dec < display_dec else 1
-        if python_dec > 1:
-            timestamps = timestamps[::python_dec]
-            for ch in CHANNEL_NAMES:
-                filtered[ch] = filtered[ch][::python_dec]
+        # --- 3. Min-max envelope downsample for display ---
+        # Preserves peaks and troughs (unlike stride decimation)
+        result_samples = {}
+        for ch in CHANNEL_NAMES:
+            ds_t, ds_v = minmax_downsample(
+                timestamps, filtered[ch], target_display_points
+            )
+            result_samples[ch] = ds_v.tolist()
 
-        total_dec = sql_dec * python_dec
+        # Use timestamps from the last channel's downsample (all identical)
+        result_timestamps = ds_t.tolist()
+
         return {
-            "timestamps": timestamps.tolist(),
-            "samples": {ch: (filtered[ch].tolist() if hasattr(filtered[ch], 'tolist') else list(filtered[ch])) for ch in CHANNEL_NAMES},
+            "timestamps": result_timestamps,
+            "samples": result_samples,
             "sps": 100,
-            "decimation_factor": total_dec,
+            "window_seconds": window_seconds,
+            "raw_sample_count": len(timestamps),
+            "display_points": len(result_timestamps),
         }
             
     def _run_loop(self):

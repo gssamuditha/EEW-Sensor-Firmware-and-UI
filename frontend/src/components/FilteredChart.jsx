@@ -10,9 +10,13 @@ import {
 /**
  * FilteredChart — Hybrid historical + real-time filtered waveform charts.
  *
- * 1. On mount / window change: fetches historical data from /api/analysis/window
- * 2. Connects to /ws/analysis for real-time filtered data (live tail)
- * 3. Uses stable refs so TimeLine sees data mutations correctly
+ * Two modes driven by the `isLive` prop:
+ *   1. Historical: fetches data for [startEpoch, endEpoch] from the DB,
+ *      displayed with zero-phase filtering + min-max envelope downsampling.
+ *   2. Live (isLive=true AND endEpoch ≈ now): loads historical data for the
+ *      window, then appends real-time filtered samples from the WebSocket.
+ *
+ * Uses stable refs so TimeLine sees data mutations correctly.
  */
 
 const CHANNELS = ['ENZ', 'ENN', 'ENE'];
@@ -144,20 +148,18 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
 }
 
 // ---------------------------------------------------------------------------
-// FilteredChart — manages WS connection + historical data + data ingestion
+// FilteredChart — manages data fetching, WS connection, data ingestion
 // ---------------------------------------------------------------------------
-export default function FilteredChart({ timeZone, timeWindowMinutes = 1, filterVersion = 0 }) {
-  const timeWindowMs = timeWindowMinutes * 60 * 1000;
+export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive = false, filterVersion = 0 }) {
+  const timeWindowMs = (endEpoch - startEpoch) * 1000;
 
-  // Max points to keep: based on window and effective SPS after decimation
-  const getMaxPoints = (windowMin) => {
-    const secs = windowMin * 60;
-    if (secs <= 300) return secs * 100;       // 100 SPS
-    if (secs <= 1800) return secs * 10;       // 10 SPS
-    if (secs <= 21600) return secs * 1;       // 1 SPS
-    return secs * 0.1;                        // 0.1 SPS
+  // Max points to keep in live mode: based on window
+  const getMaxPoints = (windowSecs) => {
+    if (windowSecs <= 300) return windowSecs * 100;       // 100 SPS for ≤ 5 min
+    if (windowSecs <= 1800) return windowSecs * 10;       // 10 SPS for ≤ 30 min
+    return windowSecs * 2;                                // 2 SPS for up to 1 hour
   };
-  const maxPointsRef = useRef(getMaxPoints(timeWindowMinutes));
+  const maxPointsRef = useRef(getMaxPoints(endEpoch - startEpoch));
 
   // *** STABLE REFS — these arrays persist across renders ***
   // TimeLine is constructed with dataRefs[ch] and reads that same array object.
@@ -185,19 +187,18 @@ export default function FilteredChart({ timeZone, timeWindowMinutes = 1, filterV
 
   // Update maxPoints when window changes
   useEffect(() => {
-    maxPointsRef.current = getMaxPoints(timeWindowMinutes);
-  }, [timeWindowMinutes]);
+    maxPointsRef.current = getMaxPoints(endEpoch - startEpoch);
+  }, [startEpoch, endEpoch]);
 
   // -----------------------------------------------------------------------
-  // Fetch historical data from DB when window or filter changes
+  // Fetch historical data from DB when time range or filter changes
   // -----------------------------------------------------------------------
   useEffect(() => {
-    const seconds = timeWindowMinutes * 60;
     const protocol = window.location.protocol;
     const host = window.location.host;
 
     setLoading(true);
-    fetch(`${protocol}//${host}/api/analysis/window?seconds=${seconds}`)
+    fetch(`${protocol}//${host}/api/analysis/window?start=${startEpoch}&end=${endEpoch}`)
       .then(r => r.json())
       .then(data => {
         if (!data.timestamps || data.timestamps.length === 0) {
@@ -233,10 +234,11 @@ export default function FilteredChart({ timeZone, timeWindowMinutes = 1, filterV
         console.error('Failed to load analysis window:', err);
         setLoading(false);
       });
-  }, [timeWindowMinutes, filterVersion]);
+  }, [startEpoch, endEpoch, filterVersion]);
 
   // -----------------------------------------------------------------------
-  // WebSocket connection to /ws/analysis — appends live filtered samples
+  // WebSocket connection to /ws/analysis — only in LIVE mode
+  // Appends real-time filtered samples after the historical data
   // -----------------------------------------------------------------------
   const connect = useCallback(() => {
     if (wsRef.current) {
@@ -293,17 +295,28 @@ export default function FilteredChart({ timeZone, timeWindowMinutes = 1, filterV
     ws.onerror = () => { ws.close(); };
   }, []);
 
+  // Manage WS lifecycle based on isLive
   useEffect(() => {
-    connect();
+    if (isLive) {
+      connect();
+    } else {
+      // Disconnect WS in historical-only mode
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      setConnectionStatus('historical');
+    }
 
     // UI render tick (250 ms) — triggers chart.recompute()
     const uiInterval = setInterval(() => {
       if (!isPausedRef.current) setTick(t => t + 1);
     }, 250);
 
-    // Heartbeat: detect silence
+    // Heartbeat: detect silence (only in live mode)
     const heartbeatInterval = setInterval(() => {
-      if (lastMsgTimeRef.current > 0 && Date.now() - lastMsgTimeRef.current > 5000) {
+      if (isLive && lastMsgTimeRef.current > 0 && Date.now() - lastMsgTimeRef.current > 5000) {
         setConnectionStatus('no_data');
       }
     }, 3000);
@@ -316,7 +329,7 @@ export default function FilteredChart({ timeZone, timeWindowMinutes = 1, filterV
         wsRef.current.close();
       }
     };
-  }, [connect]);
+  }, [connect, isLive]);
 
   // -----------------------------------------------------------------------
   // Status badge
@@ -325,11 +338,11 @@ export default function FilteredChart({ timeZone, timeWindowMinutes = 1, filterV
     if (loading) {
       return (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded border text-[10px] font-bold shadow-sm bg-white border-blue-200 text-blue-600">
-          Loading historical data…
+          Loading filtered data…
         </div>
       );
     }
-    if (connectionStatus === 'connected') return null;
+    if (connectionStatus === 'connected' || connectionStatus === 'historical') return null;
     const cfg = {
       connecting: { bg: 'bg-white border-yellow-200 text-yellow-600', label: 'Connecting…' },
       no_data: { bg: 'bg-white border-orange-200 text-orange-600', label: 'No Data' },
