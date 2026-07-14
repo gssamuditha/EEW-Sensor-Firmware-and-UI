@@ -315,7 +315,7 @@ class SensorManager:
         
         total_samples = 0
         total_time = 0
-        packet_start_time = None
+        packet_start_time = time.time()
         sample_count = 0
         target_interval = 1.0 / 200  # 5 ms per sample (200 Hz Oversampling)
         next_loop_time = time.monotonic()
@@ -354,9 +354,6 @@ class SensorManager:
                 
                 # Only process every 2nd sample (yielding exactly 100 Hz)
                 if not decimate_flag:
-                    if sample_count == 0:
-                        packet_start_time = time.time()
-
                     record = (t, z_f, x_f, y_f)
                     
                     # 1. Background DB writer queueing (non-blocking)
@@ -403,6 +400,8 @@ class SensorManager:
 
                         self.hardware_sps = round(sps, 2)
                         self.avg_sps = round(overall_sps, 2)
+                        
+                        packet_start_time = end_time
                         sample_count = 0
 
                 # Precise, drift-free rate limiting using absolute time
