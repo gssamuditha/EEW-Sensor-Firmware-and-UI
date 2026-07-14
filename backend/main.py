@@ -329,23 +329,62 @@ def api_system_status():
         return {"error": str(e)}
 
 @app.get("/api/export")
-def api_export(start: float, end: float):
+def api_export(start: float, end: float, format: str = "csv"):
     if end < start:
         raise HTTPException(status_code=400, detail="End time must be after start time")
     
     data = get_data_for_export(start, end)
-    
-    output = io.StringIO()
-    writer = csv.writer(output, lineterminator='\n')
-    writer.writerow(["time", "ENZ", "ENN", "ENE"])
-    for row in data:
-        # row: timestamp, z, x, y — cast timestamp to float in case DB stored as int
-        t, z, x, y = row
-        writer.writerow([f"{float(t):.6f}", f"{z:.6f}", f"{x:.6f}", f"{y:.6f}"])
+    if not data:
+        raise HTTPException(status_code=404, detail="No data found for this time range")
         
-    response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
-    response.headers["Content-Disposition"] = f"attachment; filename=eew_export_{int(time.time())}.csv"
-    return response
+    import numpy as np
+    from filters import obspy_resample_trace
+    
+    arr = np.array(data, dtype=np.float64)
+    raw_t = arr[:, 0]
+    
+    # Mathematically Resample to EXACT 100.0 SPS using ObsPy Lanczos
+    t_100, z_100 = obspy_resample_trace(raw_t, arr[:, 1], input_sps=200.0, target_sps=100.0)
+    _, x_100 = obspy_resample_trace(raw_t, arr[:, 2], input_sps=200.0, target_sps=100.0)
+    _, y_100 = obspy_resample_trace(raw_t, arr[:, 3], input_sps=200.0, target_sps=100.0)
+    
+    if format.lower() == "mseed":
+        try:
+            from obspy import Trace, Stream, UTCDateTime
+            stream = Stream()
+            starttime = UTCDateTime(t_100[0])
+            
+            for name, ch_data in [('ENZ', z_100), ('ENN', x_100), ('ENE', y_100)]:
+                tr = Trace(data=ch_data.astype(np.float32))
+                tr.stats.network = "XX"
+                tr.stats.station = "EEWS"
+                tr.stats.channel = name
+                tr.stats.sampling_rate = 100.0
+                tr.stats.starttime = starttime
+                stream.append(tr)
+                
+            output = io.BytesIO()
+            stream.write(output, format='MSEED')
+            output.seek(0)
+            
+            response = StreamingResponse(output, media_type="application/vnd.fdsn.mseed")
+            response.headers["Content-Disposition"] = f"attachment; filename=eew_export_{int(time.time())}.mseed"
+            return response
+        except ImportError:
+            raise HTTPException(status_code=500, detail="ObsPy is not installed. MSEED export requires ObsPy.")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"MSEED generation failed: {e}")
+            
+    else:
+        output = io.StringIO()
+        writer = csv.writer(output, lineterminator='\n')
+        writer.writerow(["time", "ENZ", "ENN", "ENE"])
+        for i in range(len(t_100)):
+            writer.writerow([f"{t_100[i]:.6f}", f"{z_100[i]:.6f}", f"{x_100[i]:.6f}", f"{y_100[i]:.6f}"])
+            
+        response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
+        response.headers["Content-Disposition"] = f"attachment; filename=eew_export_{int(time.time())}.csv"
+        return response
 
 @app.websocket("/ws/stream")
 async def websocket_stream(websocket: WebSocket):

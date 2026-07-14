@@ -10,6 +10,12 @@ Typical earthquake frequency band: 0.1 Hz – 20 Hz.
 import numpy as np
 from scipy.signal import butter, sosfilt, sosfilt_zi, sosfiltfilt
 
+try:
+    from obspy import Trace
+    OBSPY_AVAILABLE = True
+except ImportError:
+    OBSPY_AVAILABLE = False
+
 
 # ---------------------------------------------------------------------------
 # Filter presets — standard seismological frequency bands
@@ -238,3 +244,52 @@ def downsample(data: np.ndarray, factor: int) -> np.ndarray:
     if factor <= 1:
         return data
     return data[::factor]
+
+def obspy_resample_trace(timestamps, data, input_sps=200.0, target_sps=100.0, filter_freq=45.0):
+    """
+    Professionally resample a trace with fluctuating timestamps to a strict SPS.
+    Uses ObsPy to apply a zero-phase anti-aliasing filter and Lanczos interpolation.
+    """
+    if len(timestamps) < 20:
+        return np.array(timestamps), np.array(data)
+        
+    t0 = timestamps[0]
+    tN = timestamps[-1]
+    
+    # 1. Grid interpolation (Jitter Removal)
+    # Map the fluctuating DB timestamps to a mathematically perfect input grid
+    duration = tN - t0
+    num_samples = int(duration * input_sps) + 1
+    strict_t = t0 + np.arange(num_samples) / input_sps
+    
+    strict_data = np.interp(strict_t, timestamps, data)
+    
+    if not OBSPY_AVAILABLE:
+        # Fallback if ObsPy isn't installed (just returns the strict grid decimated)
+        # Using simple linear downsampling as a fallback
+        out_samples = int(duration * target_sps) + 1
+        out_t = t0 + np.arange(out_samples) / target_sps
+        out_data = np.interp(out_t, strict_t, strict_data)
+        return out_t, out_data
+        
+    # 2. Create ObsPy Trace
+    tr = Trace(data=strict_data)
+    tr.stats.sampling_rate = input_sps
+    
+    # 3. Zero-phase Anti-Aliasing (Low-pass)
+    # Filter just below Nyquist of target SPS to prevent all aliasing
+    tr.filter('lowpass', freq=filter_freq, corners=4, zerophase=True)
+    
+    # 4. Lanczos Resampling
+    # Sinc-based mathematically perfect decimation
+    try:
+        tr.interpolate(sampling_rate=target_sps, method='lanczos', a=10)
+    except Exception as e:
+        print(f"Lanczos interpolation failed: {e}")
+        tr.resample(target_sps) # Fallback to frequency-domain resampling
+    
+    # Reconstruct timestamps for the output
+    out_samples = len(tr.data)
+    out_t = t0 + np.arange(out_samples) / target_sps
+    
+    return out_t, tr.data
