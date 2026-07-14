@@ -160,7 +160,7 @@ class RealSensor:
         while self.GPIO.input(DRDY_PINS[i]):
             if time.time() - start > 0.15:
                 raise TimeoutError(f"DRDY timeout on ADC {i}")
-            time.sleep(0.0001)
+            pass
         data = self.spi.xfer2([0x00, 0x00, 0x00])
         self.GPIO.output(CS_PINS[i], self.GPIO.HIGH)
         raw = (data[0] << 16) | (data[1] << 8) | data[2]
