@@ -314,74 +314,106 @@ class SensorManager:
         total_time = 0
         packet_start_time = None
         sample_count = 0
-        target_interval = 1.0 / 100  # 10 ms per sample
+        target_interval = 1.0 / 200  # 5 ms per sample (200 Hz Oversampling)
+        next_loop_time = time.monotonic()
+        
+        # 2nd-Order Butterworth Low-Pass (fc=40Hz, fs=200Hz) for Anti-Aliasing
+        # b0, b1, b2, a1, a2
+        b0, b1, b2 = 0.20657208, 0.41314417, 0.20657208
+        a1, a2 = -0.36952738, 0.19581571
+        
+        x_hist = {'Z': [0.0, 0.0], 'X': [0.0, 0.0], 'Y': [0.0, 0.0]}
+        y_hist = {'Z': [0.0, 0.0], 'X': [0.0, 0.0], 'Y': [0.0, 0.0]}
+        
+        decimate_flag = False
 
         while self.running:
             try:
-                loop_start = time.monotonic()
-
-                if sample_count == 0:
-                    packet_start_time = time.time()
+                next_loop_time += target_interval
 
                 t, z, x, y = self.sensor.read_all()
-                record = (t, z, x, y)
                 
-                # 1. Background DB writer queueing (non-blocking)
-                buffer.append(record)
-                if len(buffer) >= 50:
-                    insert_batch(buffer)
-                    buffer = []
+                # --- Pure Arithmetic Anti-Aliasing Filter ---
+                # Completely bypasses Numpy/Scipy GIL overhead. Takes ~1 microsecond.
+                z_f = b0*z + b1*x_hist['Z'][0] + b2*x_hist['Z'][1] - a1*y_hist['Z'][0] - a2*y_hist['Z'][1]
+                x_hist['Z'] = [z, x_hist['Z'][0]]
+                y_hist['Z'] = [z_f, y_hist['Z'][0]]
                 
-                # 2. Push to analytics thread (non-blocking)
-                if not self._analytics_queue.full():
-                    self._analytics_queue.put_nowait(record)
+                x_f = b0*x + b1*x_hist['X'][0] + b2*x_hist['X'][1] - a1*y_hist['X'][0] - a2*y_hist['X'][1]
+                x_hist['X'] = [x, x_hist['X'][0]]
+                y_hist['X'] = [x_f, y_hist['X'][0]]
                 
-                sample_count += 1
+                y_f = b0*y + b1*x_hist['Y'][0] + b2*x_hist['Y'][1] - a1*y_hist['Y'][0] - a2*y_hist['Y'][1]
+                x_hist['Y'] = [y, x_hist['Y'][0]]
+                y_hist['Y'] = [y_f, y_hist['Y'][0]]
                 
-                # 3. UDP Sending (using cached targets from analytics thread)
-                if self._cached_targets:
-                    if len(udp_buffers[0]) == 0:
-                        timestamp = t
-                    udp_buffers[0].append(z)
-                    udp_buffers[1].append(x)
-                    udp_buffers[2].append(y)
+                decimate_flag = not decimate_flag
+                
+                # Only process every 2nd sample (yielding exactly 100 Hz)
+                if not decimate_flag:
+                    if sample_count == 0:
+                        packet_start_time = time.time()
 
-                    if len(udp_buffers[0]) >= SAMPLES_PER_PACKET:
-                        for i, name in enumerate(CHANNEL_NAMES):
-                            packet = [name, timestamp] + udp_buffers[i]
-                            data = str(packet).encode()
-                            if self._cached_data_forwarding:
-                                for target in self._cached_targets:
-                                    try:
-                                        self.sock.sendto(data, (target['ip'], target['port']))
-                                    except BlockingIOError:
-                                        pass
-                        udp_buffers = [[], [], []]
-                
-                # 4. SPS Tracking
-                if sample_count >= SAMPLES_PER_PACKET:
-                    end_time = time.time()
-                    elapsed = end_time - packet_start_time
-                    sps = SAMPLES_PER_PACKET / elapsed if elapsed > 0 else 0
+                    record = (t, z_f, x_f, y_f)
+                    
+                    # 1. Background DB writer queueing (non-blocking)
+                    buffer.append(record)
+                    if len(buffer) >= 50:
+                        insert_batch(buffer)
+                        buffer = []
+                    
+                    # 2. Push to analytics thread (non-blocking)
+                    if not self._analytics_queue.full():
+                        self._analytics_queue.put_nowait(record)
+                    
+                    sample_count += 1
+                    
+                    # 3. UDP Sending (using cached targets from analytics thread)
+                    if self._cached_targets:
+                        if len(udp_buffers[0]) == 0:
+                            timestamp = t
+                        udp_buffers[0].append(z_f)
+                        udp_buffers[1].append(x_f)
+                        udp_buffers[2].append(y_f)
 
-                    total_samples += SAMPLES_PER_PACKET
-                    total_time += elapsed
-                    overall_sps = total_samples / total_time if total_time > 0 else 0
+                        if len(udp_buffers[0]) >= SAMPLES_PER_PACKET:
+                            for i, name in enumerate(CHANNEL_NAMES):
+                                packet = [name, timestamp] + udp_buffers[i]
+                                data = str(packet).encode()
+                                if self._cached_data_forwarding:
+                                    for target in self._cached_targets:
+                                        try:
+                                            self.sock.sendto(data, (target['ip'], target['port']))
+                                        except BlockingIOError:
+                                            pass
+                            udp_buffers = [[], [], []]
+                    
+                    # 4. SPS Tracking
+                    if sample_count >= SAMPLES_PER_PACKET:
+                        end_time = time.time()
+                        elapsed = end_time - packet_start_time
+                        sps = SAMPLES_PER_PACKET / elapsed if elapsed > 0 else 0
 
-                    self.hardware_sps = round(sps, 2)
-                    self.avg_sps = round(overall_sps, 2)
-                    sample_count = 0
+                        total_samples += SAMPLES_PER_PACKET
+                        total_time += elapsed
+                        overall_sps = total_samples / total_time if total_time > 0 else 0
 
-                # Precise rate limiting
-                remaining = target_interval - (time.monotonic() - loop_start)
-                if remaining > 0.002:
-                    time.sleep(remaining - 0.001)
-                while (time.monotonic() - loop_start) < target_interval:
+                        self.hardware_sps = round(sps, 2)
+                        self.avg_sps = round(overall_sps, 2)
+                        sample_count = 0
+
+                # Precise, drift-free rate limiting using absolute time
+                now = time.monotonic()
+                remaining = next_loop_time - now
+                if remaining > 0.003:
+                    time.sleep(remaining - 0.002)
+                while time.monotonic() < next_loop_time:
                     pass
 
             except Exception as e:
                 print(f"HW loop error: {e}")
                 time.sleep(1)
+                next_loop_time = time.monotonic() # Reset absolute timer after an error
         
         # Flush on shutdown
         if len(buffer) > 0:
@@ -454,6 +486,11 @@ class SensorManager:
                         "samples": filtered,
                         "decimation_factor": 1,
                     }
+                    
+                    # Log SPS safely without blocking the hardware thread
+                    print(f"Per-Channel Sample Rates:")
+                    for name in CHANNEL_NAMES:
+                        print(f"   {name}: {self.hardware_sps:.2f} samples/sec (current), {self.avg_sps:.2f} samples/sec (avg)")
                     
                     # Thread-safe asyncio put
                     if self._loop and self._loop.is_running():
