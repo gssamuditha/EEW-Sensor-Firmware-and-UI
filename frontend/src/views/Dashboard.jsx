@@ -79,7 +79,7 @@ export default function Dashboard() {
           {/* Sensor-side (hardware) SPS */}
           <div className="px-3 py-1 bg-white text-gray-600 text-xs font-bold rounded border border-gray-200 shadow-sm flex items-center space-x-2">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            <span>SENSOR {systemStats.hardware_sps} sps</span>
+            <span>SENSOR AVG {systemStats.avg_sps} sps</span>
           </div>
           {/* Client-side (browser) SPS */}
           <div className="px-3 py-1 bg-white text-gray-600 text-xs font-bold rounded border border-gray-200 shadow-sm flex items-center space-x-2">

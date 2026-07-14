@@ -26,22 +26,13 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
             "window_seconds": window_seconds,
         }
 
-    from filters import obspy_resample_trace
     arr = np.array(rows, dtype=np.float64)
-    raw_t = arr[:, 0]
-    
-    # Use ObsPy pipeline to get perfectly regular 100 Hz trace
-    # from the fluctuating ~200 Hz DB data
-    t_100, z_100 = obspy_resample_trace(raw_t, arr[:, 1], input_sps=200.0, target_sps=100.0)
-    _, x_100 = obspy_resample_trace(raw_t, arr[:, 2], input_sps=200.0, target_sps=100.0)
-    _, y_100 = obspy_resample_trace(raw_t, arr[:, 3], input_sps=200.0, target_sps=100.0)
+    timestamps = arr[:, 0]
+    raw = {'ENZ': arr[:, 1], 'ENN': arr[:, 2], 'ENE': arr[:, 3]}
     
     del rows
     del arr
     
-    raw = {'ENZ': z_100, 'ENN': x_100, 'ENE': y_100}
-    timestamps = t_100
-
     filtered = {}
     for ch in CHANNEL_NAMES:
         if len(raw[ch]) < 13:
@@ -361,17 +352,17 @@ class SensorManager:
                 x_hist['Y'] = [y, x_hist['Y'][0]]
                 y_hist['Y'] = [y_f, y_hist['Y'][0]]
                 
-                # 1. Background DB writer queueing (Save RAW 200 SPS data)
-                buffer.append((t, z, x, y))
-                if len(buffer) >= 100:
-                    insert_batch(buffer)
-                    buffer = []
-                
                 decimate_flag = not decimate_flag
                 
                 # Only process every 2nd sample for Real-Time (yielding exactly 100 Hz)
                 if not decimate_flag:
                     record = (t, z_f, x_f, y_f)
+                    
+                    # 1. Background DB writer queueing (non-blocking, exactly 100 SPS)
+                    buffer.append(record)
+                    if len(buffer) >= 50:
+                        insert_batch(buffer)
+                        buffer = []
                     
                     # 2. Push to analytics thread (non-blocking)
                     if not self._analytics_queue.full():

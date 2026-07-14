@@ -8,6 +8,7 @@ export default function Export() {
 
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
+  const [formatType, setFormatType] = useState('csv');
 
   // Update default start/end times when component mounts or timezone changes
   useEffect(() => {
@@ -31,7 +32,7 @@ export default function Export() {
     const startTime = startDate.getTime() / 1000;
     const endTime = endDate.getTime() / 1000;
     
-    window.open(`/api/export?start=${startTime}&end=${endTime}`, '_blank');
+    window.open(`/api/export?start=${startTime}&end=${endTime}&format=${formatType}`, '_blank');
   };
 
   return (
@@ -59,13 +60,24 @@ export default function Export() {
               className="w-full border border-gray-300 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono"
             />
           </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Export Format</label>
+            <select
+              value={formatType}
+              onChange={e => setFormatType(e.target.value)}
+              className="w-full border border-gray-300 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono bg-white"
+            >
+              <option value="csv">CSV Format</option>
+              <option value="mseed">miniSEED Format (ObsPy)</option>
+            </select>
+          </div>
           
           <button 
             onClick={handleExport}
             className="w-full bg-primary text-white font-bold tracking-widest uppercase py-3 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity"
           >
             <Download size={20} />
-            <span>Export CSV</span>
+            <span>Export {formatType.toUpperCase()}</span>
           </button>
         </div>
       </div>

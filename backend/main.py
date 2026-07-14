@@ -338,15 +338,12 @@ def api_export(start: float, end: float, format: str = "csv"):
         raise HTTPException(status_code=404, detail="No data found for this time range")
         
     import numpy as np
-    from filters import obspy_resample_trace
     
     arr = np.array(data, dtype=np.float64)
-    raw_t = arr[:, 0]
-    
-    # Mathematically Resample to EXACT 100.0 SPS using ObsPy Lanczos
-    t_100, z_100 = obspy_resample_trace(raw_t, arr[:, 1], input_sps=200.0, target_sps=100.0)
-    _, x_100 = obspy_resample_trace(raw_t, arr[:, 2], input_sps=200.0, target_sps=100.0)
-    _, y_100 = obspy_resample_trace(raw_t, arr[:, 3], input_sps=200.0, target_sps=100.0)
+    t_100 = arr[:, 0]
+    z_100 = arr[:, 1]
+    x_100 = arr[:, 2]
+    y_100 = arr[:, 3]
     
     if format.lower() == "mseed":
         try:
