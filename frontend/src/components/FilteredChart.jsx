@@ -184,6 +184,10 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
   const isPausedRef = useRef(false);
   const [isPaused, setIsPaused] = useState(false);
 
+  // Buffer to catch WS data arriving while historical fetch is running
+  const isFetchingRef = useRef(false);
+  const wsBufferRef = useRef({ ENZ: [], ENN: [], ENE: [] });
+
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
   // Update maxPoints when window changes
@@ -199,6 +203,11 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
     const host = window.location.host;
 
     setLoading(true);
+    isFetchingRef.current = true;
+    
+    // Clear the WS buffer at the start of a new fetch
+    CHANNELS.forEach(ch => { wsBufferRef.current[ch].length = 0; });
+
     fetch(`${protocol}//${host}/api/analysis/window?start=${startEpoch}&end=${endEpoch}`)
       .then(r => r.json())
       .then(data => {
@@ -206,8 +215,10 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
           // Clear existing data
           CHANNELS.forEach(ch => {
             dataRefs.current[ch].length = 0;
+            wsBufferRef.current[ch].length = 0;
           });
           setLoading(false);
+          isFetchingRef.current = false;
           setTick(t => t + 1);
           return;
         }
@@ -218,21 +229,37 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
           // TimeLine holds a reference to this exact array object.
           const arr = dataRefs.current[ch];
           arr.length = 0;  // clear in-place
+          
           for (let i = 0; i < samples.length; i++) {
             arr.push({
               time: data.timestamps[i] * 1000,
               value: samples[i],
             });
           }
-          if (samples.length > 0) {
-            latestValues.current[ch] = samples[samples.length - 1];
+
+          // Drain the WS buffer that accumulated during the fetch
+          const buf = wsBufferRef.current[ch];
+          for (let i = 0; i < buf.length; i++) {
+            const pt = buf[i];
+            // Only append points strictly newer than our last historical point
+            if (arr.length === 0 || pt.time > arr[arr.length - 1].time) {
+              arr.push(pt);
+            }
+          }
+          buf.length = 0; // Clear buffer
+
+          if (arr.length > 0) {
+            latestValues.current[ch] = arr[arr.length - 1].value;
           }
         });
+        
+        isFetchingRef.current = false;
         setLoading(false);
         setTick(t => t + 1);
       })
       .catch(err => {
         console.error('Failed to load analysis window:', err);
+        isFetchingRef.current = false;
         setLoading(false);
       });
   }, [startEpoch, endEpoch, filterVersion]);
@@ -265,23 +292,31 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
       const { t_start, sps, samples } = msg;
 
       CHANNELS.forEach(ch => {
-        const arr = dataRefs.current[ch];
         const chSamples = samples[ch] || [];
+        // If fetch is in progress, accumulate in wsBufferRef instead of main array
+        const targetArr = isFetchingRef.current ? wsBufferRef.current[ch] : dataRefs.current[ch];
+
         for (let i = 0; i < chSamples.length; i++) {
-          arr.push({
-            time: (t_start + i / sps) * 1000,
+          const t = (t_start + i / sps) * 1000;
+          // Prevent overlapping backwards points
+          if (targetArr.length > 0 && t <= targetArr[targetArr.length - 1].time) {
+            continue;
+          }
+          targetArr.push({
+            time: t,
             value: chSamples[i],
           });
         }
 
-        if (chSamples.length > 0) {
-          latestValues.current[ch] = chSamples[chSamples.length - 1];
-        }
-
-        // Trim to maxPoints — remove from the front
-        const max = maxPointsRef.current;
-        if (arr.length > max) {
-          arr.splice(0, arr.length - max);
+        if (!isFetchingRef.current) {
+          if (chSamples.length > 0) {
+            latestValues.current[ch] = chSamples[chSamples.length - 1];
+          }
+          // Trim to maxPoints — remove from the front
+          const max = maxPointsRef.current;
+          if (targetArr.length > max) {
+            targetArr.splice(0, targetArr.length - max);
+          }
         }
       });
     };

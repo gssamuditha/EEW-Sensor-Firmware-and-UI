@@ -17,7 +17,11 @@ from pydantic import BaseModel, field_validator
 
 from database import init_db, cleanup_old_data, get_data_for_export, get_settings, update_settings, stop_db_writer, get_data_availability
 from filters import FILTER_PRESETS
-from sensor import sensor_manager
+from sensor import sensor_manager, process_historical_data_task, CHANNEL_NAMES
+from concurrent.futures import ProcessPoolExecutor
+
+# Use a ProcessPool to run heavy numpy/scipy operations entirely out-of-process, bypassing the GIL.
+process_pool = ProcessPoolExecutor(max_workers=2)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,6 +41,7 @@ async def lifespan(app: FastAPI):
     sensor_manager.stop()
     stop_db_writer()
     task.cancel()
+    process_pool.shutdown(wait=False)
 
 app = FastAPI(lifespan=lifespan)
 
@@ -406,8 +411,18 @@ async def api_analysis_window(start: float = None, end: float = None, seconds: f
         end = now
         start = now - 300
 
-    # Run in thread — filtering 1 hour of data can take 1-3 seconds on RPi 3
-    result = await asyncio.to_thread(sensor_manager.get_historical_filtered, start, end)
+    # Run in a separate PROCESS — entirely bypasses Python GIL so the 
+    # sensor reading hardware thread is completely uninterrupted.
+    with sensor_manager._filter_lock:
+        high_hz = sensor_manager._filters[CHANNEL_NAMES[0]].high_hz
+        low_hz = sensor_manager._filters[CHANNEL_NAMES[0]].low_hz
+        
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(
+        process_pool, 
+        process_historical_data_task, 
+        start, end, low_hz, high_hz, 4000
+    )
     return result
 
 

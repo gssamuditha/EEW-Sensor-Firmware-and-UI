@@ -226,6 +226,49 @@ class SensorManager:
             for ch in CHANNEL_NAMES:
                 self._filters[ch].update_params(low_hz, high_hz)
 
+def process_historical_data_task(start_time: float, end_time: float, low_hz: float, high_hz: float, target_display_points: int = 4000) -> dict:
+    """
+    Top-level standalone function to query DB and apply DSP.
+    Designed to run in a separate ProcessPoolExecutor to avoid blocking the GIL.
+    """
+    window_seconds = end_time - start_time
+    rows = get_data_for_range(start_time, end_time)
+
+    if not rows:
+        return {
+            "timestamps": [],
+            "samples": {ch: [] for ch in CHANNEL_NAMES},
+            "sps": 100,
+            "window_seconds": window_seconds,
+        }
+
+    arr = np.array(rows, dtype=np.float64)
+    timestamps = arr[:, 0]
+    raw = {'ENZ': arr[:, 1], 'ENN': arr[:, 2], 'ENE': arr[:, 3]}
+    del rows
+
+    filtered = {}
+    for ch in CHANNEL_NAMES:
+        if len(raw[ch]) < 13:
+            filtered[ch] = raw[ch]
+        else:
+            filt = BandpassFilter(low_hz=low_hz, high_hz=high_hz, fs=100.0, order=4)
+            filtered[ch] = filt.apply_zerophase(raw[ch])
+
+    result_samples = {}
+    for ch in CHANNEL_NAMES:
+        ds_t, ds_v = minmax_downsample(timestamps, filtered[ch], target_display_points)
+        result_samples[ch] = ds_v.tolist()
+
+    return {
+        "timestamps": ds_t.tolist(),
+        "samples": result_samples,
+        "sps": 100,
+        "window_seconds": window_seconds,
+        "raw_sample_count": len(timestamps),
+        "display_points": len(ds_t.tolist()),
+    }
+
     def get_filter_params(self) -> dict:
         """Return current filter parameters."""
         with self._filter_lock:
@@ -234,88 +277,13 @@ class SensorManager:
     def get_historical_filtered(self, start_time: float, end_time: float,
                                 target_display_points: int = 4000) -> dict:
         """
-        Query raw data from the SQLite database between start_time and end_time,
-        apply zero-phase bandpass filter at FULL 100 SPS, then min-max
-        envelope downsample for display.
-
-        Corrected pipeline (filter-first):
-          DB (100 SPS, no decimation)
-            → Zero-phase bandpass filter at 100 SPS (sosfiltfilt)
-            → Min-max envelope downsample to ~4000 display points
-
-        This ensures seismic events are visible at any time scale because
-        the filter always operates above the Nyquist frequency.
-
-        Max window: 3600 seconds (1 hour = 360k samples × 3 axes ≈ 17 MB).
+        Backward compatible call. For true non-blocking, use ProcessPoolExecutor 
+        with process_historical_data_task directly.
         """
-        window_seconds = end_time - start_time
-
         with self._filter_lock:
             high_hz = self._filters[CHANNEL_NAMES[0]].high_hz
             low_hz = self._filters[CHANNEL_NAMES[0]].low_hz
-
-        # --- 1. Query ALL raw samples at full 100 SPS (no SQL decimation) ---
-        rows = get_data_for_range(start_time, end_time)
-
-        if not rows:
-            return {
-                "timestamps": [],
-                "samples": {ch: [] for ch in CHANNEL_NAMES},
-                "sps": 100,
-                "window_seconds": window_seconds,
-            }
-
-        # Unpack into numpy arrays (float64)
-        # We convert the entire list of tuples to a 2D array at once.
-        # This is implemented in C and avoids blocking the Python GIL with
-        # massive list comprehensions, preventing sensor SPS drops.
-        arr = np.array(rows, dtype=np.float64)
-        timestamps = arr[:, 0]
-        raw = {
-            'ENZ': arr[:, 1],
-            'ENN': arr[:, 2],
-            'ENE': arr[:, 3]
-        }
-        # Free the row list immediately
-        del rows
-
-        # --- 2. Apply ZERO-PHASE bandpass filter at full 100 SPS ---
-        # sosfiltfilt runs forward+backward, giving zero phase distortion
-        # and preserving exact P/S wave arrival timing.
-        filtered = {}
-        for ch in CHANNEL_NAMES:
-            if len(raw[ch]) < 13:
-                # Not enough data for sosfiltfilt — return raw
-                filtered[ch] = raw[ch]
-            else:
-                filt = BandpassFilter(
-                    low_hz=low_hz,
-                    high_hz=high_hz,
-                    fs=100.0,
-                    order=4,
-                )
-                filtered[ch] = filt.apply_zerophase(raw[ch])
-
-        # --- 3. Min-max envelope downsample for display ---
-        # Preserves peaks and troughs (unlike stride decimation)
-        result_samples = {}
-        for ch in CHANNEL_NAMES:
-            ds_t, ds_v = minmax_downsample(
-                timestamps, filtered[ch], target_display_points
-            )
-            result_samples[ch] = ds_v.tolist()
-
-        # Use timestamps from the last channel's downsample (all identical)
-        result_timestamps = ds_t.tolist()
-
-        return {
-            "timestamps": result_timestamps,
-            "samples": result_samples,
-            "sps": 100,
-            "window_seconds": window_seconds,
-            "raw_sample_count": len(timestamps),
-            "display_points": len(result_timestamps),
-        }
+        return process_historical_data_task(start_time, end_time, low_hz, high_hz, target_display_points)
             
     def _run_loop(self):
         from database import get_settings
