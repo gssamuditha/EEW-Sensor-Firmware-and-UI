@@ -15,7 +15,7 @@ export default function Dashboard() {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-  
+
   const [systemStats, setSystemStats] = useState({
     cpu_percent: 0,
     disk_percent: 0,
@@ -50,8 +50,8 @@ export default function Dashboard() {
     fetch('/api/settings')
       .then(res => res.json())
       .then(data => {
-        setSensorSettings({ 
-          latitude: data.latitude || 0.0, 
+        setSensorSettings({
+          latitude: data.latitude || 0.0,
           longitude: data.longitude || 0.0,
           device_name: data.device_name || 'CRISIS-NODE-01'
         });
@@ -79,12 +79,12 @@ export default function Dashboard() {
           {/* Sensor-side (hardware) SPS */}
           <div className="px-3 py-1 bg-white text-gray-600 text-xs font-bold rounded border border-gray-200 shadow-sm flex items-center space-x-2">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            <span>SENSOR AVG {systemStats.avg_sps} sps</span>
+            <span>Sensor {systemStats.avg_sps} sps</span>
           </div>
           {/* Client-side (browser) SPS */}
           <div className="px-3 py-1 bg-white text-gray-600 text-xs font-bold rounded border border-gray-200 shadow-sm flex items-center space-x-2">
             <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
-            <span>CLIENT {clientSps} sps</span>
+            <span>Client {clientSps} sps</span>
           </div>
         </div>
         <div className="flex items-center space-x-3 text-sm">
@@ -107,7 +107,7 @@ export default function Dashboard() {
       </div>
 
       <div className="flex-1 min-h-0 grid grid-cols-4 gap-6">
-        
+
         {/* Left Column: Widget 1 */}
         <div className="bg-white border border-gray-200 p-5 shadow-sm flex flex-col justify-between">
           <div>
@@ -156,7 +156,7 @@ export default function Dashboard() {
 
         {/* Right Column */}
         <div className="flex flex-col gap-6 min-h-0 overflow-y-auto pr-1">
-          
+
           {/* Widget 2: Network & Connections */}
           <div className="bg-white border border-gray-200 p-5 shadow-sm shrink-0">
             <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Network</div>

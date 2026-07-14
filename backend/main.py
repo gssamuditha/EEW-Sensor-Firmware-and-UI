@@ -96,20 +96,33 @@ class FilterModel(BaseModel):
 # Wi-Fi Manager helpers
 # ---------------------------------------------------------------------------
 
+_cached_ssid = None
+_last_ssid_check = 0
+
 def _get_active_ssid():
-    """Return the SSID of the currently active Wi-Fi connection, or None."""
+    """Return the SSID of the currently active Wi-Fi connection, or None. Cached for 10 seconds."""
+    global _cached_ssid, _last_ssid_check
+    if time.time() - _last_ssid_check < 10:
+        return _cached_ssid
+        
     if sys.platform == 'win32':
         return "Senz Cloud"  # mock for Windows dev
+        
     try:
         result = subprocess.run(
             ['sudo', '/usr/bin/nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'],
-            capture_output=True, text=True, timeout=5
+            capture_output=True, text=True, timeout=2
         )
         for line in result.stdout.split('\n'):
             if line.startswith('yes:'):
-                return line.split('yes:', 1)[1].strip()
+                _cached_ssid = line.split('yes:', 1)[1].strip()
+                _last_ssid_check = time.time()
+                return _cached_ssid
     except Exception:
         pass
+        
+    _cached_ssid = None
+    _last_ssid_check = time.time()
     return None
 
 def _get_saved_networks():
@@ -281,13 +294,26 @@ def api_set_settings(settings: SettingsModel):
     update_settings(settings_dict)
     return {"status": "ok"}
 
+_cached_internet = False
+_last_internet_check = 0
+
 def _check_internet():
-    """Check if outbound internet connectivity is available."""
+    """Check if outbound internet connectivity is available (cached for 10s)."""
+    global _cached_internet, _last_internet_check
+    if time.time() - _last_internet_check < 10:
+        return _cached_internet
+        
     try:
-        socket.create_connection(("8.8.8.8", 53), timeout=2)
-        return True
+        socket.create_connection(("8.8.8.8", 53), timeout=0.5)
+        _cached_internet = True
     except OSError:
-        return False
+        _cached_internet = False
+        
+    _last_internet_check = time.time()
+    return _cached_internet
+
+# Cache MAC address exactly once per boot since it never changes
+MAC_ADDRESS = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
 
 @app.get("/api/system_status")
 def api_system_status():
@@ -311,15 +337,12 @@ def api_system_status():
         finally:
             s.close()
             
-        mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) 
-                        for ele in range(0,8*6,8)][::-1])
-                        
         return {
             "cpu_percent": cpu,
             "disk_percent": disk,
             "uptime": uptime_str,
             "local_ip": ip,
-            "mac_address": mac,
+            "mac_address": MAC_ADDRESS,
             "internet_status": _check_internet(),
             "server_status": True,
             "hardware_sps": sensor_manager.hardware_sps,
