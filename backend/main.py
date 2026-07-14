@@ -28,7 +28,8 @@ async def lifespan(app: FastAPI):
     init_db()
     # Run sensor init in a thread to avoid blocking the asyncio event loop
     # (RealSensor.init_sensor sleeps ~11s, calibrate sleeps ~100s)
-    await asyncio.to_thread(sensor_manager.start)
+    loop = asyncio.get_running_loop()
+    await asyncio.to_thread(sensor_manager.start, loop)
     
     # Background task for cleanup
     async def cleanup_task():

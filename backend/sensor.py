@@ -225,9 +225,24 @@ class SensorManager:
             ch: BandpassFilter(low_hz=0.1, high_hz=20.0, fs=100.0, order=4)
             for ch in CHANNEL_NAMES
         }
+        self.avg_sps = 0.0
+        
+        self._loop = None
+        self._hw_thread = None
+        self._analytics_thread = None
+        
+        import queue
+        self._analytics_queue = queue.Queue(maxsize=1000)
+        self._cached_targets = []
+        self._cached_data_forwarding = True
         self._filter_lock = threading.Lock()
         
-    def start(self):
+    def start(self, loop=None):
+        if self.running:
+            return
+            
+        self._loop = loop
+        
         from database import get_settings
         settings = get_settings()
         cal_time = int(settings.get('calibration_time', 60))
@@ -235,13 +250,18 @@ class SensorManager:
         self.sensor.init_sensor()
         self.sensor.calibrate(calibration_time_sec=cal_time)
         self.running = True
-        self.thread = threading.Thread(target=self._run_loop, daemon=True)
-        self.thread.start()
+        
+        self._hw_thread = threading.Thread(target=self._hw_loop, daemon=True, name="sensor-hw")
+        self._analytics_thread = threading.Thread(target=self._analytics_loop, daemon=True, name="sensor-analytics")
+        self._hw_thread.start()
+        self._analytics_thread.start()
         
     def stop(self):
         self.running = False
-        if self.thread:
-            self.thread.join()
+        if self._hw_thread:
+            self._hw_thread.join()
+        if self._analytics_thread:
+            self._analytics_thread.join()
         self.sock.close()
             
     def subscribe(self, queue):
@@ -285,66 +305,60 @@ class SensorManager:
             low_hz = self._filters[CHANNEL_NAMES[0]].low_hz
         return process_historical_data_task(start_time, end_time, low_hz, high_hz, target_display_points)
             
-    def _run_loop(self):
-        from database import get_settings
-        buffer = []              # DB write buffer
-        udp_buffers = [[], [], []]  # UDP forwarding buffers (one per channel)
-        ws_buffers = {ch: [] for ch in CHANNEL_NAMES}  # WS batch buffers
-        ws_batch_start_time = None  # timestamp of first sample in current WS batch
-
-        # Analysis filtered batch buffers
-        analysis_buffers = {ch: [] for ch in CHANNEL_NAMES}
-        analysis_batch_start_time = None
-
-        # SPS tracking — mirrors ADXL354.py stream_udp()
+    def _hw_loop(self):
+        """Strictly prioritized hardware loop for 100 SPS SPI reading, DB queueing, and UDP sending."""
+        buffer = []
+        udp_buffers = [[], [], []]
+        
         total_samples = 0
         total_time = 0
         packet_start_time = None
         sample_count = 0
-
-        # Precise 100 SPS timing
         target_interval = 1.0 / 100  # 10 ms per sample
-
-        # Cache settings to avoid DB hit every sample
-        cached_settings = None
-        settings_refresh_time = 0
-        cached_targets = []
-        cached_data_forwarding = True
 
         while self.running:
             try:
                 loop_start = time.monotonic()
 
-                # --- First sample of a new batch: capture start time ---
                 if sample_count == 0:
                     packet_start_time = time.time()
-                    ws_batch_start_time = None  # set on actual first read below
 
                 t, z, x, y = self.sensor.read_all()
                 record = (t, z, x, y)
+                
+                # 1. Background DB writer queueing (non-blocking)
                 buffer.append(record)
+                if len(buffer) >= 50:
+                    insert_batch(buffer)
+                    buffer = []
+                
+                # 2. Push to analytics thread (non-blocking)
+                if not self._analytics_queue.full():
+                    self._analytics_queue.put_nowait(record)
+                
                 sample_count += 1
+                
+                # 3. UDP Sending (using cached targets from analytics thread)
+                if self._cached_targets:
+                    if len(udp_buffers[0]) == 0:
+                        timestamp = t
+                    udp_buffers[0].append(z)
+                    udp_buffers[1].append(x)
+                    udp_buffers[2].append(y)
 
-                # Record the wall-clock time of the very first sample in this WS batch
-                if ws_batch_start_time is None:
-                    ws_batch_start_time = t
-
-                # Accumulate into per-channel WS buffers
-                ws_vals = {'ENZ': z, 'ENN': x, 'ENE': y}
-                for ch in CHANNEL_NAMES:
-                    ws_buffers[ch].append(ws_vals[ch])
-
-                # --- Apply bandpass filter per-axis for live stream ---
-                with self._filter_lock:
-                    filtered_vals = {}
-                    for ch in CHANNEL_NAMES:
-                        filtered_vals[ch] = self._filters[ch].apply_realtime(ws_vals[ch])
-                for ch in CHANNEL_NAMES:
-                    analysis_buffers[ch].append(filtered_vals[ch])
-                if analysis_batch_start_time is None:
-                    analysis_batch_start_time = t
-
-                # --- When a full batch of SAMPLES_PER_PACKET is ready ---
+                    if len(udp_buffers[0]) >= SAMPLES_PER_PACKET:
+                        for i, name in enumerate(CHANNEL_NAMES):
+                            packet = [name, timestamp] + udp_buffers[i]
+                            data = str(packet).encode()
+                            if self._cached_data_forwarding:
+                                for target in self._cached_targets:
+                                    try:
+                                        self.sock.sendto(data, (target['ip'], target['port']))
+                                    except BlockingIOError:
+                                        pass
+                        udp_buffers = [[], [], []]
+                
+                # 4. SPS Tracking
                 if sample_count >= SAMPLES_PER_PACKET:
                     end_time = time.time()
                     elapsed = end_time - packet_start_time
@@ -356,93 +370,9 @@ class SensorManager:
 
                     self.hardware_sps = round(sps, 2)
                     self.avg_sps = round(overall_sps, 2)
-
-                    print(f"Per-Channel Sample Rates:")
-                    for name in CHANNEL_NAMES:
-                        print(f"   {name}: {sps:.2f} samples/sec (current), {overall_sps:.2f} samples/sec (avg)")
-
-                    # Build batch WebSocket message (same structure as ADXL354.py UDP packet:
-                    #   channel_name, start_timestamp, [samples...]  — but for all channels at once)
-                    batch_msg = {
-                        "t_start": ws_batch_start_time,
-                        "sps": 100,
-                        "samples": {ch: list(ws_buffers[ch]) for ch in CHANNEL_NAMES}
-                    }
-
-                    # Push to all WebSocket subscribers — skip silently if a client is congested
-                    with self._sub_lock:
-                        subs = list(self.subscribers)
-                    for q in subs:
-                        try:
-                            q.put_nowait(batch_msg)
-                            self._ws_batches_sent += 1
-                        except asyncio.QueueFull:
-                            self._ws_batches_dropped += 1
-                            print(f"WS queue full — batch dropped (total dropped: {self._ws_batches_dropped})")
-
-                    # Clear WS buffers for next batch
-                    for ch in CHANNEL_NAMES:
-                        ws_buffers[ch] = []
-                    ws_batch_start_time = None
                     sample_count = 0
 
-                    # --- Push filtered batch to analysis subscribers ---
-                    analysis_msg = {
-                        "t_start": analysis_batch_start_time,
-                        "sps": 100,
-                        "samples": {ch: list(analysis_buffers[ch]) for ch in CHANNEL_NAMES},
-                        "decimation_factor": 1,
-                    }
-                    with self._analysis_lock:
-                        a_subs = list(self.analysis_subscribers)
-                    for q in a_subs:
-                        try:
-                            q.put_nowait(analysis_msg)
-                        except asyncio.QueueFull:
-                            pass  # drop silently for slow analysis clients
-                    # Clear analysis buffers
-                    for ch in CHANNEL_NAMES:
-                        analysis_buffers[ch] = []
-                    analysis_batch_start_time = None
-
-                # Refresh settings cache every 5 seconds
-                now_mono = time.monotonic()
-                if now_mono - settings_refresh_time > 5.0:
-                    cached_settings = get_settings()
-                    settings_refresh_time = now_mono
-                    
-                    targets_str = cached_settings.get('targets', '[]') if cached_settings else '[]'
-                    try:
-                        cached_targets = json.loads(targets_str)
-                    except Exception:
-                        cached_targets = []
-                        
-                    if cached_settings:
-                        cached_data_forwarding = cached_settings.get('data_forwarding', 'true').lower() == 'true'
-
-                # --- UDP forwarding (unchanged from ADXL354.py pattern) ---
-                if cached_targets:
-                    if len(udp_buffers[0]) == 0:
-                        timestamp = t
-                    udp_buffers[0].append(z)
-                    udp_buffers[1].append(x)
-                    udp_buffers[2].append(y)
-
-                    if len(udp_buffers[0]) >= SAMPLES_PER_PACKET:
-                        for i, name in enumerate(CHANNEL_NAMES):
-                            packet = [name, timestamp] + udp_buffers[i]
-                            data = str(packet).encode()
-                            if cached_data_forwarding:
-                                for target in cached_targets:
-                                    self.sock.sendto(data, (target['ip'], target['port']))
-                        udp_buffers = [[], [], []]
-
-                # Batch save to DB every 50 samples
-                if len(buffer) >= 50:
-                    insert_batch(buffer)
-                    buffer = []
-
-                # Precise rate limiting: hybrid sleep + busy-wait for exact 100 SPS
+                # Precise rate limiting
                 remaining = target_interval - (time.monotonic() - loop_start)
                 if remaining > 0.002:
                     time.sleep(remaining - 0.001)
@@ -450,13 +380,96 @@ class SensorManager:
                     pass
 
             except Exception as e:
-                print(f"Sensor read error: {e}")
+                print(f"HW loop error: {e}")
                 time.sleep(1)
-
-        # Flush any remaining buffer on shutdown
+        
+        # Flush on shutdown
         if len(buffer) > 0:
             insert_batch(buffer)
             buffer = []
+
+    def _safe_put(self, q, msg):
+        try:
+            q.put_nowait(msg)
+        except asyncio.QueueFull:
+            pass
+
+    def _analytics_loop(self):
+        """Secondary loop for DB settings, batch filtering, and WebSockets."""
+        from database import get_settings
+        import queue
+        
+        settings_refresh_time = 0
+        batch_records = []
+        
+        while self.running:
+            try:
+                # 1. Update DB settings every 5s
+                now_mono = time.monotonic()
+                if now_mono - settings_refresh_time > 5.0:
+                    cached_settings = get_settings()
+                    settings_refresh_time = now_mono
+                    
+                    targets_str = cached_settings.get('targets', '[]') if cached_settings else '[]'
+                    try:
+                        self._cached_targets = json.loads(targets_str)
+                    except Exception:
+                        self._cached_targets = []
+                        
+                    if cached_settings:
+                        self._cached_data_forwarding = cached_settings.get('data_forwarding', 'true').lower() == 'true'
+
+                # 2. Block until we receive data from HW thread
+                try:
+                    record = self._analytics_queue.get(timeout=0.2)
+                    batch_records.append(record)
+                except queue.Empty:
+                    continue
+                
+                # 3. Process in batches to massively reduce GIL overhead
+                if len(batch_records) >= SAMPLES_PER_PACKET:
+                    timestamps = [r[0] for r in batch_records]
+                    raw = {
+                        'ENZ': np.array([r[1] for r in batch_records], dtype=np.float64),
+                        'ENN': np.array([r[2] for r in batch_records], dtype=np.float64),
+                        'ENE': np.array([r[3] for r in batch_records], dtype=np.float64)
+                    }
+                    
+                    with self._filter_lock:
+                        filtered = {}
+                        for ch in CHANNEL_NAMES:
+                            filtered[ch] = self._filters[ch].apply_batch_realtime(raw[ch]).tolist()
+                    
+                    raw_lists = {ch: raw[ch].tolist() for ch in CHANNEL_NAMES}
+                    
+                    batch_msg = {
+                        "t_start": timestamps[0],
+                        "sps": 100,
+                        "samples": raw_lists
+                    }
+                    
+                    analysis_msg = {
+                        "t_start": timestamps[0],
+                        "sps": 100,
+                        "samples": filtered,
+                        "decimation_factor": 1,
+                    }
+                    
+                    # Thread-safe asyncio put
+                    if self._loop and self._loop.is_running():
+                        with self._sub_lock:
+                            for q in list(self.subscribers):
+                                self._loop.call_soon_threadsafe(self._safe_put, q, batch_msg)
+                        
+                        with self._analysis_lock:
+                            for q in list(self.analysis_subscribers):
+                                self._loop.call_soon_threadsafe(self._safe_put, q, analysis_msg)
+                    
+                    batch_records = []
+                    
+            except Exception as e:
+                print(f"Analytics loop error: {e}")
+                time.sleep(1)
 
 # Global manager instance
 sensor_manager = SensorManager(use_mock=sys.platform == 'win32')

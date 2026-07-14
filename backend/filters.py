@@ -140,6 +140,14 @@ class BandpassFilter:
         filtered, self._zi = sosfilt(self._sos, np.array([sample]), zi=self._zi)
         return float(filtered[0])
 
+    def apply_batch_realtime(self, samples: np.ndarray) -> np.ndarray:
+        """
+        Stateful array-based IIR filter for batches.
+        Dramatically faster than sample-by-sample for real-time streams.
+        """
+        filtered, self._zi = sosfilt(self._sos, samples, zi=self._zi)
+        return filtered
+
     @property
     def params(self) -> dict:
         """Return current filter parameters as a serialisable dict."""
