@@ -10,6 +10,49 @@ from database import insert_batch, get_data_for_range, get_data_availability
 from filters import BandpassFilter, minmax_downsample, FILTER_PRESETS
 import numpy as np
 
+def process_historical_data_task(start_time: float, end_time: float, low_hz: float, high_hz: float, target_display_points: int = 4000) -> dict:
+    """
+    Top-level standalone function to query DB and apply DSP.
+    Designed to run in a separate ProcessPoolExecutor to avoid blocking the GIL.
+    """
+    window_seconds = end_time - start_time
+    rows = get_data_for_range(start_time, end_time)
+
+    if not rows:
+        return {
+            "timestamps": [],
+            "samples": {ch: [] for ch in CHANNEL_NAMES},
+            "sps": 100,
+            "window_seconds": window_seconds,
+        }
+
+    arr = np.array(rows, dtype=np.float64)
+    timestamps = arr[:, 0]
+    raw = {'ENZ': arr[:, 1], 'ENN': arr[:, 2], 'ENE': arr[:, 3]}
+    del rows
+
+    filtered = {}
+    for ch in CHANNEL_NAMES:
+        if len(raw[ch]) < 13:
+            filtered[ch] = raw[ch]
+        else:
+            filt = BandpassFilter(low_hz=low_hz, high_hz=high_hz, fs=100.0, order=4)
+            filtered[ch] = filt.apply_zerophase(raw[ch])
+
+    result_samples = {}
+    for ch in CHANNEL_NAMES:
+        ds_t, ds_v = minmax_downsample(timestamps, filtered[ch], target_display_points)
+        result_samples[ch] = ds_v.tolist()
+
+    return {
+        "timestamps": ds_t.tolist(),
+        "samples": result_samples,
+        "sps": 100,
+        "window_seconds": window_seconds,
+        "raw_sample_count": len(timestamps),
+        "display_points": len(ds_t.tolist()),
+    }
+
 # === ADC Config ===
 CS_PINS = [35, 33, 36]        # Acc Z, Acc X, Acc Y
 DRDY_PINS = [11, 15, 13]
@@ -225,49 +268,6 @@ class SensorManager:
         with self._filter_lock:
             for ch in CHANNEL_NAMES:
                 self._filters[ch].update_params(low_hz, high_hz)
-
-def process_historical_data_task(start_time: float, end_time: float, low_hz: float, high_hz: float, target_display_points: int = 4000) -> dict:
-    """
-    Top-level standalone function to query DB and apply DSP.
-    Designed to run in a separate ProcessPoolExecutor to avoid blocking the GIL.
-    """
-    window_seconds = end_time - start_time
-    rows = get_data_for_range(start_time, end_time)
-
-    if not rows:
-        return {
-            "timestamps": [],
-            "samples": {ch: [] for ch in CHANNEL_NAMES},
-            "sps": 100,
-            "window_seconds": window_seconds,
-        }
-
-    arr = np.array(rows, dtype=np.float64)
-    timestamps = arr[:, 0]
-    raw = {'ENZ': arr[:, 1], 'ENN': arr[:, 2], 'ENE': arr[:, 3]}
-    del rows
-
-    filtered = {}
-    for ch in CHANNEL_NAMES:
-        if len(raw[ch]) < 13:
-            filtered[ch] = raw[ch]
-        else:
-            filt = BandpassFilter(low_hz=low_hz, high_hz=high_hz, fs=100.0, order=4)
-            filtered[ch] = filt.apply_zerophase(raw[ch])
-
-    result_samples = {}
-    for ch in CHANNEL_NAMES:
-        ds_t, ds_v = minmax_downsample(timestamps, filtered[ch], target_display_points)
-        result_samples[ch] = ds_v.tolist()
-
-    return {
-        "timestamps": ds_t.tolist(),
-        "samples": result_samples,
-        "sps": 100,
-        "window_seconds": window_seconds,
-        "raw_sample_count": len(timestamps),
-        "display_points": len(ds_t.tolist()),
-    }
 
     def get_filter_params(self) -> dict:
         """Return current filter parameters."""
