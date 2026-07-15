@@ -65,9 +65,18 @@ SAMPLES_PER_PACKET = 25
 SAMPLE_INTERVAL = 0.0035  # 100 sps
 
 # === Accelerometer Settings ===
-ACC_ZERO_VOLTAGES = [0.0, 0.0, 0.0]  # To be calibrated
-ACC_SENSITIVITY_V_PER_G = 0.4
-G_TO_MS2 = 9.80665
+ACC_ZERO_VOLTAGES = [0.0, 0.0, 0.0]  # Calibrated zero voltages (V) per axis
+RAW_COUNTS_ZERO = [0, 0, 0]          # Calibrated zero level in raw ADC counts per axis
+ACC_SENSITIVITY_V_PER_G = 0.4        # ADXL354BEZ ±2g range: 400 mV/g (ratiometric to 1.8V)
+G_TO_MS2 = 9.80665                   # Standard gravity (m/s²)
+
+# === Instrument Sensitivity Constants (for StationXML response file) ===
+# Chain: ADXL354BEZ → ADA4522 RC LPF → ADS1220 (Gain=1, Vref=1.8V, 24-bit)
+# Overall sensitivity: counts → m/s²
+# 1 count = VREF / (FULL_SCALE × SENSITIVITY_V_per_g × G_TO_MS2)
+#         = 1.8 / (8388607 × 0.4 × 9.80665) ≈ 5.459e-8 m/s²/count
+# Inverse (m/s² → counts): ≈ 18,319,600 counts/(m/s²)
+INSTRUMENT_SENSITIVITY_MS2_PER_COUNT = VREF_ADCS[0] / (FULL_SCALE * ACC_SENSITIVITY_V_PER_G * G_TO_MS2)
 
 # === Sensor Control Pins ===
 ST1 = 16
@@ -87,11 +96,20 @@ class MockSensor:
         time.sleep(1)
         
     def read_all(self):
-        # Generate some realistic looking sine wave + noise data
+        # Generate realistic-looking acceleration noise in m/s²
         t = time.time()
         z = 0.5 * random.random() + 0.1
         x = 0.5 * random.random() - 0.2
         y = 0.5 * random.random() + 0.05
+        return (t, z, x, y)
+
+    def read_all_raw(self):
+        """Return mock signed 24-bit ADC counts (simulates what raw hardware returns)."""
+        t = time.time()
+        # Convert mock m/s² back to approximate counts for consistency
+        z = int((0.5 * random.random() + 0.1) / INSTRUMENT_SENSITIVITY_MS2_PER_COUNT)
+        x = int((0.5 * random.random() - 0.2) / INSTRUMENT_SENSITIVITY_MS2_PER_COUNT)
+        y = int((0.5 * random.random() + 0.05) / INSTRUMENT_SENSITIVITY_MS2_PER_COUNT)
         return (t, z, x, y)
 
 
@@ -178,22 +196,28 @@ class RealSensor:
         
     def calibrate(self, calibration_time_sec=100):
         print(f"Starting accelerometer zero-level calibration for {calibration_time_sec} seconds...")
-        samples = [[], [], []]  # For Z, X, Y
+        samples_v   = [[], [], []]  # Voltage samples per axis
+        samples_raw = [[], [], []]  # Raw ADC count samples per axis
         start_time = time.time()
         while time.time() - start_time < calibration_time_sec:
             self._start_conversion_all()
             for axis in range(3):
-                voltage = self._read_adc(axis)
-                samples[axis].append(voltage)
+                raw_cnt = self._read_adc(axis, return_raw=True)
+                voltage = (raw_cnt / FULL_SCALE) * VREF_ADCS[axis]
+                samples_v[axis].append(voltage)
+                samples_raw[axis].append(raw_cnt)
             time.sleep(SAMPLE_INTERVAL)
 
         for i in range(3):
-            ACC_ZERO_VOLTAGES[i] = sum(samples[i]) / len(samples[i])
+            ACC_ZERO_VOLTAGES[i] = sum(samples_v[i]) / len(samples_v[i])
+            RAW_COUNTS_ZERO[i]   = int(round(sum(samples_raw[i]) / len(samples_raw[i])))
 
-        print("Calibration complete. Zero-level voltages (V):")
-        print(f"Z: {ACC_ZERO_VOLTAGES[0]:.6f} V, X: {ACC_ZERO_VOLTAGES[1]:.6f} V, Y: {ACC_ZERO_VOLTAGES[2]:.6f} V")
+        print("Calibration complete.")
+        print(f"Zero voltages  — Z: {ACC_ZERO_VOLTAGES[0]:.6f} V, X: {ACC_ZERO_VOLTAGES[1]:.6f} V, Y: {ACC_ZERO_VOLTAGES[2]:.6f} V")
+        print(f"Zero raw counts— Z: {RAW_COUNTS_ZERO[0]}, X: {RAW_COUNTS_ZERO[1]}, Y: {RAW_COUNTS_ZERO[2]}")
 
     def read_all(self):
+        """Read all axes and return corrected acceleration in m/s²."""
         self._start_conversion_all()
         readings = []
         for i in range(3):
@@ -202,6 +226,22 @@ class RealSensor:
             g_val = (voltage - zero_voltage) / ACC_SENSITIVITY_V_PER_G
             ms2 = g_val * G_TO_MS2
             readings.append(ms2)
+        return (time.time(), readings[0], readings[1], readings[2])
+
+    def read_all_raw(self):
+        """Read all axes and return demeaned signed 24-bit ADC counts.
+
+        The zero offset (RAW_COUNTS_ZERO) measured during calibration is subtracted
+        so that the returned counts represent differential ground motion only,
+        exactly as Raspberry Shake does. A server-side response removal using the
+        StationXML file will convert these back to m/s².
+        """
+        self._start_conversion_all()
+        readings = []
+        for i in range(3):
+            raw_cnt = self._read_adc(i, return_raw=True)
+            demeaned = raw_cnt - RAW_COUNTS_ZERO[i]
+            readings.append(demeaned)
         return (time.time(), readings[0], readings[1], readings[2])
 
 class SensorManager:
@@ -238,6 +278,7 @@ class SensorManager:
         
         import queue
         self._analytics_queue = queue.Queue(maxsize=1000)
+        # _cached_targets: list of dicts with keys: ip, port, format ('corrected'|'raw')
         self._cached_targets = []
         self._cached_data_forwarding = True
         self._filter_lock = threading.Lock()
@@ -379,15 +420,26 @@ class SensorManager:
                         udp_buffers[2].append(y_f)
 
                         if len(udp_buffers[0]) >= SAMPLES_PER_PACKET:
-                            for i, name in enumerate(CHANNEL_NAMES):
-                                packet = [name, timestamp] + udp_buffers[i]
-                                data = str(packet).encode()
-                                if self._cached_data_forwarding:
-                                    for target in self._cached_targets:
-                                        try:
+                            if self._cached_data_forwarding:
+                                for target in self._cached_targets:
+                                    fmt = target.get('format', 'corrected')
+                                    try:
+                                        for i, name in enumerate(CHANNEL_NAMES):
+                                            if fmt == 'raw':
+                                                # Invert calibration math to recover demeaned counts.
+                                                # ms2 → g → voltage_offset → raw_counts → demean
+                                                samples = [
+                                                    int(round(v / G_TO_MS2 / ACC_SENSITIVITY_V_PER_G * FULL_SCALE / VREF_ADCS[i]))
+                                                    for v in udp_buffers[i]
+                                                ]
+                                            else:
+                                                # Corrected: floats in m/s² rounded to 6 dp
+                                                samples = [round(v, 6) for v in udp_buffers[i]]
+                                            packet = [name, timestamp] + samples
+                                            data = str(packet).encode()
                                             self.sock.sendto(data, (target['ip'], target['port']))
-                                        except BlockingIOError:
-                                            pass
+                                    except (BlockingIOError, OSError):
+                                        pass
                             udp_buffers = [[], [], []]
                     
                     # 4. SPS Tracking

@@ -67,7 +67,7 @@ def init_db():
                 )
             ''')
             # Insert defaults if not exist
-            cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('targets', '[{\"ip\": \"127.0.0.1\", \"port\": 2098}]')")
+            cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('targets', '[{\"name\": \"Main Server\", \"ip\": \"127.0.0.1\", \"port\": 2098, \"format\": \"corrected\"}]')")
             cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('latitude', '0.0')")
             cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('longitude', '0.0')")
             
