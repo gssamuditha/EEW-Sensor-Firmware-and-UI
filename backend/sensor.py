@@ -322,10 +322,10 @@ class SensorManager:
         target_interval = 1.0 / 200  # 5 ms per sample (200 Hz Oversampling)
         next_loop_time = time.monotonic()
         
-        # 2nd-Order Butterworth Low-Pass (fc=40Hz, fs=200Hz) for Anti-Aliasing
+        # 2nd-Order Butterworth Low-Pass (fc=50Hz, fs=200Hz) for Anti-Aliasing
         # b0, b1, b2, a1, a2
-        b0, b1, b2 = 0.20657208, 0.41314417, 0.20657208
-        a1, a2 = -0.36952738, 0.19581571
+        b0, b1, b2 = 0.29289322, 0.58578644, 0.29289322
+        a1, a2 = 0.0, 0.17157288
         
         x_hist = {'Z': [0.0, 0.0], 'X': [0.0, 0.0], 'Y': [0.0, 0.0]}
         y_hist = {'Z': [0.0, 0.0], 'X': [0.0, 0.0], 'Y': [0.0, 0.0]}
