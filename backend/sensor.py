@@ -72,11 +72,22 @@ G_TO_MS2 = 9.80665                   # Standard gravity (m/s²)
 
 # === Instrument Sensitivity Constants (for StationXML response file) ===
 # Chain: ADXL354BEZ → ADA4522 RC LPF → ADS1220 (Gain=1, Vref=1.8V, 24-bit)
-# Overall sensitivity: counts → m/s²
-# 1 count = VREF / (FULL_SCALE × SENSITIVITY_V_per_g × G_TO_MS2)
-#         = 1.8 / (8388607 × 0.4 × 9.80665) ≈ 5.459e-8 m/s²/count
-# Inverse (m/s² → counts): ≈ 18,319,600 counts/(m/s²)
-INSTRUMENT_SENSITIVITY_MS2_PER_COUNT = VREF_ADCS[0] / (FULL_SCALE * ACC_SENSITIVITY_V_PER_G * G_TO_MS2)
+#
+# Derivation (counts → m/s²):
+#   voltage  = raw_counts × VREF / FULL_SCALE
+#   g_val    = voltage / SENSITIVITY_V_per_g
+#   ms2      = g_val × G_TO_MS2
+#   ∴  ms2   = raw_counts × (VREF × G_TO_MS2) / (FULL_SCALE × SENSITIVITY_V_per_g)
+#
+# INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
+#   = (VREF × G_TO_MS2) / (FULL_SCALE × SENSITIVITY_V_per_g)
+#   = (1.8 × 9.80665)  / (8388607 × 0.4)
+#   ≈ 5.261e-6 m/s² / count
+#
+# Inverse  (overall instrument sensitivity: m/s² → counts):
+#   = FULL_SCALE × SENSITIVITY_V_per_g / (VREF × G_TO_MS2)
+#   ≈ 190,067 counts / (m/s²)
+INSTRUMENT_SENSITIVITY_MS2_PER_COUNT = (VREF_ADCS[0] * G_TO_MS2) / (FULL_SCALE * ACC_SENSITIVITY_V_PER_G)
 
 # === Sensor Control Pins ===
 ST1 = 16
@@ -426,17 +437,22 @@ class SensorManager:
                                     try:
                                         for i, name in enumerate(CHANNEL_NAMES):
                                             if fmt == 'raw':
-                                                # Invert calibration math to recover demeaned counts.
-                                                # ms2 → g → voltage_offset → raw_counts → demean
+                                                # Invert the calibration chain to recover demeaned counts:
+                                                #   ms2 → g: divide by G_TO_MS2
+                                                #   g   → V: multiply by ACC_SENSITIVITY_V_PER_G
+                                                #   V   → counts: multiply by FULL_SCALE / VREF
                                                 samples = [
-                                                    int(round(v / G_TO_MS2 / ACC_SENSITIVITY_V_PER_G * FULL_SCALE / VREF_ADCS[i]))
+                                                    int(round(v / G_TO_MS2 * ACC_SENSITIVITY_V_PER_G * FULL_SCALE / VREF_ADCS[i]))
                                                     for v in udp_buffers[i]
                                                 ]
                                             else:
                                                 # Corrected: floats in m/s² rounded to 6 dp
                                                 samples = [round(v, 6) for v in udp_buffers[i]]
-                                            packet = [name, timestamp] + samples
-                                            data = str(packet).encode()
+                                            
+                                            # Format exactly like Raspberry Shake Datacast (JSON)
+                                            # This ensures that JSON parsers strictly treat the raw counts as integers
+                                            packet = {name: samples, "timestamp": timestamp}
+                                            data = json.dumps(packet).encode()
                                             self.sock.sendto(data, (target['ip'], target['port']))
                                     except (BlockingIOError, OSError):
                                         pass

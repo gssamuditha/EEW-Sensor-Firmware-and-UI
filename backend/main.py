@@ -303,172 +303,39 @@ def api_set_settings(settings: SettingsModel):
 # Device Metadata / Instrument Response endpoint
 # ---------------------------------------------------------------------------
 
-from sensor import (
-    FULL_SCALE, VREF_ADCS, ACC_SENSITIVITY_V_PER_G, G_TO_MS2,
-    INSTRUMENT_SENSITIVITY_MS2_PER_COUNT, CHANNEL_NAMES as _CHANNEL_NAMES
-)
-from datetime import datetime, timezone
-
-def _build_stationxml(device_name: str, latitude: float, longitude: float) -> str:
-    """Generate an FDSN StationXML (v1.1) document for this EEW sensor node.
-
-    Sensitivity chain:
-      ADXL354BEZ (±2g, 400 mV/g ratiometric to 1.8 V)
-      → ADA4522-1 RC low-pass (gain = 1)
-      → ADS1220 24-bit delta-sigma ADC (Gain=1, Vref = 1.8 V external)
-
-    The overall sensitivity (instrument response stage gain) is:
-      1 / INSTRUMENT_SENSITIVITY_MS2_PER_COUNT  counts/(m/s²)
-    """
-    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    start_date = "2024-01-01T00:00:00Z"  # conservative epoch start
-
-    # Overall sensitivity: m/s² → counts
-    sensitivity_counts_per_ms2 = 1.0 / INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
-
-    # Channel map: SEED code, azimuth, dip
-    channels = [
-        ("ENZ", 0.0,   -90.0),   # Vertical (Z)
-        ("ENN", 0.0,     0.0),   # North
-        ("ENE", 90.0,    0.0),   # East
-    ]
-
-    channel_xml = ""
-    for seed_code, azimuth, dip in channels:
-        channel_xml += f"""
-      <Channel code="{seed_code}" locationCode="00" startDate="{start_date}">
-        <Latitude>{latitude:.6f}</Latitude>
-        <Longitude>{longitude:.6f}</Longitude>
-        <Elevation>0.0</Elevation>
-        <Depth>0.0</Depth>
-        <Azimuth>{azimuth}</Azimuth>
-        <Dip>{dip}</Dip>
-        <SampleRate>100</SampleRate>
-        <SampleRateRatio>
-          <NumberSamples>100</NumberSamples>
-          <NumberSeconds>1</NumberSeconds>
-        </SampleRateRatio>
-        <StorageFormat>STEIM2</StorageFormat>
-        <ClockDrift>0.0001</ClockDrift>
-        <Sensor>
-          <Description>ADXL354BEZ 3-axis analog accelerometer (±2g, 400 mV/g ratiometric)</Description>
-          <Manufacturer>Analog Devices</Manufacturer>
-          <Model>ADXL354BEZ</Model>
-        </Sensor>
-        <DataLogger>
-          <Description>ADS1220 24-bit delta-sigma ADC (Gain=1, Vref=1.8V) via ADA4522-1 RC LPF</Description>
-          <Manufacturer>Texas Instruments</Manufacturer>
-          <Model>ADS1220IPWR</Model>
-          <ClockDrift>0.0001</ClockDrift>
-        </DataLogger>
-        <Response>
-          <InstrumentSensitivity>
-            <Value>{sensitivity_counts_per_ms2:.2f}</Value>
-            <Frequency>1.0</Frequency>
-            <InputUnits>
-              <Name>m/s**2</Name>
-              <Description>Acceleration in metres per second squared</Description>
-            </InputUnits>
-            <OutputUnits>
-              <Name>counts</Name>
-              <Description>Digital counts</Description>
-            </OutputUnits>
-          </InstrumentSensitivity>
-          <Stage number="1">
-            <PolesZeros>
-              <InputUnits><Name>m/s**2</Name><Description>Acceleration</Description></InputUnits>
-              <OutputUnits><Name>V</Name><Description>Volts</Description></OutputUnits>
-              <PzTransferFunctionType>LAPLACE (RADIANS/SECOND)</PzTransferFunctionType>
-              <NormalizationFactor>1.0</NormalizationFactor>
-              <NormalizationFrequency>1.0</NormalizationFrequency>
-              <!-- ADXL354BEZ: DC-coupled, flat response from DC to ~1500 Hz -->
-              <!-- No poles or zeros needed for a DC-coupled accelerometer -->
-            </PolesZeros>
-            <StageGain>
-              <Value>{ACC_SENSITIVITY_V_PER_G * G_TO_MS2:.6f}</Value>
-              <Frequency>1.0</Frequency>
-            </StageGain>
-          </Stage>
-          <Stage number="2">
-            <!-- ADA4522-1 RC low-pass anti-aliasing filter, gain = 1.0 -->
-            <StageGain>
-              <Value>1.0</Value>
-              <Frequency>1.0</Frequency>
-            </StageGain>
-          </Stage>
-          <Stage number="3">
-            <Coefficients>
-              <InputUnits><Name>V</Name><Description>Volts</Description></InputUnits>
-              <OutputUnits><Name>counts</Name><Description>Digital counts</Description></OutputUnits>
-              <CfTransferFunctionType>DIGITAL</CfTransferFunctionType>
-            </Coefficients>
-            <Decimation>
-              <InputSampleRate>100</InputSampleRate>
-              <Factor>1</Factor>
-              <Offset>0</Offset>
-              <Delay>0</Delay>
-              <Correction>0</Correction>
-            </Decimation>
-            <StageGain>
-              <!-- ADS1220: {FULL_SCALE} counts / {VREF_ADCS[0]} V (Gain=1, external Vref) -->
-              <Value>{FULL_SCALE / VREF_ADCS[0]:.4f}</Value>
-              <Frequency>0.0</Frequency>
-            </StageGain>
-          </Stage>
-        </Response>
-      </Channel>"""
-
-    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<FDSNStationXML xmlns="http://www.fdsn.org/xml/station/1"
-               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-               xsi:schemaLocation="http://www.fdsn.org/xml/station/1 http://www.fdsn.org/xml/station/fdsn-station-1.1.xsd"
-               schemaVersion="1.1">
-  <Source>{device_name}</Source>
-  <Sender>{device_name}</Sender>
-  <Created>{now_iso}</Created>
-  <Network code="EW" startDate="{start_date}" description="EEW Sensor Network">
-    <Station code="{device_name[:5].upper()}" startDate="{start_date}">
-      <Latitude>{latitude:.6f}</Latitude>
-      <Longitude>{longitude:.6f}</Longitude>
-      <Elevation>0.0</Elevation>
-      <Site><Name>{device_name}</Name></Site>
-      <CreationDate>{start_date}</CreationDate>
-      <Description>EEW Sensor Node - ADXL354BEZ + ADS1220 + ADA4522-1 RC LPF @ 100 SPS</Description>{channel_xml}
-    </Station>
-  </Network>
-</FDSNStationXML>
-"""
-    return xml
-
+from metadata import build_stationxml
 
 @app.get("/api/metadata/stationxml")
 def api_metadata_stationxml():
-    """Generate and download an FDSN StationXML instrument response file.
+    """Download the FDSN StationXML instrument response file for this node.
 
-    This file contains the instrument sensitivity, poles/zeros, and gain stages
-    required to convert raw 24-bit ADC counts back to acceleration in m/s².
+    The file encodes the full sensitivity chain
+    (ADXL354BEZ → ADA4522-1 RC LPF → ADS1220 ADC) so that any FDSN-aware
+    analysis tool (ObsPy, SeisComP, SEISAN …) can deconvolve raw ADC counts
+    into physical acceleration units (m/s²).
 
-    Compatible with ObsPy, SeisComP3, SeisComPro, and any FDSN-aware client.
+    ObsPy usage::
 
-    Usage with ObsPy:
-        from obspy import read
-        from obspy.core.inventory import read_inventory
-        inv = read_inventory('CRISIS-NODE-01_response.xml')
-        st  = read('raw_counts_stream.mseed')
+        inv = read_inventory('<device>_response.xml')
         st.attach_response(inv)
-        acc_stream = st.remove_response(output='ACC')  # → m/s²
+        acc = st.remove_response(output='ACC')   # → m/s²
     """
-    s = get_settings()
+    s           = get_settings()
     device_name = s.get("device_name", "CRISIS-NODE-01")
-    latitude    = float(s.get("latitude", 0.0))
-    longitude   = float(s.get("longitude", 0.0))
-    xml_content = _build_stationxml(device_name, latitude, longitude)
+    latitude    = float(s.get("latitude",   0.0))
+    longitude   = float(s.get("longitude",  0.0))
+    elevation   = float(s.get("elevation",  0.0))
+
+    xml_content = build_stationxml(device_name, latitude, longitude, elevation)
     filename    = f"{device_name}_response.xml"
+
     return StreamingResponse(
         iter([xml_content]),
         media_type="application/xml",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
 
 
 _cached_internet = False
