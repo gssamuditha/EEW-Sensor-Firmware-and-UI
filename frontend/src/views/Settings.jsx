@@ -298,19 +298,6 @@ export default function Settings() {
                     Required when a UDP target is set to <strong>Raw Counts</strong> mode — the receiving 
                     server uses this file to convert raw 24-bit ADC counts back to m/s².
                   </p>
-                  <div className="bg-gray-50 border border-gray-200 p-3 rounded-sm">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Sensitivity Chain</p>
-                    <p className="text-[10px] font-mono text-gray-600 leading-relaxed">
-                      ADXL354BEZ (±2g, 400 mV/g) → ADA4522-1 RC LPF (gain=1)<br/>
-                      → ADS1220 (24-bit, Gain=1, Vref=1.8V) → 100 SPS
-                    </p>
-                  </div>
-                  <div className="bg-amber-50 border border-amber-200 p-3 rounded-sm">
-                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1">ObsPy Usage</p>
-                    <pre className="text-[9px] font-mono text-amber-800 leading-relaxed whitespace-pre-wrap">{`inv = read_inventory('response.xml')
-st.attach_response(inv)
-acc = st.remove_response(output='ACC')`}</pre>
-                  </div>
                   <a
                     href="/api/metadata/stationxml"
                     download
