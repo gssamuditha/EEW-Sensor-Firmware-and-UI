@@ -365,7 +365,8 @@ class SensorManager:
     def _hw_loop(self):
         """Strictly prioritized hardware loop for 100 SPS SPI reading, DB queueing, and UDP sending."""
         buffer = []
-        udp_buffers = [[], [], []]
+        udp_buffers = [[], [], []]  # corrected m/s² per axis (for corrected UDP path)
+        raw_buffers  = [[], [], []]  # filtered integer counts per axis (for raw UDP path)
         
         total_samples = 0
         total_time = 0
@@ -374,11 +375,14 @@ class SensorManager:
         target_interval = 1.0 / 200  # 5 ms per sample (200 Hz Oversampling)
         next_loop_time = time.monotonic()
         
-        # 2nd-Order Butterworth Low-Pass (fc=50Hz, fs=200Hz) for Anti-Aliasing
+        # 2nd-Order Butterworth Low-Pass (fc=50Hz, fs=200Hz) for Anti-Aliasing.
+        # Applied directly to demeaned integer ADC counts — same coefficients,
+        # just different input units.  Output is float (sub-count precision).
         # b0, b1, b2, a1, a2
         b0, b1, b2 = 0.29289322, 0.58578644, 0.29289322
         a1, a2 = 0.0, 0.17157288
         
+        # Per-axis filter state (floats even though input is int — sub-count precision)
         x_hist = {'Z': [0.0, 0.0], 'X': [0.0, 0.0], 'Y': [0.0, 0.0]}
         y_hist = {'Z': [0.0, 0.0], 'X': [0.0, 0.0], 'Y': [0.0, 0.0]}
         
@@ -388,27 +392,35 @@ class SensorManager:
             try:
                 next_loop_time += target_interval
 
-                t, z, x, y = self.sensor.read_all()
+                # Read demeaned 24-bit integer counts directly from hardware.
+                # RealSensor.read_all_raw() subtracts RAW_COUNTS_ZERO[i] so the
+                # returned values represent differential ground motion only.
+                t, z_cnt, x_cnt, y_cnt = self.sensor.read_all_raw()
                 
-                # --- Pure Arithmetic Anti-Aliasing Filter ---
-                # Completely bypasses Numpy/Scipy GIL overhead. Takes ~1 microsecond.
-                z_f = b0*z + b1*x_hist['Z'][0] + b2*x_hist['Z'][1] - a1*y_hist['Z'][0] - a2*y_hist['Z'][1]
-                x_hist['Z'] = [z, x_hist['Z'][0]]
-                y_hist['Z'] = [z_f, y_hist['Z'][0]]
+                # --- Pure Arithmetic Anti-Aliasing Filter (on integer counts) ---
+                # Bypasses Numpy/Scipy GIL overhead. Takes ~1 microsecond.
+                z_f = b0*z_cnt + b1*x_hist['Z'][0] + b2*x_hist['Z'][1] - a1*y_hist['Z'][0] - a2*y_hist['Z'][1]
+                x_hist['Z'] = [z_cnt, x_hist['Z'][0]]
+                y_hist['Z'] = [z_f,   y_hist['Z'][0]]
                 
-                x_f = b0*x + b1*x_hist['X'][0] + b2*x_hist['X'][1] - a1*y_hist['X'][0] - a2*y_hist['X'][1]
-                x_hist['X'] = [x, x_hist['X'][0]]
-                y_hist['X'] = [x_f, y_hist['X'][0]]
+                x_f = b0*x_cnt + b1*x_hist['X'][0] + b2*x_hist['X'][1] - a1*y_hist['X'][0] - a2*y_hist['X'][1]
+                x_hist['X'] = [x_cnt, x_hist['X'][0]]
+                y_hist['X'] = [x_f,   y_hist['X'][0]]
                 
-                y_f = b0*y + b1*x_hist['Y'][0] + b2*x_hist['Y'][1] - a1*y_hist['Y'][0] - a2*y_hist['Y'][1]
-                x_hist['Y'] = [y, x_hist['Y'][0]]
-                y_hist['Y'] = [y_f, y_hist['Y'][0]]
+                y_f = b0*y_cnt + b1*x_hist['Y'][0] + b2*x_hist['Y'][1] - a1*y_hist['Y'][0] - a2*y_hist['Y'][1]
+                x_hist['Y'] = [y_cnt, x_hist['Y'][0]]
+                y_hist['Y'] = [y_f,   y_hist['Y'][0]]
                 
                 decimate_flag = not decimate_flag
                 
-                # Only process every 2nd sample for Real-Time (yielding exactly 100 Hz)
+                # Only process every 2nd sample (÷2 decimation → exactly 100 SPS)
                 if not decimate_flag:
-                    record = (t, z_f, x_f, y_f)
+                    # Convert filtered counts → m/s² for DB, analytics, and corrected UDP
+                    z_ms2 = z_f * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
+                    x_ms2 = x_f * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
+                    y_ms2 = y_f * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
+                    
+                    record = (t, z_ms2, x_ms2, y_ms2)
                     
                     # 1. Background DB writer queueing (non-blocking, exactly 100 SPS)
                     buffer.append(record)
@@ -426,37 +438,37 @@ class SensorManager:
                     if self._cached_targets:
                         if len(udp_buffers[0]) == 0:
                             timestamp = t
-                        udp_buffers[0].append(z_f)
-                        udp_buffers[1].append(x_f)
-                        udp_buffers[2].append(y_f)
+                        # Corrected path: m/s² floats
+                        udp_buffers[0].append(z_ms2)
+                        udp_buffers[1].append(x_ms2)
+                        udp_buffers[2].append(y_ms2)
+                        # Raw path: genuine IIR-filtered, decimated integer counts
+                        raw_buffers[0].append(int(round(z_f)))
+                        raw_buffers[1].append(int(round(x_f)))
+                        raw_buffers[2].append(int(round(y_f)))
 
                         if len(udp_buffers[0]) >= SAMPLES_PER_PACKET:
                             if self._cached_data_forwarding:
                                 for target in self._cached_targets:
                                     fmt = target.get('format', 'corrected')
-                                    try:
-                                        for i, name in enumerate(CHANNEL_NAMES):
-                                            if fmt == 'raw':
-                                                # Invert the calibration chain to recover demeaned counts:
-                                                #   ms2 → g: divide by G_TO_MS2
-                                                #   g   → V: multiply by ACC_SENSITIVITY_V_PER_G
-                                                #   V   → counts: multiply by FULL_SCALE / VREF
-                                                samples = [
-                                                    int(round(v / G_TO_MS2 * ACC_SENSITIVITY_V_PER_G * FULL_SCALE / VREF_ADCS[i]))
-                                                    for v in udp_buffers[i]
-                                                ]
-                                            else:
-                                                # Corrected: floats in m/s² rounded to 6 dp
-                                                samples = [round(v, 6) for v in udp_buffers[i]]
-                                            
-                                            # Format exactly like Raspberry Shake Datacast (JSON)
-                                            # This ensures that JSON parsers strictly treat the raw counts as integers
-                                            packet = {name: samples, "timestamp": timestamp}
-                                            data = json.dumps(packet).encode()
-                                            self.sock.sendto(data, (target['ip'], target['port']))
-                                    except (BlockingIOError, OSError):
-                                        pass
+                                    for i, name in enumerate(CHANNEL_NAMES):
+                                        if fmt == 'raw':
+                                            # Genuine hardware counts: demeaned → IIR LPF → decimated
+                                            samples = raw_buffers[i]
+                                        else:
+                                            # Physical units rounded to 6 decimal places
+                                            samples = [round(v, 6) for v in udp_buffers[i]]
+                                        
+                                        # Raspberry Shake Datacast compatible format:
+                                        # {'CHANNEL', timestamp, s1, s2, ..., sN}
+                                        samples_str = ", ".join(str(s) for s in samples)
+                                        packet_str = "{'" + name + "', " + f"{timestamp:.3f}" + ", " + samples_str + "}"
+                                        try:
+                                            self.sock.sendto(packet_str.encode('utf-8'), (target['ip'], target['port']))
+                                        except OSError as e:
+                                            print(f"UDP send error → {target['ip']}:{target['port']}: {e}", file=sys.stderr)
                             udp_buffers = [[], [], []]
+                            raw_buffers  = [[], [], []]
                     
                     # 4. SPS Tracking
                     if sample_count >= SAMPLES_PER_PACKET:
