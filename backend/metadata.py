@@ -104,6 +104,30 @@ _OUT_SPS: float = 100.0
 # Decimation factor
 _DECIMATION_FACTOR: int = int(_HW_SPS / _OUT_SPS)  # = 2
 
+# ---------------------------------------------------------------------------
+# ADXL354BEZ sensor bandwidth pole
+# ---------------------------------------------------------------------------
+import math
+
+# The ADXL354BEZ has a -3 dB bandwidth of 1500 Hz (±2g range, datasheet Table 1).
+# This is modelled as a single real pole in the Laplace domain:
+#   H_sensor(s) = 1 / (s - p₀)    where p₀ = -2π × 1500
+# At seismic frequencies (0.1–50 Hz) the roll-off is negligible (<0.01 dB),
+# but including the pole makes the PolesZeros formally identical to the
+# Raspberry Shake 4D accelerometer response structure.
+_SENSOR_BW_HZ: float = 1500.0
+_SENSOR_POLE_RAD_S: float = -2.0 * math.pi * _SENSOR_BW_HZ   # ≈ -9424.78 rad/s
+
+# NormalizationFactor A0 at the reference frequency ω_ref = 2π × _REF_FREQ_HZ
+# FDSN definition: H_normalized(jω_ref) = 1, so A0 = |H(jω_ref)|⁻¹
+# For one real pole p₀:
+#   H(s) = 1/(s − p₀)  →  |H(jω)| = 1/|jω − p₀| = 1/√(ω² + p₀²)
+#   A0 = √(ω_ref² + p₀²)
+_OMEGA_REF: float = 2.0 * math.pi * _REF_FREQ_HZ         # = 31.416 rad/s
+_SENSOR_NORM_FACTOR: float = math.sqrt(
+    _OMEGA_REF**2 + _SENSOR_POLE_RAD_S**2
+)  # ≈ 9424.83 (dominated by the pole term)
+
 # Network code for this EEW deployment
 NETWORK_CODE: str = "EW"
 
@@ -251,11 +275,19 @@ def _build_channel_xml(
           </InstrumentSensitivity>
 
           <!-- ── Stage 1: ADXL354BEZ MEMS accelerometer ─────────────────
-               DC-coupled, flat response from 0 Hz to ~1500 Hz.
-               No poles or zeros required in the seismic band (0.1–50 Hz).
-               StageGain = SENSITIVITY / G = {ACC_SENSITIVITY_V_PER_G} V/g / {G_TO_MS2} m/s²/g
-                         = {_SENSOR_GAIN_V_PER_MS2:.8f} V / (m/s²)
-               NormalizationFactor = 1.0 (flat DC response → H(ω)=1 everywhere) ── -->
+               DC-coupled MEMS accelerometer.
+               Bandwidth: ±3 dB at 1500 Hz (datasheet Table 1, ±2g range).
+               Modelled as a single real Laplace pole at s = -2π×1500 rad/s.
+               At seismic frequencies (0–50 Hz) the attenuation is <0.01 dB
+               so the response is effectively flat, matching RS4D convention.
+
+               StageGain = SENSITIVITY / G
+                         = {ACC_SENSITIVITY_V_PER_G} V/g ÷ {G_TO_MS2} (m/s²)/g
+                         = {_SENSOR_GAIN_V_PER_MS2:.8f} V/(m/s²)  at {_REF_FREQ_HZ} Hz
+
+               NormalizationFactor A0 at ω_ref = 2π×{_REF_FREQ_HZ} rad/s:
+                 A0 = √(ω_ref² + pole²) = {_SENSOR_NORM_FACTOR:.4f}
+               (so that A0 × |H(jω_ref)| = 1, per FDSN StationXML §5.3) ── -->
           <Stage number="1">
             <PolesZeros name="RP-EEW-ADXL354BEZ-ACC" resourceId="ResponsePAZ-EEW-ADXL354BEZ-ACC">
               <InputUnits>
@@ -266,8 +298,14 @@ def _build_channel_xml(
                 <Name>V</Name>
               </OutputUnits>
               <PzTransferFunctionType>LAPLACE (RADIANS/SECOND)</PzTransferFunctionType>
-              <NormalizationFactor>1.0</NormalizationFactor>
+              <NormalizationFactor>{_SENSOR_NORM_FACTOR:.4f}</NormalizationFactor>
               <NormalizationFrequency unit="HERTZ">{_REF_FREQ_HZ:.1f}</NormalizationFrequency>
+              <!-- Single real pole: ADXL354BEZ bandwidth limit at 1500 Hz -->
+              <Pole number="0">
+                <Real>{_SENSOR_POLE_RAD_S:.4f}</Real>
+                <Imaginary>0.0</Imaginary>
+              </Pole>
+              <!-- No zeros: DC-coupled flat accelerometer response -->
             </PolesZeros>
             <StageGain>
               <Value>{_SENSOR_GAIN_V_PER_MS2:.8f}</Value>
