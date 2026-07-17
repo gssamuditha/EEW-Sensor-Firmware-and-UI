@@ -193,8 +193,24 @@ def _build_channel_xml(
     longitude: float,
     elevation: float,
     start_date: str,
+    dc_offset_counts: int = 0,
 ) -> str:
     """Return the complete <Channel> XML block for one SEED channel code."""
+    dc_comment = f"""
+        <!-- ── DC Offset (calibration) ──────────────────────────────────────
+             Raw UDP counts include the full ADC DC bias (gravity + manufacturing
+             offset). Before calling remove_response(), demean the trace:
+
+               tr.detrend('demean')   # or tr.detrend('linear')
+               tr.remove_response(inventory=inv, output='ACC')
+
+             Measured DC offset for this channel: {dc_offset_counts} counts
+             (= {dc_offset_counts * _SENSOR_GAIN_V_PER_MS2 * _ADC_GAIN_COUNTS_PER_V:.1f} counts,
+              equivalent to {dc_offset_counts / (_SENSOR_GAIN_V_PER_MS2 * _ADC_GAIN_COUNTS_PER_V):.4f} m/s²
+              measured during startup calibration) ── -->
+        <Comment>
+          <Value>DC offset (ADC zero level, measured at startup calibration): {dc_offset_counts} counts. Remove with tr.detrend(demean) before ObsPy remove_response().</Value>
+        </Comment>"""
     return f"""    <Channel code="{seed_code}" startDate="{start_date}" restrictedStatus="open" locationCode="00">
         <Latitude unit="DEGREES">{latitude:.9f}</Latitude>
         <Longitude unit="DEGREES">{longitude:.9f}</Longitude>
@@ -207,7 +223,7 @@ def _build_channel_xml(
           <NumberSamples>{int(_OUT_SPS)}</NumberSamples>
           <NumberSeconds>1</NumberSeconds>
         </SampleRateRatio>
-        <ClockDrift unit="SECONDS/SAMPLE">0.0</ClockDrift>
+        <ClockDrift unit="SECONDS/SAMPLE">0.0</ClockDrift>{dc_comment}
         <Sensor resourceId="Sensor-EEW-ADXL354BEZ-ACC">
           <Type>EEW Sensor</Type>
           <Description>Acceleration</Description>
@@ -335,6 +351,7 @@ def build_stationxml(
     longitude: float,
     elevation: float = 0.0,
     start_date: str | None = None,
+    dc_offset_counts: list[int] | None = None,
 ) -> str:
     """Generate a complete FDSN StationXML v1.2 document for this EEW sensor node.
 
@@ -351,6 +368,10 @@ def build_stationxml(
         Elevation above sea level in metres.  Default 0.0.
     start_date : str, optional
         ISO-8601 station start date.  Default: ``_EPOCH_START``.
+    dc_offset_counts : list[int], optional
+        Calibrated ADC zero level per axis [Z, X, Y] in raw counts, measured
+        at device startup.  Embedded in each Channel <Comment> for receivers
+        to reference when demeaning before response removal.
 
     Returns
     -------
@@ -359,13 +380,16 @@ def build_stationxml(
     """
     if start_date is None:
         start_date = _EPOCH_START
+    if dc_offset_counts is None:
+        dc_offset_counts = [0, 0, 0]
 
     now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     station_code = device_name[:5].upper()
 
     channel_blocks = "\n".join(
-        _build_channel_xml(code, az, dip, latitude, longitude, elevation, start_date)
-        for code, az, dip in _CHANNELS
+        _build_channel_xml(code, az, dip, latitude, longitude, elevation, start_date,
+                           dc_offset_counts[idx])
+        for idx, (code, az, dip) in enumerate(_CHANNELS)
     )
 
     return f"""<?xml version='1.0' encoding='UTF-8'?>

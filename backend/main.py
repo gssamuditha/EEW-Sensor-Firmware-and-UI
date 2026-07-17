@@ -17,7 +17,7 @@ from pydantic import BaseModel, field_validator
 
 from database import init_db, cleanup_old_data, get_data_for_export, get_settings, update_settings, stop_db_writer, get_data_availability
 from filters import FILTER_PRESETS
-from sensor import sensor_manager, process_historical_data_task, CHANNEL_NAMES
+from sensor import sensor_manager, process_historical_data_task, CHANNEL_NAMES, RAW_COUNTS_ZERO
 from concurrent.futures import ProcessPoolExecutor
 
 # Use a ProcessPool to run heavy numpy/scipy operations entirely out-of-process, bypassing the GIL.
@@ -326,7 +326,8 @@ def api_metadata_stationxml():
     longitude   = float(s.get("longitude",  0.0))
     elevation   = float(s.get("elevation",  0.0))
 
-    xml_content = build_stationxml(device_name, latitude, longitude, elevation)
+    xml_content = build_stationxml(device_name, latitude, longitude, elevation,
+                                   dc_offset_counts=list(RAW_COUNTS_ZERO))
     filename    = f"{device_name}_response.xml"
 
     return StreamingResponse(

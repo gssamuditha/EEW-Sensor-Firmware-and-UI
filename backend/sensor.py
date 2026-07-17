@@ -240,19 +240,20 @@ class RealSensor:
         return (time.time(), readings[0], readings[1], readings[2])
 
     def read_all_raw(self):
-        """Read all axes and return demeaned signed 24-bit ADC counts.
+        """Read all axes and return TRUE signed 24-bit ADC counts (no offset removed).
 
-        The zero offset (RAW_COUNTS_ZERO) measured during calibration is subtracted
-        so that the returned counts represent differential ground motion only,
-        exactly as Raspberry Shake does. A server-side response removal using the
-        StationXML file will convert these back to m/s².
+        The zero offset (RAW_COUNTS_ZERO) is NOT subtracted here — raw counts include
+        the full DC bias from gravity loading and manufacturing tolerances. This matches
+        the Raspberry Shake behaviour: unmodified hardware counts are sent over UDP,
+        and the DC offset is removed by the receiver (e.g. tr.detrend('demean') before
+        ObsPy remove_response()). The offset values are documented in the StationXML
+        <Comment> elements for reference.
         """
         self._start_conversion_all()
         readings = []
         for i in range(3):
             raw_cnt = self._read_adc(i, return_raw=True)
-            demeaned = raw_cnt - RAW_COUNTS_ZERO[i]
-            readings.append(demeaned)
+            readings.append(raw_cnt)  # NO subtraction — true hardware counts
         return (time.time(), readings[0], readings[1], readings[2])
 
 class SensorManager:
@@ -415,10 +416,12 @@ class SensorManager:
                 
                 # Only process every 2nd sample (÷2 decimation → exactly 100 SPS)
                 if not decimate_flag:
-                    # Convert filtered counts → m/s² for DB, analytics, and corrected UDP
-                    z_ms2 = z_f * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
-                    x_ms2 = x_f * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
-                    y_ms2 = y_f * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
+                    # Convert filtered TRUE counts → zero-centred m/s² for DB, analytics, corrected UDP.
+                    # RAW_COUNTS_ZERO is subtracted HERE (not in read_all_raw) so the raw
+                    # UDP path carries the unmodified hardware counts as expected by ObsPy.
+                    z_ms2 = (z_f - RAW_COUNTS_ZERO[0]) * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
+                    x_ms2 = (x_f - RAW_COUNTS_ZERO[1]) * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
+                    y_ms2 = (y_f - RAW_COUNTS_ZERO[2]) * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
                     
                     record = (t, z_ms2, x_ms2, y_ms2)
                     
