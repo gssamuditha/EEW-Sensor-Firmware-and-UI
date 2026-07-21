@@ -68,8 +68,13 @@ export default function Export() {
               className="w-full border border-gray-300 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono bg-white"
             >
               <option value="csv">CSV Format</option>
-              <option value="mseed">miniSEED Format (ObsPy)</option>
+              <option value="mseed">miniSEED Format (ZIP archive)</option>
             </select>
+            {formatType === 'mseed' && (
+              <p className="text-xs text-gray-500 font-mono mt-2">
+                Downloads a ZIP file containing one miniSEED file per channel, structured following the SeisComP Data Structure (SDS) naming convention.
+              </p>
+            )}
           </div>
           
           <button 
@@ -80,6 +85,20 @@ export default function Export() {
             <span>Export {formatType.toUpperCase()}</span>
           </button>
         </div>
+      </div>
+      
+      <div className="bg-white p-8 border border-gray-200 shadow-sm max-w-2xl mt-8">
+        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Full Archive Backup</h3>
+        <p className="text-xs text-gray-500 font-mono mb-6">
+          Download a complete backup of the SDS miniSEED archive. This includes all historical data currently saved on the device.
+        </p>
+        <button 
+          onClick={() => window.open('/api/export/all', '_blank')}
+          className="w-full bg-amber-600 text-white font-bold tracking-widest uppercase py-3 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity"
+        >
+          <Download size={20} />
+          <span>Download All Archive Data (ZIP)</span>
+        </button>
       </div>
     </div>
   );

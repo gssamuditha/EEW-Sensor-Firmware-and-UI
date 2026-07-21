@@ -35,7 +35,10 @@ export default function Settings() {
   const [lat, setLat] = useState(0.0);
   const [lon, setLon] = useState(0.0);
   const [deviceName, setDeviceName] = useState('CRISIS-NODE-01');
+  const [deviceId, setDeviceId] = useState('T0021');
   const [calibrationTime, setCalibrationTime] = useState(60);
+  const [retentionDays, setRetentionDays] = useState(7);
+  const [archiveSize, setArchiveSize] = useState(0);
   const [ssid, setSsid] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -59,7 +62,10 @@ export default function Settings() {
         setLat(data.latitude || 0.0);
         setLon(data.longitude || 0.0);
         if (data.device_name) setDeviceName(data.device_name);
+        if (data.device_id) setDeviceId(data.device_id);
         if (data.calibration_time) setCalibrationTime(data.calibration_time);
+        if (data.retention_days !== undefined) setRetentionDays(data.retention_days);
+        if (data.archive_size_bytes !== undefined) setArchiveSize(data.archive_size_bytes);
         if (data.active_wifi) setActiveWifi(data.active_wifi);
         if (data.data_forwarding !== undefined) setDataForwarding(data.data_forwarding);
       })
@@ -112,7 +118,9 @@ export default function Settings() {
           latitude: parseFloat(lat),
           longitude: parseFloat(lon),
           device_name: deviceName,
+          device_id: deviceId,
           calibration_time: parseInt(calibrationTime),
+          retention_days: parseInt(retentionDays),
           data_forwarding: dataForwarding
         })
       });
@@ -271,8 +279,20 @@ export default function Settings() {
                       value={deviceName}
                       onChange={e => setDeviceName(e.target.value)}
                       placeholder="CRISIS-NODE-01"
+                      className="w-full border border-gray-300 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm mb-3"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Device ID (5 chars)</label>
+                    <input 
+                      type="text" 
+                      value={deviceId}
+                      onChange={e => setDeviceId(e.target.value)}
+                      maxLength={5}
+                      placeholder="T0021"
                       className="w-full border border-gray-300 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                     />
+                    <p className="text-xs text-gray-400 font-mono mt-1">Used for SEED station code (e.g. T0021)</p>
                   </div>
 
                   <div className="flex justify-end pt-4 border-t border-gray-100">
@@ -628,6 +648,24 @@ export default function Settings() {
                     className="w-full border border-gray-300 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                   />
                   <p className="text-xs text-gray-400 mt-2 font-mono">Recommended: 60 seconds</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Data Retention (days)</label>
+                  <input 
+                    type="number" 
+                    value={retentionDays}
+                    onChange={e => setRetentionDays(e.target.value)}
+                    className="w-full border border-gray-300 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                  />
+                  <p className="text-xs text-gray-400 mt-2 font-mono">Older miniSEED files will be deleted.</p>
+                </div>
+
+                <div className="pt-2 border-t border-gray-100">
+                  <span className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Archive Size</span>
+                  <span className="text-sm font-mono font-bold text-[#1a4162] bg-gray-100 px-3 py-1 inline-block">
+                    {(archiveSize / (1024 * 1024)).toFixed(2)} MB
+                  </span>
                 </div>
 
                 <div className="flex justify-end pt-4 border-t border-gray-100">

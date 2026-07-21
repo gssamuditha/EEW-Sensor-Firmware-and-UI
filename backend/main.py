@@ -15,7 +15,8 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
-from database import init_db, cleanup_old_data, get_data_for_export, get_settings, update_settings, stop_db_writer, get_data_availability
+from database import init_db, cleanup_old_data, get_settings, update_settings, stop_db_writer
+from mseed_writer import mseed_writer
 from filters import FILTER_PRESETS
 from sensor import sensor_manager, process_historical_data_task, CHANNEL_NAMES
 from concurrent.futures import ProcessPoolExecutor
@@ -26,6 +27,8 @@ process_pool = ProcessPoolExecutor(max_workers=2)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    mseed_writer.start()
+    
     # Run sensor init in a thread to avoid blocking the asyncio event loop
     # (RealSensor.init_sensor sleeps ~11s, calibrate sleeps ~100s)
     loop = asyncio.get_running_loop()
@@ -38,10 +41,17 @@ async def lifespan(app: FastAPI):
             cleanup_old_data()
             
     task = asyncio.create_task(cleanup_task())
+    
+    # Background task for miniSEED retention
+    from retention import run_retention_task
+    retention_task = asyncio.create_task(run_retention_task(3600))
+    
     yield
     sensor_manager.stop()
     stop_db_writer()
+    mseed_writer.stop()
     task.cancel()
+    retention_task.cancel()
     process_pool.shutdown(wait=False)
 
 app = FastAPI(lifespan=lifespan)
@@ -66,7 +76,9 @@ class SettingsModel(BaseModel):
     longitude: float
     data_forwarding: bool = True
     device_name: str | None = None
+    device_id: str | None = None
     calibration_time: int | None = None
+    retention_days: int | None = None
 
 class WifiConnectModel(BaseModel):
     ssid: str
@@ -274,7 +286,10 @@ def api_get_settings():
         "latitude": float(s.get("latitude", 0.0)),
         "longitude": float(s.get("longitude", 0.0)),
         "device_name": s.get("device_name", "CRISIS-NODE-01"),
+        "device_id": s.get("device_id", "T0021"),
         "calibration_time": int(s.get("calibration_time", 60)),
+        "retention_days": int(s.get("retention_days", 7)),
+        "archive_size_bytes": mseed_writer.get_archive_size_bytes(),
         "data_forwarding": s.get("data_forwarding", "true").lower() == "true",
         "active_wifi": _get_active_ssid()
     }
@@ -293,8 +308,12 @@ def api_set_settings(settings: SettingsModel):
     }
     if settings.device_name is not None:
         settings_dict["device_name"] = settings.device_name
+    if settings.device_id is not None:
+        settings_dict["device_id"] = settings.device_id
     if settings.calibration_time is not None:
         settings_dict["calibration_time"] = settings.calibration_time
+    if settings.retention_days is not None:
+        settings_dict["retention_days"] = settings.retention_days
         
     update_settings(settings_dict)
     return {"status": "ok"}
@@ -400,55 +419,98 @@ def api_export(start: float, end: float, format: str = "csv"):
     if end < start:
         raise HTTPException(status_code=400, detail="End time must be after start time")
     
-    data = get_data_for_export(start, end)
-    if not data:
-        raise HTTPException(status_code=404, detail="No data found for this time range")
-        
-    import numpy as np
-    
-    arr = np.array(data, dtype=np.float64)
-    t_100 = arr[:, 0]
-    z_100 = arr[:, 1]
-    x_100 = arr[:, 2]
-    y_100 = arr[:, 3]
+    from mseed_writer import read_waveform_range
+    st = read_waveform_range(start, end)
+    if not st or len(st) == 0:
+        raise HTTPException(status_code=404, detail="No data found in archive for this time range")
     
     if format.lower() == "mseed":
         try:
-            from obspy import Trace, Stream, UTCDateTime
-            stream = Stream()
-            starttime = UTCDateTime(t_100[0])
-            
-            for name, ch_data in [('ENZ', z_100), ('ENN', x_100), ('ENE', y_100)]:
-                tr = Trace(data=ch_data.astype(np.float32))
-                tr.stats.network = "XX"
-                tr.stats.station = "EEWS"
-                tr.stats.channel = name
-                tr.stats.sampling_rate = 100.0
-                tr.stats.starttime = starttime
-                stream.append(tr)
-                
+            import zipfile
             output = io.BytesIO()
-            stream.write(output, format='MSEED')
-            output.seek(0)
+            with zipfile.ZipFile(output, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+                for tr in st:
+                    tr_out = io.BytesIO()
+                    tr.write(tr_out, format='MSEED', encoding='INT32', reclen=512)
+                    tr_out.seek(0)
+                    
+                    year = tr.stats.starttime.year
+                    jday = tr.stats.starttime.julday
+                    fname = f"{tr.stats.network}.{tr.stats.station}.{tr.stats.location}.{tr.stats.channel}.D.{year}.{jday:03d}"
+                    zf.writestr(fname, tr_out.getvalue())
             
-            response = StreamingResponse(output, media_type="application/vnd.fdsn.mseed")
-            response.headers["Content-Disposition"] = f"attachment; filename=eew_export_{int(time.time())}.mseed"
+            output.seek(0)
+            response = StreamingResponse(output, media_type="application/zip")
+            response.headers["Content-Disposition"] = f"attachment; filename=eew_export_{int(time.time())}.zip"
             return response
         except ImportError:
-            raise HTTPException(status_code=500, detail="ObsPy is not installed. MSEED export requires ObsPy.")
+            raise HTTPException(status_code=500, detail="ObsPy is not installed.")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"MSEED generation failed: {e}")
             
     else:
-        output = io.StringIO()
-        writer = csv.writer(output, lineterminator='\n')
-        writer.writerow(["time", "ENZ", "ENN", "ENE"])
-        for i in range(len(t_100)):
-            writer.writerow([f"{t_100[i]:.6f}", f"{z_100[i]:.6f}", f"{x_100[i]:.6f}", f"{y_100[i]:.6f}"])
+        try:
+            output = io.StringIO()
+            writer = csv.writer(output, lineterminator='\n')
+            writer.writerow(["time", "ENZ", "ENN", "ENE"])
             
-        response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
-        response.headers["Content-Disposition"] = f"attachment; filename=eew_export_{int(time.time())}.csv"
-        return response
+            # This handles cases where channels may be missing or mismatched slightly
+            chans = {tr.stats.channel: tr for tr in st}
+            tr_z = chans.get("ENZ")
+            tr_n = chans.get("ENN")
+            tr_e = chans.get("ENE")
+            
+            if not tr_z or not tr_n or not tr_e:
+                 # If all three aren't present, find minimum length among available
+                 pass
+            
+            # Default fallback logic for simplicity, assuming synchronised traces
+            times = tr_z.times(type="timestamp") if tr_z else []
+            z_data = tr_z.data if tr_z else []
+            n_data = tr_n.data if tr_n else []
+            e_data = tr_e.data if tr_e else []
+            
+            min_len = min(len(times), len(z_data), len(n_data), len(e_data)) if times else 0
+            
+            for i in range(min_len):
+                writer.writerow([f"{times[i]:.6f}", f"{z_data[i]}", f"{n_data[i]}", f"{e_data[i]}"])
+                
+            response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
+            response.headers["Content-Disposition"] = f"attachment; filename=eew_export_{int(time.time())}.csv"
+            return response
+        except Exception as e:
+             raise HTTPException(status_code=500, detail=f"CSV generation failed: {e}")
+
+@app.get("/api/export/all")
+def api_export_all():
+    """Stream the entire SDS archive as a single ZIP file."""
+    from database import get_settings
+    s = get_settings()
+    archive_root = s.get('archive_root', '/opt/data/archive')
+    
+    if not os.path.isdir(archive_root):
+        raise HTTPException(status_code=404, detail="Archive directory not found")
+        
+    def iter_zip():
+        import zipfile
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp_name = tmp.name
+            with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for dirpath, _, filenames in os.walk(archive_root):
+                    for fname in filenames:
+                        full_path = os.path.join(dirpath, fname)
+                        arcname = os.path.relpath(full_path, archive_root)
+                        zf.write(full_path, arcname)
+                        
+        with open(tmp_name, 'rb') as f:
+            while chunk := f.read(8192):
+                yield chunk
+        os.remove(tmp_name)
+        
+    response = StreamingResponse(iter_zip(), media_type="application/zip")
+    response.headers["Content-Disposition"] = f"attachment; filename=eew_full_archive_{int(time.time())}.zip"
+    return response
 
 @app.websocket("/ws/stream")
 async def websocket_stream(websocket: WebSocket):
@@ -532,8 +594,8 @@ async def api_analysis_window(start: float = None, end: float = None, seconds: f
 
 @app.get("/api/analysis/availability")
 def api_analysis_availability():
-    """Return the earliest and latest data timestamps in the DB."""
-    return get_data_availability()
+    """Return the earliest and latest data timestamps in the SDS archive."""
+    return mseed_writer.get_archive_availability()
 
 
 @app.get("/api/analysis/presets")
