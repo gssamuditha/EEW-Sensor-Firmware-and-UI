@@ -486,7 +486,7 @@ def api_export_all():
     """Stream the entire SDS archive as a single ZIP file."""
     from database import get_settings
     s = get_settings()
-    archive_root = s.get('archive_root', '/opt/data/archive')
+    archive_root = s.get('archive_root', '/home/crisislab/data/archive')
     
     if not os.path.isdir(archive_root):
         raise HTTPException(status_code=404, detail="Archive directory not found")

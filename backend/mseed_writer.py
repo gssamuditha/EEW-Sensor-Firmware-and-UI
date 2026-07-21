@@ -60,7 +60,7 @@ CHANNEL_NAMES  = ['ENZ', 'ENN', 'ENE']
 MSEED_RECLEN   = 512         # miniSEED record length in bytes
 
 # Default SDS archive root (overridden by DB settings at runtime)
-DEFAULT_ARCHIVE_ROOT = '/opt/data/archive'
+DEFAULT_ARCHIVE_ROOT = '/home/crisislab/data/archive'
 if sys.platform == 'win32':
     # Windows development mock path
     DEFAULT_ARCHIVE_ROOT = os.path.join(os.path.dirname(__file__), '..', 'data', 'archive')

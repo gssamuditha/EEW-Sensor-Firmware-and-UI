@@ -40,7 +40,7 @@ _SETTINGS_DEFAULTS = {
     'device_id':      'T0021',          # 5-char SEED station code
     'network_code':   'CL',             # 2-char SEED network code
     'location_code':  '00',
-    'archive_root':   '/opt/data/archive',
+    'archive_root':   '/home/crisislab/data/archive',
     'retention_days': '7',
     'calibration_time': '60',
     'data_forwarding': 'true',

@@ -8,10 +8,10 @@
 #   /opt/eew/scripts/cleanup_archive.sh [RETENTION_DAYS] [ARCHIVE_ROOT]
 #
 # Example (via cron, every day at 02:00):
-#   0 2 * * * /opt/eew/scripts/cleanup_archive.sh 7 /opt/data/archive
+#   0 2 * * * /opt/eew/scripts/cleanup_archive.sh 7 /home/crisislab/data/archive
 
 RETENTION_DAYS="${1:-7}"
-ARCHIVE_ROOT="${2:-/opt/data/archive}"
+ARCHIVE_ROOT="${2:-/home/crisislab/data/archive}"
 
 if [ ! -d "$ARCHIVE_ROOT" ]; then
     echo "Archive root directory not found: $ARCHIVE_ROOT"
