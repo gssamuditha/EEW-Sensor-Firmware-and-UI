@@ -126,6 +126,10 @@ def init_db():
                     'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)',
                     (key, value)
                 )
+            
+            # Force update archive_root to ensure it matches the new path,
+            # as the old /opt/data path may still be cached in the DB from previous runs.
+            c.execute("UPDATE settings SET value = ? WHERE key = 'archive_root'", (_SETTINGS_DEFAULTS['archive_root'],))
 
             # ----------------------------------------------------------------
             # event_log — anomaly event metadata
