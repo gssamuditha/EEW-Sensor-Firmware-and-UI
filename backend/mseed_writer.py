@@ -127,6 +127,7 @@ class MiniSEEDWriter:
         self._device_id      = 'T0021'   # 5-char SEED station code
         self._location_code  = '00'
         self._settings_lock  = threading.Lock()
+        self._write_lock     = threading.Lock()
         self._last_settings_refresh = 0.0
 
     # ------------------------------------------------------------------
@@ -221,14 +222,15 @@ class MiniSEEDWriter:
         Handles day-boundary splits automatically — if the buffer spans
         midnight (UTC), it writes two separate records to the correct daily files.
         """
-        if not OBSPY_AVAILABLE:
-            # Discard without error — running in a no-ObsPy environment
-            while not self._queue.empty():
-                try:
-                    self._queue.get_nowait()
-                except queue.Empty:
-                    break
-            return
+        with self._write_lock:
+            if not OBSPY_AVAILABLE:
+                # Discard without error — running in a no-ObsPy environment
+                while not self._queue.empty():
+                    try:
+                        self._queue.get_nowait()
+                    except queue.Empty:
+                        break
+                return
 
         # Collect all queued samples
         samples = []

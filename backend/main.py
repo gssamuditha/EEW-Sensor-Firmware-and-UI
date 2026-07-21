@@ -585,6 +585,11 @@ async def api_analysis_window(start: float = None, end: float = None, seconds: f
         
     from database import get_settings
     settings_snapshot = get_settings()
+    
+    # Flush the RAM buffer to SD card immediately so the subprocess
+    # can read data right up to the exact millisecond of this request.
+    from mseed_writer import mseed_writer
+    mseed_writer.flush()
         
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(
