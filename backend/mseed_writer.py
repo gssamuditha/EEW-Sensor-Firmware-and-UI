@@ -325,12 +325,15 @@ class MiniSEEDWriter:
         tr.stats.starttime     = starttime
 
         # Serialize to in-memory miniSEED bytes
-        buf = tr.write(None, format='MSEED', encoding='INT32', reclen=MSEED_RECLEN)
+        import io
+        buf = io.BytesIO()
+        tr.write(buf, format='MSEED', encoding='INT32', reclen=MSEED_RECLEN)
+        mseed_bytes = buf.getvalue()
 
         # Atomic append to daily file
         try:
             with open(filepath, 'ab') as f:
-                f.write(buf)
+                f.write(mseed_bytes)
         except OSError as e:
             print(f"mseed_writer: write error for {filepath}: {e}", file=sys.stderr)
 
