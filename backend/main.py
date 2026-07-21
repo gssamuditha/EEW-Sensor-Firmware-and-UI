@@ -583,11 +583,14 @@ async def api_analysis_window(start: float = None, end: float = None, seconds: f
         high_hz = sensor_manager._filters[CHANNEL_NAMES[0]].high_hz
         low_hz = sensor_manager._filters[CHANNEL_NAMES[0]].low_hz
         
+    from database import get_settings
+    settings_snapshot = get_settings()
+        
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(
         process_pool, 
         process_historical_data_task, 
-        start, end, low_hz, high_hz, 4000
+        start, end, low_hz, high_hz, 4000, settings_snapshot
     )
     return result
 
