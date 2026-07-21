@@ -7,7 +7,7 @@ export default function Sidebar() {
   const links = [
     { name: 'Dashboard', path: '/dashboard', icon: <Activity size={20} /> },
     { name: 'Data Export', path: '/export', icon: <Download size={20} /> },
-    // { name: 'Analysis', path: '/analysis', icon: <ActivitySquare size={20} /> }, // Hidden for version 3
+    { name: 'Analysis', path: '/analysis', icon: <ActivitySquare size={20} /> },
     { name: 'Settings', path: '/settings', icon: <Settings size={20} /> },
   ];
 

@@ -5,3 +5,6 @@ pydantic
 spidev
 RPi.GPIO
 psutil
+scipy
+numpy
+obspy

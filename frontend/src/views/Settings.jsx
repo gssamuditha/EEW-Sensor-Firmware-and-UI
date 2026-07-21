@@ -27,10 +27,11 @@ function LocationMarker({ position, setPosition }) {
 }
 
 export default function Settings() {
-  const [targets, setTargets] = useState([{ name: 'Main Server', ip: '127.0.0.1', port: 2098 }]);
+  const [targets, setTargets] = useState([{ name: 'Main Server', ip: '127.0.0.1', port: 2098, format: 'corrected' }]);
   const [newName, setNewName] = useState('');
   const [newIp, setNewIp] = useState('');
   const [newPort, setNewPort] = useState(2098);
+  const [newFormat, setNewFormat] = useState('corrected');
   const [lat, setLat] = useState(0.0);
   const [lon, setLon] = useState(0.0);
   const [deviceName, setDeviceName] = useState('CRISIS-NODE-01');
@@ -85,9 +86,16 @@ export default function Settings() {
 
   const handleAddTarget = () => {
     if (!newIp || !newName) return;
-    setTargets([...targets, { name: newName, ip: newIp, port: parseInt(newPort) }]);
+    setTargets([...targets, { name: newName, ip: newIp, port: parseInt(newPort), format: newFormat }]);
     setNewName('');
     setNewIp('');
+    setNewFormat('corrected');
+  };
+
+  const handleToggleFormat = (index) => {
+    setTargets(targets.map((t, i) =>
+      i === index ? { ...t, format: t.format === 'corrected' ? 'raw' : 'corrected' } : t
+    ));
   };
 
   const handleRemoveTarget = (index) => {
@@ -247,36 +255,63 @@ export default function Settings() {
         <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'general' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
           <div className="grid grid-cols-2 gap-6 h-full">
             
-            {/* Widget 1: Device Details */}
-            <div className="bg-white border border-gray-200 p-6 shadow-sm flex flex-col h-fit">
-              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 flex items-center shrink-0">
-                <Monitor size={16} className="mr-2" /> Device Details
-              </h3>
-              <div className="flex-1 flex flex-col space-y-4">
-                <div>
-                  <label className="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Device Name</label>
-                  <input 
-                    type="text" 
-                    value={deviceName}
-                    onChange={e => setDeviceName(e.target.value)}
-                    placeholder="CRISIS-NODE-01"
-                    className="w-full border border-gray-300 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
-                  />
-                </div>
+            {/* Left column: Device Details + Response File */}
+            <div className="flex flex-col gap-6 overflow-y-auto">
 
-                <div className="flex justify-end pt-4 border-t border-gray-100">
-                  <button 
-                    onClick={handleSaveSettings}
-                    className="bg-primary text-white font-bold tracking-widest uppercase px-6 py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity w-full"
-                  >
-                    <Save size={16} />
-                    <span>Save Name</span>
-                  </button>
+              {/* Widget 1: Device Details */}
+              <div className="bg-white border border-gray-200 p-6 shadow-sm flex flex-col">
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 flex items-center shrink-0">
+                  <Monitor size={16} className="mr-2" /> Device Details
+                </h3>
+                <div className="flex-1 flex flex-col space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Device Name</label>
+                    <input 
+                      type="text" 
+                      value={deviceName}
+                      onChange={e => setDeviceName(e.target.value)}
+                      placeholder="CRISIS-NODE-01"
+                      className="w-full border border-gray-300 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                    />
+                  </div>
+
+                  <div className="flex justify-end pt-4 border-t border-gray-100">
+                    <button 
+                      onClick={handleSaveSettings}
+                      className="bg-primary text-white font-bold tracking-widest uppercase px-6 py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity w-full"
+                    >
+                      <Save size={16} />
+                      <span>Save Name</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Widget 2: Device Location */}
+              {/* Widget 2: Device Response File */}
+              <div className="bg-white border border-gray-200 p-6 shadow-sm flex flex-col">
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 flex items-center shrink-0">
+                  <Activity size={16} className="mr-2" /> Device Response File
+                </h3>
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-500 font-mono leading-relaxed">
+                    Download the <strong>StationXML</strong> instrument response file for this sensor. 
+                    Required when a UDP target is set to <strong>Raw Counts</strong> mode — the receiving 
+                    server uses this file to convert raw 24-bit ADC counts back to m/s².
+                  </p>
+                  <a
+                    href="/api/metadata/stationxml"
+                    download
+                    className="w-full bg-primary text-white font-bold tracking-widest uppercase px-6 py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity text-center"
+                  >
+                    <Save size={16} />
+                    <span>Download StationXML</span>
+                  </a>
+                </div>
+              </div>
+
+            </div>{/* end left column */}
+
+            {/* Widget 3: Device Location — right column full height */}
             <div className="bg-white border border-gray-200 p-6 shadow-sm flex flex-col h-full min-h-0">
               <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 flex items-center shrink-0">
                 <MapPin size={16} className="mr-2" /> Device Location
@@ -472,17 +507,48 @@ export default function Settings() {
                   ) : (
                       targets.map((t, i) => (
                         <div key={i} className="flex flex-col border border-gray-200 p-3 bg-gray-50">
-                          <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center justify-between mb-2">
                             <span className="font-bold text-primary text-sm uppercase tracking-wider">{t.name}</span>
                             <button onClick={() => handleRemoveTarget(i)} className="text-gray-400 hover:text-red-600 transition-colors">
                               <X size={16} />
                             </button>
                           </div>
-                          <div className="font-mono text-xs text-gray-600 flex items-center">
+                          <div className="font-mono text-xs text-gray-600 flex items-center mb-2">
                             <span className="font-bold mr-2">IP:</span> {t.ip} 
                             <span className="mx-3 text-gray-300">|</span> 
                             <span className="font-bold mr-2">PORT:</span> {t.port}
                           </div>
+                          {/* Per-target format toggle */}
+                          <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Data Format</span>
+                            <div className="flex items-center bg-gray-200 rounded-sm overflow-hidden">
+                              <button
+                                onClick={() => t.format !== 'corrected' && handleToggleFormat(i)}
+                                className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                                  t.format === 'corrected' || !t.format
+                                    ? 'bg-[#1a4162] text-white'
+                                    : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                              >
+                                m/s²
+                              </button>
+                              <button
+                                onClick={() => t.format !== 'raw' && handleToggleFormat(i)}
+                                className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                                  t.format === 'raw'
+                                    ? 'bg-amber-600 text-white'
+                                    : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                              >
+                                Raw Counts
+                              </button>
+                            </div>
+                          </div>
+                          {t.format === 'raw' && (
+                            <p className="text-[10px] text-amber-700 font-mono mt-1.5 leading-relaxed">
+                              ⚠ Server needs the StationXML response file to convert counts → m/s²
+                            </p>
+                          )}
                         </div>
                       ))
                   )}
@@ -506,6 +572,28 @@ export default function Settings() {
                     <button onClick={handleAddTarget} className="bg-gray-200 text-gray-700 hover:bg-gray-300 px-3 py-1.5 flex items-center font-bold text-xs uppercase transition-colors h-[30px]">
                       <Plus size={14} />
                     </button>
+                  </div>
+                  {/* Format selector for new target */}
+                  <div className="flex items-center justify-between bg-gray-50 border border-gray-200 px-3 py-2">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">New Target Format</span>
+                    <div className="flex items-center bg-gray-200 rounded-sm overflow-hidden">
+                      <button
+                        onClick={() => setNewFormat('corrected')}
+                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                          newFormat === 'corrected' ? 'bg-[#1a4162] text-white' : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        Corrected m/s²
+                      </button>
+                      <button
+                        onClick={() => setNewFormat('raw')}
+                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                          newFormat === 'raw' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        Raw Counts
+                      </button>
+                    </div>
                   </div>
                   
                   <button 

@@ -13,17 +13,23 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
-from database import init_db, cleanup_old_data, get_data_for_export, get_settings, update_settings, stop_db_writer
-from sensor import sensor_manager
+from database import init_db, cleanup_old_data, get_data_for_export, get_settings, update_settings, stop_db_writer, get_data_availability
+from filters import FILTER_PRESETS
+from sensor import sensor_manager, process_historical_data_task, CHANNEL_NAMES
+from concurrent.futures import ProcessPoolExecutor
+
+# Use a ProcessPool to run heavy numpy/scipy operations entirely out-of-process, bypassing the GIL.
+process_pool = ProcessPoolExecutor(max_workers=2)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     # Run sensor init in a thread to avoid blocking the asyncio event loop
     # (RealSensor.init_sensor sleeps ~11s, calibrate sleeps ~100s)
-    await asyncio.to_thread(sensor_manager.start)
+    loop = asyncio.get_running_loop()
+    await asyncio.to_thread(sensor_manager.start, loop)
     
     # Background task for cleanup
     async def cleanup_task():
@@ -36,6 +42,7 @@ async def lifespan(app: FastAPI):
     sensor_manager.stop()
     stop_db_writer()
     task.cancel()
+    process_pool.shutdown(wait=False)
 
 app = FastAPI(lifespan=lifespan)
 
@@ -51,6 +58,7 @@ class TargetModel(BaseModel):
     name: str
     ip: str
     port: int
+    format: str = 'corrected'  # 'corrected' (m/s²) or 'raw' (demeaned 24-bit ADC counts)
 
 class SettingsModel(BaseModel):
     targets: list[TargetModel]
@@ -67,24 +75,55 @@ class WifiConnectModel(BaseModel):
 class WifiActionModel(BaseModel):
     ssid: str
 
+class FilterModel(BaseModel):
+    low_hz: float
+    high_hz: float
+
+    @field_validator('low_hz')
+    @classmethod
+    def low_hz_positive(cls, v):
+        if v < 0.01:
+            raise ValueError('low_hz must be >= 0.01')
+        return v
+
+    @field_validator('high_hz')
+    @classmethod
+    def high_hz_valid(cls, v):
+        if v > 50.0:
+            raise ValueError('high_hz must be <= 50.0')
+        return v
+
 # ---------------------------------------------------------------------------
 # Wi-Fi Manager helpers
 # ---------------------------------------------------------------------------
 
+_cached_ssid = None
+_last_ssid_check = 0
+
 def _get_active_ssid():
-    """Return the SSID of the currently active Wi-Fi connection, or None."""
+    """Return the SSID of the currently active Wi-Fi connection, or None. Cached for 10 seconds."""
+    global _cached_ssid, _last_ssid_check
+    if time.time() - _last_ssid_check < 10:
+        return _cached_ssid
+        
     if sys.platform == 'win32':
         return "Senz Cloud"  # mock for Windows dev
+        
     try:
         result = subprocess.run(
             ['sudo', '/usr/bin/nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'],
-            capture_output=True, text=True, timeout=5
+            capture_output=True, text=True, timeout=2
         )
         for line in result.stdout.split('\n'):
             if line.startswith('yes:'):
-                return line.split('yes:', 1)[1].strip()
+                _cached_ssid = line.split('yes:', 1)[1].strip()
+                _last_ssid_check = time.time()
+                return _cached_ssid
     except Exception:
         pass
+        
+    _cached_ssid = None
+    _last_ssid_check = time.time()
     return None
 
 def _get_saved_networks():
@@ -224,10 +263,11 @@ def api_get_settings():
             targets.append({
                 "name": t.get("name", "Unknown Node"),
                 "ip": t.get("ip", "127.0.0.1"),
-                "port": t.get("port", 2098)
+                "port": t.get("port", 2098),
+                "format": t.get("format", "corrected"),
             })
     except Exception:
-        targets = [{"name": "Main Server", "ip": "127.0.0.1", "port": 2098}]
+        targets = [{"name": "Main Server", "ip": "127.0.0.1", "port": 2098, "format": "corrected"}]
         
     return {
         "targets": targets, 
@@ -241,7 +281,10 @@ def api_get_settings():
 
 @app.post("/api/settings")
 def api_set_settings(settings: SettingsModel):
-    targets_json = json.dumps([{"name": t.name, "ip": t.ip, "port": t.port} for t in settings.targets])
+    targets_json = json.dumps([
+        {"name": t.name, "ip": t.ip, "port": t.port, "format": t.format}
+        for t in settings.targets
+    ])
     settings_dict = {
         "targets": targets_json,
         "latitude": settings.latitude,
@@ -256,13 +299,65 @@ def api_set_settings(settings: SettingsModel):
     update_settings(settings_dict)
     return {"status": "ok"}
 
+# ---------------------------------------------------------------------------
+# Device Metadata / Instrument Response endpoint
+# ---------------------------------------------------------------------------
+
+from metadata import build_stationxml
+
+@app.get("/api/metadata/stationxml")
+def api_metadata_stationxml():
+    """Download the FDSN StationXML instrument response file for this node.
+
+    The file encodes the full sensitivity chain
+    (ADXL354BEZ → ADA4522-1 RC LPF → ADS1220 ADC) so that any FDSN-aware
+    analysis tool (ObsPy, SeisComP, SEISAN …) can deconvolve raw ADC counts
+    into physical acceleration units (m/s²).
+
+    ObsPy usage::
+
+        inv = read_inventory('<device>_response.xml')
+        st.attach_response(inv)
+        acc = st.remove_response(output='ACC')   # → m/s²
+    """
+    s           = get_settings()
+    device_name = s.get("device_name", "CRISIS-NODE-01")
+    latitude    = float(s.get("latitude",   0.0))
+    longitude   = float(s.get("longitude",  0.0))
+    elevation   = float(s.get("elevation",  0.0))
+
+    xml_content = build_stationxml(device_name, latitude, longitude, elevation)
+    filename    = f"{device_name}_response.xml"
+
+    return StreamingResponse(
+        iter([xml_content]),
+        media_type="application/xml",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+
+
+_cached_internet = False
+_last_internet_check = 0
+
 def _check_internet():
-    """Check if outbound internet connectivity is available."""
+    """Check if outbound internet connectivity is available (cached for 10s)."""
+    global _cached_internet, _last_internet_check
+    if time.time() - _last_internet_check < 10:
+        return _cached_internet
+        
     try:
-        socket.create_connection(("8.8.8.8", 53), timeout=2)
-        return True
+        socket.create_connection(("8.8.8.8", 53), timeout=0.5)
+        _cached_internet = True
     except OSError:
-        return False
+        _cached_internet = False
+        
+    _last_internet_check = time.time()
+    return _cached_internet
+
+# Cache MAC address exactly once per boot since it never changes
+MAC_ADDRESS = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
 
 @app.get("/api/system_status")
 def api_system_status():
@@ -286,15 +381,12 @@ def api_system_status():
         finally:
             s.close()
             
-        mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) 
-                        for ele in range(0,8*6,8)][::-1])
-                        
         return {
             "cpu_percent": cpu,
             "disk_percent": disk,
             "uptime": uptime_str,
             "local_ip": ip,
-            "mac_address": mac,
+            "mac_address": MAC_ADDRESS,
             "internet_status": _check_internet(),
             "server_status": True,
             "hardware_sps": sensor_manager.hardware_sps,
@@ -304,23 +396,59 @@ def api_system_status():
         return {"error": str(e)}
 
 @app.get("/api/export")
-def api_export(start: float, end: float):
+def api_export(start: float, end: float, format: str = "csv"):
     if end < start:
         raise HTTPException(status_code=400, detail="End time must be after start time")
     
     data = get_data_for_export(start, end)
-    
-    output = io.StringIO()
-    writer = csv.writer(output, lineterminator='\n')
-    writer.writerow(["time", "ENZ", "ENN", "ENE"])
-    for row in data:
-        # row: timestamp, z, x, y — cast timestamp to float in case DB stored as int
-        t, z, x, y = row
-        writer.writerow([f"{float(t):.6f}", f"{z:.6f}", f"{x:.6f}", f"{y:.6f}"])
+    if not data:
+        raise HTTPException(status_code=404, detail="No data found for this time range")
         
-    response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
-    response.headers["Content-Disposition"] = f"attachment; filename=eew_export_{int(time.time())}.csv"
-    return response
+    import numpy as np
+    
+    arr = np.array(data, dtype=np.float64)
+    t_100 = arr[:, 0]
+    z_100 = arr[:, 1]
+    x_100 = arr[:, 2]
+    y_100 = arr[:, 3]
+    
+    if format.lower() == "mseed":
+        try:
+            from obspy import Trace, Stream, UTCDateTime
+            stream = Stream()
+            starttime = UTCDateTime(t_100[0])
+            
+            for name, ch_data in [('ENZ', z_100), ('ENN', x_100), ('ENE', y_100)]:
+                tr = Trace(data=ch_data.astype(np.float32))
+                tr.stats.network = "XX"
+                tr.stats.station = "EEWS"
+                tr.stats.channel = name
+                tr.stats.sampling_rate = 100.0
+                tr.stats.starttime = starttime
+                stream.append(tr)
+                
+            output = io.BytesIO()
+            stream.write(output, format='MSEED')
+            output.seek(0)
+            
+            response = StreamingResponse(output, media_type="application/vnd.fdsn.mseed")
+            response.headers["Content-Disposition"] = f"attachment; filename=eew_export_{int(time.time())}.mseed"
+            return response
+        except ImportError:
+            raise HTTPException(status_code=500, detail="ObsPy is not installed. MSEED export requires ObsPy.")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"MSEED generation failed: {e}")
+            
+    else:
+        output = io.StringIO()
+        writer = csv.writer(output, lineterminator='\n')
+        writer.writerow(["time", "ENZ", "ENN", "ENE"])
+        for i in range(len(t_100)):
+            writer.writerow([f"{t_100[i]:.6f}", f"{z_100[i]:.6f}", f"{x_100[i]:.6f}", f"{y_100[i]:.6f}"])
+            
+        response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
+        response.headers["Content-Disposition"] = f"attachment; filename=eew_export_{int(time.time())}.csv"
+        return response
 
 @app.websocket("/ws/stream")
 async def websocket_stream(websocket: WebSocket):
@@ -336,6 +464,97 @@ async def websocket_stream(websocket: WebSocket):
         pass
     finally:
         sensor_manager.unsubscribe(queue)
+
+# ---------------------------------------------------------------------------
+# Analysis endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/analysis/filter")
+def api_get_filter():
+    """Return current bandpass filter parameters."""
+    return sensor_manager.get_filter_params()
+
+@app.post("/api/analysis/filter")
+def api_set_filter(params: FilterModel):
+    """Update bandpass filter cutoff frequencies."""
+    if params.low_hz >= params.high_hz:
+        raise HTTPException(status_code=400, detail="low_hz must be less than high_hz")
+    sensor_manager.update_filter(params.low_hz, params.high_hz)
+    return {"status": "ok", **sensor_manager.get_filter_params()}
+
+@app.get("/api/analysis/window")
+async def api_analysis_window(start: float = None, end: float = None, seconds: float = None):
+    """Return filtered historical data for a time range.
+    
+    Accepts either:
+      - start + end (absolute epoch timestamps)
+      - seconds (shorthand for 'last N seconds' — backward compat)
+    
+    Max window: 3600 seconds (1 hour).
+    """
+    import time as _time
+    now = _time.time()
+
+    if seconds is not None:
+        # Backward-compatible mode: 'last N seconds'
+        if seconds < 300 or seconds > 3600:
+            raise HTTPException(status_code=400, detail="seconds must be between 300 and 3600")
+        end = now
+        start = now - seconds
+    elif start is not None and end is not None:
+        if end < start:
+            raise HTTPException(status_code=400, detail="end must be after start")
+        window = end - start
+        if window < 300 or window > 3600:
+            raise HTTPException(status_code=400, detail="Window must be between 5 minutes and 1 hour")
+        # Don't allow queries into the future
+        if start > now:
+            raise HTTPException(status_code=400, detail="Start time is in the future")
+    else:
+        # Default: last 5 minutes
+        end = now
+        start = now - 300
+
+    # Run in a separate PROCESS — entirely bypasses Python GIL so the 
+    # sensor reading hardware thread is completely uninterrupted.
+    with sensor_manager._filter_lock:
+        high_hz = sensor_manager._filters[CHANNEL_NAMES[0]].high_hz
+        low_hz = sensor_manager._filters[CHANNEL_NAMES[0]].low_hz
+        
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(
+        process_pool, 
+        process_historical_data_task, 
+        start, end, low_hz, high_hz, 4000
+    )
+    return result
+
+
+@app.get("/api/analysis/availability")
+def api_analysis_availability():
+    """Return the earliest and latest data timestamps in the DB."""
+    return get_data_availability()
+
+
+@app.get("/api/analysis/presets")
+def api_analysis_presets():
+    """Return available filter presets."""
+    return {"presets": FILTER_PRESETS}
+
+@app.websocket("/ws/analysis")
+async def websocket_analysis(websocket: WebSocket):
+    """Stream filtered (bandpass) data batches to the analysis frontend."""
+    await websocket.accept()
+    queue = asyncio.Queue(maxsize=50)
+    sensor_manager.subscribe_analysis(queue)
+    try:
+        while True:
+            batch = await queue.get()
+            await websocket.send_json(batch)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        sensor_manager.unsubscribe_analysis(queue)
 
 @app.get("/api/stream/stats")
 def api_stream_stats():
