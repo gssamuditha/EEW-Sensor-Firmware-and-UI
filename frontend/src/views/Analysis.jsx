@@ -90,7 +90,7 @@ export default function Analysis() {
   // historical data re-fetches every tick. FilteredChart handles the live tail.
   useEffect(() => {
     if (!isLive) return;
-    setEndEpoch(floorMinute(nowEpoch()));
+    setEndEpoch(nowEpoch());
   }, [isLive]);
 
   // Duration in minutes
@@ -167,7 +167,7 @@ export default function Analysis() {
 
   // Quick select: set start = now - minutes, end = now, go live
   const quickSelect = useCallback((minutes) => {
-    const now = floorMinute(nowEpoch());
+    const now = nowEpoch();
     setStartEpoch(now - minutes * 60);
     setEndEpoch(now);
     setIsLive(true);
@@ -194,7 +194,7 @@ export default function Analysis() {
   const toggleLive = () => {
     if (!isLive) {
       // Switch to live: set end to now
-      const now = floorMinute(nowEpoch());
+      const now = nowEpoch();
       setEndEpoch(now);
       // Adjust start if window too large
       if (now - startEpoch > 3600) {
