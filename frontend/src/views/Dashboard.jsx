@@ -75,6 +75,10 @@ export default function Dashboard() {
     <div className="p-6 h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
       <div className="flex justify-between items-center mb-4 flex-shrink-0">
         <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 mr-2">
+            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-wider">EEW SENSOR</h1>
+            <span className="text-slate-300 dark:text-slate-700 text-xl">|</span>
+          </div>
           <h2 className="text-xl font-bold text-primary dark:text-blue-400 tracking-wide">LIVE TELEMETRY</h2>
           {/* Sensor-side (hardware) SPS */}
           <div className="px-3 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-md border border-slate-100 dark:border-slate-700 shadow-sm flex items-center space-x-2">
