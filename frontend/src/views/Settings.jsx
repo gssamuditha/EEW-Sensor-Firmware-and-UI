@@ -232,7 +232,7 @@ export default function Settings() {
       <div className="w-full flex justify-between items-center mb-4 shrink-0">
         <h2 className="text-2xl font-bold text-primary dark:text-blue-400 tracking-wide uppercase">System Configuration</h2>
         {status && (
-          <div className={`px-4 py-2 text-sm font-bold font-mono shadow-sm ${status.isError ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-green-50 text-green-600 border border-green-200'}`}>
+          <div className={`px-4 py-2 text-sm font-bold font-mono shadow-sm ${status.isError ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-green-50 text-emerald-600 dark:text-emerald-500 border border-green-200'}`}>
             {status.msg}
           </div>
         )}
@@ -269,8 +269,8 @@ export default function Settings() {
             <div className="flex flex-col gap-6 overflow-y-auto">
 
               {/* Widget 1: Device Details */}
-              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                   <Monitor size={16} className="mr-2" /> Device Details
                 </h3>
                 <div className="flex-1 flex flex-col space-y-4">
@@ -281,7 +281,7 @@ export default function Settings() {
                       value={deviceName}
                       onChange={e => setDeviceName(e.target.value)}
                       placeholder="CRISIS-NODE-01"
-                      className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm mb-3"
+                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm mb-3"
                     />
                   </div>
                   <div>
@@ -292,15 +292,15 @@ export default function Settings() {
                       onChange={e => setDeviceId(e.target.value)}
                       maxLength={5}
                       placeholder="T0021"
-                      className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                     />
                     <p className="text-xs text-slate-400 dark:text-slate-500 font-mono mt-1">Used for SEED station code (e.g. T0021)</p>
                   </div>
 
-                  <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-slate-700">
+                  <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
                     <button 
                       onClick={handleSaveSettings}
-                      className="bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity w-full"
+                      className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                     >
                       <Save size={16} />
                       <span>Save Name</span>
@@ -310,8 +310,8 @@ export default function Settings() {
               </div>
 
               {/* Widget 2: Device Response File */}
-              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                   <Activity size={16} className="mr-2" /> Device Response File
                 </h3>
                 <div className="space-y-3">
@@ -323,7 +323,7 @@ export default function Settings() {
                   <a
                     href="/api/metadata/stationxml"
                     download
-                    className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity text-center"
+                    className="w-full w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow text-center"
                   >
                     <Save size={16} />
                     <span>Download StationXML</span>
@@ -334,8 +334,8 @@ export default function Settings() {
             </div>{/* end left column */}
 
             {/* Widget 3: Device Location — right column full height */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col h-full min-h-0">
-              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full min-h-0">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                 <MapPin size={16} className="mr-2" /> Device Location
               </h3>
               <div className="flex-1 flex flex-col min-h-0">
@@ -352,7 +352,7 @@ export default function Settings() {
                       type="number" step="any"
                       value={lat}
                       onChange={e => setLat(parseFloat(e.target.value) || 0)}
-                      className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
+                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
                     />
                   </div>
                   <div>
@@ -361,15 +361,15 @@ export default function Settings() {
                       type="number" step="any"
                       value={lon}
                       onChange={e => setLon(parseFloat(e.target.value) || 0)}
-                      className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
+                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
                     />
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-slate-700 shrink-0">
+                <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50 shrink-0">
                   <button 
                     onClick={handleSaveSettings}
-                    className="bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity w-full"
+                    className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                   >
                     <Save size={16} />
                     <span>Save Location</span>
@@ -386,15 +386,15 @@ export default function Settings() {
           <div className="grid grid-cols-2 gap-6 h-full">
             
             {/* Widget 1: Wi-Fi Manager */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col h-fit">
-              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                 <Wifi size={16} className="mr-2" /> Wi-Fi Configuration
               </h3>
               <div className="space-y-4">
                 
                 {/* Active Connection Indicator */}
-                <div className="flex items-center space-x-2 bg-blue-50 border border-blue-100 px-4 py-2">
-                  <div className={`w-2 h-2 rounded-full ${activeWifi ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm px-4 py-2">
+                  <div className={`w-2 h-2 rounded-full ${activeWifi ? 'bg-emerald-500' : 'bg-gray-400'}`}></div>
                   <span className="text-xs font-bold text-[#1a4162] font-mono tracking-wide">
                     {activeWifi ? `CONNECTED TO: ${activeWifi}` : 'NOT CONNECTED'}
                   </span>
@@ -410,18 +410,18 @@ export default function Settings() {
                       {savedNetworks.map((net, idx) => {
                         const isActive = net.is_active || activeWifi === net.ssid;
                         return (
-                          <div key={idx} className={`flex items-center justify-between px-3 py-2 border ${isActive ? 'bg-green-50 border-green-200' : 'bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-700'}`}>
+                          <div key={idx} className={`flex items-center justify-between px-3 py-2 border ${isActive ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800' : 'bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-700'}`}>
                             <div className="flex items-center space-x-2 min-w-0">
-                              <div className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                              <span className={`text-sm font-bold truncate ${isActive ? 'text-green-700' : 'text-gray-700 dark:text-slate-200'}`}>{net.ssid}</span>
-                              {isActive && <span className="text-[10px] font-bold text-green-600 uppercase tracking-wider shrink-0">Active</span>}
+                              <div className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
+                              <span className={`text-sm font-bold truncate ${isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-700 dark:text-slate-200'}`}>{net.ssid}</span>
+                              {isActive && <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider shrink-0">Active</span>}
                             </div>
                             <div className="flex items-center space-x-1.5 shrink-0 ml-2">
                               {!isActive && (
                                 <button 
                                   onClick={() => handleConnectSaved(net.ssid)}
                                   disabled={wifiLoading}
-                                  className="px-2.5 py-1 text-xs font-bold uppercase bg-primary dark:bg-blue-600 text-white hover:bg-opacity-90 transition-colors disabled:opacity-50"
+                                  className="px-2.5 py-1 text-xs font-bold uppercase bg-primary dark:bg-blue-600 text-white rounded-md hover:bg-opacity-90 transition-all shadow-sm disabled:opacity-50"
                                 >
                                   Connect
                                 </button>
@@ -443,7 +443,7 @@ export default function Settings() {
                 </div>
 
                 {/* Add New Network — BELOW */}
-                <div className="pt-4 border-t border-gray-100 dark:border-slate-700">
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50">
                   <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Add New Network</h4>
                   <div className="space-y-3">
                     <div>
@@ -453,7 +453,7 @@ export default function Settings() {
                         value={ssid}
                         onChange={e => setSsid(e.target.value)}
                         placeholder="Enter network name"
-                        className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                        className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                       />
                     </div>
                     <div>
@@ -464,7 +464,7 @@ export default function Settings() {
                           value={password}
                           onChange={e => setPassword(e.target.value)}
                           placeholder="Enter password"
-                          className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm pr-10"
+                          className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm pr-10"
                         />
                         <button
                           type="button"
@@ -491,7 +491,7 @@ export default function Settings() {
 
                 {/* Status Message */}
                 {wifiStatus && (
-                  <div className={`p-2 text-xs font-bold font-mono ${wifiStatus.isError ? 'text-red-600' : 'text-green-600'}`}>
+                  <div className={`p-2 text-xs font-bold font-mono ${wifiStatus.isError ? 'text-red-600' : 'text-emerald-600 dark:text-emerald-500'}`}>
                     {wifiStatus.msg}
                   </div>
                 )}
@@ -499,8 +499,8 @@ export default function Settings() {
             </div>
 
             {/* Widget 2: Data Sharing (UDP Targets) */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col h-full min-h-0">
-              <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 shrink-0">
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full min-h-0">
+              <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center">
                   <Activity size={16} className="mr-2" /> Data Sharing
                 </h3>
@@ -577,19 +577,19 @@ export default function Settings() {
                 </div>
 
                 {/* Add Target Form */}
-                <div className="shrink-0 space-y-4 pt-4 border-t border-gray-100 dark:border-slate-700">
+                <div className="shrink-0 space-y-4 pt-4 border-t border-slate-100 dark:border-slate-700/50">
                   <div className="flex space-x-2 items-end bg-slate-50 dark:bg-slate-900 p-3 border border-slate-100 dark:border-slate-700">
                     <div className="flex-1">
                       <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Name</label>
-                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Main Server" className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
+                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Main Server" className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
                     </div>
                     <div className="flex-1">
                       <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">IP Address</label>
-                      <input type="text" value={newIp} onChange={e => setNewIp(e.target.value)} placeholder="192.168.1.50" className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
+                      <input type="text" value={newIp} onChange={e => setNewIp(e.target.value)} placeholder="192.168.1.50" className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
                     </div>
                     <div className="w-20">
                       <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Port</label>
-                      <input type="number" value={newPort} onChange={e => setNewPort(e.target.value)} className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
+                      <input type="number" value={newPort} onChange={e => setNewPort(e.target.value)} className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
                     </div>
                     <button onClick={handleAddTarget} className="bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-300 px-3 py-1.5 flex items-center font-bold text-xs uppercase transition-colors h-[30px]">
                       <Plus size={14} />
@@ -620,7 +620,7 @@ export default function Settings() {
                   
                   <button 
                     onClick={handleSaveSettings}
-                    className="bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity w-full"
+                    className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                   >
                     <Save size={16} />
                     <span>Save Targets</span>
@@ -636,8 +636,8 @@ export default function Settings() {
         <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'system' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
           <div className="grid grid-cols-2 gap-6 h-full">
             {/* Calibration Settings */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col h-fit">
-              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                 <SettingsIcon size={16} className="mr-2" /> Calibration Settings
               </h3>
               <div className="space-y-6">
@@ -647,7 +647,7 @@ export default function Settings() {
                     type="number" 
                     value={calibrationTime}
                     onChange={e => setCalibrationTime(e.target.value)}
-                    className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                    className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                   />
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 font-mono">Recommended: 60 seconds</p>
                 </div>
@@ -658,22 +658,22 @@ export default function Settings() {
                     type="number" 
                     value={retentionDays}
                     onChange={e => setRetentionDays(e.target.value)}
-                    className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                    className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                   />
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 font-mono">Older miniSEED files will be deleted.</p>
                 </div>
 
-                <div className="pt-2 border-t border-gray-100 dark:border-slate-700">
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50">
                   <span className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Archive Size</span>
                   <span className="text-sm font-mono font-bold text-[#1a4162] bg-gray-100 dark:bg-slate-800 px-3 py-1 inline-block">
                     {(archiveSize / (1024 * 1024)).toFixed(2)} MB
                   </span>
                 </div>
 
-                <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-slate-700">
+                <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
                   <button 
                     onClick={handleSaveSettings}
-                    className="bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity w-full"
+                    className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                   >
                     <Save size={16} />
                     <span>Save Calibration</span>
@@ -685,8 +685,8 @@ export default function Settings() {
             {/* Right Column: UI Settings & System Actions */}
             <div className="space-y-6">
               {/* UI Settings */}
-              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col h-fit">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                   <Palette size={16} className="mr-2" /> UI Settings
                 </h3>
                 <div className="flex items-center justify-between">
@@ -704,8 +704,8 @@ export default function Settings() {
               </div>
 
               {/* System Actions */}
-              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col h-fit">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                   <Power size={16} className="mr-2" /> System Actions
                 </h3>
                 <div className="space-y-6">
