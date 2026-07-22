@@ -272,26 +272,27 @@ export default function Analysis() {
         <div className={`bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl shadow-md flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden ${isControlsExpanded ? 'opacity-100 max-h-[500px]' : 'opacity-0 max-h-0 border-0 shadow-none'}`}>
           <div className="p-4 grid grid-cols-1 xl:grid-cols-[auto_1fr] gap-6 items-end">
             {/* Left: Time Range */}
-            <div className="flex flex-wrap items-end gap-3">
-              {/* Start time */}
-              <div className="flex flex-col">
-                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Start</label>
-                <input
-                  type="datetime-local"
-                  value={epochToLocal(startEpoch, timeZone)}
-                  onChange={handleStartChange}
-                  min={minDatetime}
-                  max={maxDatetime}
-                  className="h-8 border-0 bg-slate-100 dark:bg-slate-800/80 rounded-md px-3 text-xs font-mono font-semibold text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-300 shadow-sm"
-                />
-              </div>
+            <div className="flex flex-col gap-3">
+              {/* Top Row: Start & End */}
+              <div className="flex items-end gap-3">
+                {/* Start time */}
+                <div className="flex flex-col">
+                  <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Start</label>
+                  <input
+                    type="datetime-local"
+                    value={epochToLocal(startEpoch, timeZone)}
+                    onChange={handleStartChange}
+                    min={minDatetime}
+                    max={maxDatetime}
+                    className="h-8 border-0 bg-slate-100 dark:bg-slate-800/80 rounded-md px-3 text-xs font-mono font-semibold text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-300 shadow-sm"
+                  />
+                </div>
 
-              <span className="text-slate-300 font-bold text-xs pb-2">→</span>
+                <span className="text-slate-300 font-bold text-xs pb-2">→</span>
 
-              {/* End time */}
-              <div className="flex flex-col">
-                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">End</label>
-                <div className="flex items-center gap-1.5">
+                {/* End time */}
+                <div className="flex flex-col">
+                  <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">End</label>
                   <input
                     type="datetime-local"
                     value={epochToLocal(endEpoch, timeZone)}
@@ -301,30 +302,30 @@ export default function Analysis() {
                     disabled={isLive}
                     className={`h-8 border-0 bg-slate-100 dark:bg-slate-800/80 rounded-md px-3 text-xs font-mono font-semibold text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-300 shadow-sm ${isLive ? 'opacity-50 cursor-not-allowed' : ''}`}
                   />
-                  <button
-                    onClick={toggleLive}
-                    className={`h-8 px-3 rounded-md text-[10px] font-bold tracking-wider transition-all shadow-sm border ${
-                      isLive
-                        ? 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600'
-                        : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:border-emerald-400 hover:text-emerald-600'
-                    }`}
-                  >
-                    {isLive ? '● LIVE' : 'NOW'}
-                  </button>
                 </div>
               </div>
 
-              {/* Duration badge */}
-              <div className={`h-8 flex items-center px-3 rounded-md text-[10px] font-bold font-mono border ${
-                durationError
-                  ? 'bg-red-50 text-red-500 border-red-200'
-                  : 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/50'
-              }`}>
-                {durationStr}
-              </div>
-
-              {/* Quick select buttons */}
+              {/* Bottom Row: Live, Duration, Quick Selects */}
               <div className="flex items-center gap-1.5">
+                <button
+                  onClick={toggleLive}
+                  className={`h-8 px-3 rounded-md text-[10px] font-bold tracking-wider transition-all shadow-sm border ${
+                    isLive
+                      ? 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600'
+                      : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:border-emerald-400 hover:text-emerald-600'
+                  }`}
+                >
+                  {isLive ? '● LIVE' : 'NOW'}
+                </button>
+
+                <div className={`h-8 flex items-center px-3 rounded-md text-[10px] font-bold font-mono border ${
+                  durationError
+                    ? 'bg-red-50 text-red-500 border-red-200'
+                    : 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/50'
+                }`}>
+                  {durationStr}
+                </div>
+
                 {QUICK_OPTIONS.map(opt => (
                   <button
                     key={opt.value}
@@ -338,8 +339,8 @@ export default function Analysis() {
             </div>
 
             {/* Right: Bandpass Filter */}
-            <div className="flex flex-wrap items-end xl:justify-end gap-3">
-              {/* Presets */}
+            <div className="flex flex-col gap-3 xl:ml-auto">
+              {/* Top Row: Presets */}
               {Object.keys(presets).length > 0 && (
                 <div className="flex flex-col">
                   <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Presets</label>
@@ -362,51 +363,54 @@ export default function Analysis() {
                 </div>
               )}
 
-              {/* Low Frequency */}
-              <div className="flex flex-col">
-                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Low (Hz)</label>
-                <div className="flex items-center space-x-1.5">
-                  <input
-                    type="range" min="0.01" max="10" step="0.01"
-                    value={lowHz}
-                    onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }}
-                    className="w-16 sm:w-20 accent-primary"
-                  />
-                  <input
-                    type="number" min="0.01" max="10" step="0.01"
-                    value={lowHz}
-                    onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }}
-                    className="h-8 w-14 bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md px-1.5 text-xs font-mono font-semibold text-center focus:outline-none focus:ring-1 focus:ring-slate-300 shadow-sm"
-                  />
+              {/* Bottom Row: Low, High, Apply */}
+              <div className="flex items-end gap-5">
+                {/* Low Frequency */}
+                <div className="flex flex-col">
+                  <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Low (Hz)</label>
+                  <div className="flex items-center space-x-1.5">
+                    <input
+                      type="range" min="0.01" max="10" step="0.01"
+                      value={lowHz}
+                      onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }}
+                      className="w-16 sm:w-20 accent-primary"
+                    />
+                    <input
+                      type="number" min="0.01" max="10" step="0.01"
+                      value={lowHz}
+                      onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }}
+                      className="h-8 w-14 bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md px-1.5 text-xs font-mono font-semibold text-center focus:outline-none focus:ring-1 focus:ring-slate-300 shadow-sm"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {/* High Frequency */}
-              <div className="flex flex-col">
-                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">High (Hz)</label>
-                <div className="flex items-center space-x-1.5">
-                  <input
-                    type="range" min="0.5" max="50" step="0.5"
-                    value={highHz}
-                    onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }}
-                    className="w-16 sm:w-20 accent-primary"
-                  />
-                  <input
-                    type="number" min="0.5" max="50" step="0.5"
-                    value={highHz}
-                    onChange={e => { setHighHz(parseFloat(e.target.value) || 0.5); setActivePreset(null); }}
-                    className="h-8 w-14 bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md px-1.5 text-xs font-mono font-semibold text-center focus:outline-none focus:ring-1 focus:ring-slate-300 shadow-sm"
-                  />
+                {/* High Frequency */}
+                <div className="flex flex-col">
+                  <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">High (Hz)</label>
+                  <div className="flex items-center space-x-1.5">
+                    <input
+                      type="range" min="0.5" max="50" step="0.5"
+                      value={highHz}
+                      onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }}
+                      className="w-16 sm:w-20 accent-primary"
+                    />
+                    <input
+                      type="number" min="0.5" max="50" step="0.5"
+                      value={highHz}
+                      onChange={e => { setHighHz(parseFloat(e.target.value) || 0.5); setActivePreset(null); }}
+                      className="h-8 w-14 bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md px-1.5 text-xs font-mono font-semibold text-center focus:outline-none focus:ring-1 focus:ring-slate-300 shadow-sm"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {/* Apply Button */}
-              <button
-                onClick={applyFilter}
-                className="h-8 bg-primary dark:bg-blue-600 hover:bg-opacity-90 text-white rounded-md font-bold transition-all shadow-md px-4 text-[10px] tracking-wider"
-              >
-                APPLY FILTER
-              </button>
+                {/* Apply Button */}
+                <button
+                  onClick={applyFilter}
+                  className="h-8 bg-primary dark:bg-blue-600 hover:bg-opacity-90 text-white rounded-md font-bold transition-all shadow-md px-4 text-[10px] tracking-wider"
+                >
+                  APPLY FILTER
+                </button>
+              </div>
             </div>
             
             {/* Error message */}
