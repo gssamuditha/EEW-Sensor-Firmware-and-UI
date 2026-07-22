@@ -12,7 +12,7 @@ export default function Sidebar() {
   ];
 
   return (
-    <div className="w-64 h-screen bg-primary text-white flex flex-col font-sans">
+    <div className="w-64 h-screen bg-primary dark:bg-blue-600 text-white flex flex-col font-sans">
       <div className="p-6 border-b border-white/10 flex items-center space-x-4">
         <img src="/logo1.png" alt="Logo" className="h-14 w-14 object-contain" onError={(e) => e.target.style.display = 'none'} />
         <div>

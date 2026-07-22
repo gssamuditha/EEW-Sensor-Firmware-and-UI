@@ -237,19 +237,19 @@ export default function Analysis() {
   }, [lowHz, highHz, presets]);
 
   return (
-    <div className="p-6 h-full flex flex-col bg-gray-50 overflow-hidden">
+    <div className="p-6 h-full flex flex-col bg-gray-50 dark:bg-slate-900 overflow-hidden">
       {/* Header */}
       <div className="flex justify-between items-center mb-4 flex-shrink-0">
         <div className="flex items-center space-x-3">
-          <h2 className="text-xl font-bold text-primary tracking-wide">SIGNAL ANALYSIS</h2>
+          <h2 className="text-xl font-bold text-primary dark:text-blue-400 tracking-wide">SIGNAL ANALYSIS</h2>
           {activeFilter && filterStatus === 'active' && (
-            <div className="px-3 py-1 bg-white text-gray-600 text-xs font-bold rounded border border-gray-200 shadow-sm flex items-center space-x-2">
+            <div className="px-3 py-1 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 text-xs font-bold rounded border border-gray-200 dark:border-slate-700 shadow-sm flex items-center space-x-2">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
               <span>BANDPASS {activeFilter.low_hz}–{activeFilter.high_hz} Hz</span>
             </div>
           )}
           {filterStatus === 'updating' && (
-            <div className="px-3 py-1 bg-white text-yellow-600 text-xs font-bold rounded border border-yellow-200 shadow-sm">
+            <div className="px-3 py-1 bg-white dark:bg-slate-800 text-yellow-600 text-xs font-bold rounded border border-yellow-200 shadow-sm">
               Updating filter…
             </div>
           )}
@@ -258,16 +258,16 @@ export default function Analysis() {
 
       <div className="flex-1 min-h-0 flex flex-col gap-3">
         {/* Controls Row */}
-        <div className="bg-white border border-gray-200 p-4 shadow-sm flex-shrink-0">
+        <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-4 shadow-sm flex-shrink-0">
           <div className="flex flex-col gap-4">
 
             {/* Row 1: Time Range */}
             <div>
-              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Time Range</div>
+              <div className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-2">Time Range</div>
               <div className="flex flex-wrap items-center gap-3">
                 {/* Start time */}
                 <div className="flex flex-col">
-                  <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">Start</label>
+                  <label className="text-[9px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Start</label>
                   <input
                     type="datetime-local"
                     id="analysis-start-time"
@@ -275,7 +275,7 @@ export default function Analysis() {
                     onChange={handleStartChange}
                     min={minDatetime}
                     max={maxDatetime}
-                    className="border border-gray-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-primary bg-white shadow-sm"
+                    className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-primary bg-white dark:bg-slate-800 shadow-sm"
                   />
                 </div>
 
@@ -283,7 +283,7 @@ export default function Analysis() {
 
                 {/* End time */}
                 <div className="flex flex-col">
-                  <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">End</label>
+                  <label className="text-[9px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">End</label>
                   <div className="flex items-center gap-1.5">
                     <input
                       type="datetime-local"
@@ -293,7 +293,7 @@ export default function Analysis() {
                       min={minDatetime}
                       max={maxDatetime}
                       disabled={isLive}
-                      className={`border border-gray-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-primary bg-white shadow-sm ${isLive ? 'opacity-50' : ''}`}
+                      className={`border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-primary bg-white dark:bg-slate-800 shadow-sm ${isLive ? 'opacity-50' : ''}`}
                     />
                     <button
                       id="analysis-live-toggle"
@@ -301,7 +301,7 @@ export default function Analysis() {
                       className={`px-2.5 py-1 rounded text-[10px] font-bold tracking-wider transition-colors shadow-sm border ${
                         isLive
                           ? 'bg-green-500 text-white border-green-500'
-                          : 'bg-white text-gray-500 border-gray-300 hover:border-green-400 hover:text-green-600'
+                          : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-slate-400 border-gray-300 dark:border-slate-600 hover:border-green-400 hover:text-green-600'
                       }`}
                     >
                       {isLive ? '● LIVE' : 'NOW'}
@@ -313,7 +313,7 @@ export default function Analysis() {
                 <div className={`px-2.5 py-1 rounded text-[10px] font-bold font-mono mt-3 border ${
                   durationError
                     ? 'bg-red-50 text-red-500 border-red-200'
-                    : 'bg-gray-50 text-gray-500 border-gray-200'
+                    : 'bg-gray-50 dark:bg-slate-900 text-gray-500 dark:text-slate-400 border-gray-200 dark:border-slate-700'
                 }`}>
                   {durationStr}
                 </div>
@@ -324,7 +324,7 @@ export default function Analysis() {
                     <button
                       key={opt.value}
                       onClick={() => quickSelect(opt.value)}
-                      className="px-2 py-1 rounded text-[10px] font-bold text-gray-500 bg-gray-100 hover:bg-primary hover:text-white transition-colors border border-gray-200 hover:border-primary"
+                      className="px-2 py-1 rounded text-[10px] font-bold text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 hover:bg-primary dark:bg-blue-600 hover:text-white transition-colors border border-gray-200 dark:border-slate-700 hover:border-primary"
                     >
                       {opt.label}
                     </button>
@@ -337,16 +337,16 @@ export default function Analysis() {
             </div>
 
             {/* Divider */}
-            <div className="border-t border-gray-100"></div>
+            <div className="border-t border-gray-100 dark:border-slate-700"></div>
 
             {/* Row 2: Bandpass Filter */}
             <div>
-              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Bandpass Filter</div>
+              <div className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-2">Bandpass Filter</div>
               <div className="flex flex-wrap items-end gap-4">
                 {/* Presets */}
                 {Object.keys(presets).length > 0 && (
                   <div className="flex flex-col">
-                    <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">Presets</label>
+                    <label className="text-[9px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-1">Presets</label>
                     <div className="flex items-center gap-1">
                       {Object.entries(presets).map(([key, preset]) => (
                         <button
@@ -355,8 +355,8 @@ export default function Analysis() {
                           title={`${preset.low_hz}–${preset.high_hz} Hz`}
                           className={`px-2 py-1 rounded text-[10px] font-bold transition-colors border ${
                             activePreset === key
-                              ? 'bg-primary text-white border-primary'
-                              : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-primary hover:text-primary'
+                              ? 'bg-primary dark:bg-blue-600 text-white border-primary'
+                              : 'bg-gray-50 dark:bg-slate-900 text-gray-500 dark:text-slate-400 border-gray-200 dark:border-slate-700 hover:border-primary hover:text-primary dark:text-blue-400'
                           }`}
                         >
                           {preset.label.split(' ')[0]}
@@ -368,7 +368,7 @@ export default function Analysis() {
 
                 {/* Low Frequency */}
                 <div className="flex flex-col">
-                  <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">Low Cutoff (Hz)</label>
+                  <label className="text-[9px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-1">Low Cutoff (Hz)</label>
                   <div className="flex items-center space-x-2">
                     <input
                       type="range"
@@ -388,14 +388,14 @@ export default function Analysis() {
                       step="0.01"
                       value={lowHz}
                       onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }}
-                      className="w-16 border border-gray-300 rounded px-2 py-1 text-xs font-mono text-center focus:outline-none focus:border-primary"
+                      className="w-16 border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-xs font-mono text-center focus:outline-none focus:border-primary"
                     />
                   </div>
                 </div>
 
                 {/* High Frequency */}
                 <div className="flex flex-col">
-                  <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">High Cutoff (Hz)</label>
+                  <label className="text-[9px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-1">High Cutoff (Hz)</label>
                   <div className="flex items-center space-x-2">
                     <input
                       type="range"
@@ -415,7 +415,7 @@ export default function Analysis() {
                       step="0.5"
                       value={highHz}
                       onChange={e => { setHighHz(parseFloat(e.target.value) || 0.5); setActivePreset(null); }}
-                      className="w-16 border border-gray-300 rounded px-2 py-1 text-xs font-mono text-center focus:outline-none focus:border-primary"
+                      className="w-16 border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-xs font-mono text-center focus:outline-none focus:border-primary"
                     />
                   </div>
                 </div>
@@ -424,14 +424,14 @@ export default function Analysis() {
                 <button
                   id="analysis-apply-filter"
                   onClick={applyFilter}
-                  className="bg-primary hover:bg-opacity-90 text-white rounded font-bold transition-colors shadow-sm px-4 py-1.5 text-xs tracking-wider"
+                  className="bg-primary dark:bg-blue-600 hover:bg-opacity-90 text-white rounded font-bold transition-colors shadow-sm px-4 py-1.5 text-xs tracking-wider"
                 >
                   APPLY FILTER
                 </button>
 
                 {/* Filter info */}
                 {activeFilter && (
-                  <div className="text-[10px] text-gray-400 font-mono ml-auto self-center">
+                  <div className="text-[10px] text-gray-400 dark:text-slate-500 font-mono ml-auto self-center">
                     Order: {activeFilter.order} · Fs: {activeFilter.fs} Hz · Zero-Phase Butterworth
                   </div>
                 )}
@@ -446,9 +446,9 @@ export default function Analysis() {
         </div>
 
         {/* Filtered Waveform Charts */}
-        <div className="flex-1 min-h-0 bg-white border border-gray-200 p-4 shadow-sm flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-4 shadow-sm flex flex-col overflow-hidden">
           {durationError ? (
-            <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+            <div className="flex-1 flex items-center justify-center text-gray-400 dark:text-slate-500 text-sm">
               {durationError}. Adjust the time range above.
             </div>
           ) : (

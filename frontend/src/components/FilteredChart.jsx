@@ -129,17 +129,17 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-[100px] mb-[2px] bg-white shadow-sm p-1 rounded">
+    <div className="flex flex-col flex-1 min-h-[100px] mb-[2px] bg-white dark:bg-slate-800 shadow-sm p-1 rounded">
       <div className="flex items-center justify-between mb-0 px-1">
         <div className="flex items-center space-x-2">
-          <span className="font-bold text-gray-500 text-[10px] tracking-widest leading-none">{channelName}</span>
-          <span className="text-[9px] text-gray-400 leading-none font-mono">FILTERED</span>
+          <span className="font-bold text-gray-500 dark:text-slate-400 text-[10px] tracking-widest leading-none">{channelName}</span>
+          <span className="text-[9px] text-gray-400 dark:text-slate-500 leading-none font-mono">FILTERED</span>
         </div>
         <div className="flex items-center space-x-1.5">
           <span className={`text-sm font-mono font-bold leading-none ${labelColor(channelName)}`}>
             {latestValue !== null ? latestValue.toFixed(4) : '0.0000'}
           </span>
-          <span className="text-[10px] text-gray-400 leading-none">m/s²</span>
+          <span className="text-[10px] text-gray-400 dark:text-slate-500 leading-none">m/s²</span>
         </div>
       </div>
       <div ref={containerRef} className="w-full flex-1 min-h-0" />
@@ -373,16 +373,16 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
   const statusBadge = () => {
     if (loading) {
       return (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded border text-[10px] font-bold shadow-sm bg-white border-blue-200 text-blue-600">
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded border text-[10px] font-bold shadow-sm bg-white dark:bg-slate-800 border-blue-200 text-blue-600">
           Loading filtered data…
         </div>
       );
     }
     if (connectionStatus === 'connected' || connectionStatus === 'historical') return null;
     const cfg = {
-      connecting: { bg: 'bg-white border-yellow-200 text-yellow-600', label: 'Connecting…' },
-      no_data: { bg: 'bg-white border-orange-200 text-orange-600', label: 'No Data' },
-      disconnected: { bg: 'bg-white border-red-200 text-red-600', label: 'Disconnected — retrying…' },
+      connecting: { bg: 'bg-white dark:bg-slate-800 border-yellow-200 text-yellow-600', label: 'Connecting…' },
+      no_data: { bg: 'bg-white dark:bg-slate-800 border-orange-200 text-orange-600', label: 'No Data' },
+      disconnected: { bg: 'bg-white dark:bg-slate-800 border-red-200 text-red-600', label: 'Disconnected — retrying…' },
     }[connectionStatus];
     if (!cfg) return null;
     return (
@@ -413,7 +413,7 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
       <div className="flex-shrink-0 mt-2 flex items-center gap-2">
         <button
           onClick={() => setIsPaused(!isPaused)}
-          className="flex items-center space-x-1.5 bg-primary hover:bg-opacity-90 text-white rounded font-bold transition-colors shadow-sm px-2.5 py-1 text-[10px]"
+          className="flex items-center space-x-1.5 bg-primary dark:bg-blue-600 hover:bg-opacity-90 text-white rounded font-bold transition-colors shadow-sm px-2.5 py-1 text-[10px]"
         >
           {isPaused ? (
             <>
