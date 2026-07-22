@@ -436,7 +436,7 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
       <div className="flex-shrink-0 mt-2 flex items-center gap-2">
         <button
           onClick={() => setIsPaused(!isPaused)}
-          className="flex items-center space-x-1.5 bg-primary dark:bg-slate-700 hover:bg-opacity-90 dark:hover:bg-slate-600 text-white rounded font-bold transition-colors shadow-sm px-2.5 py-1 text-[10px]"
+          className="flex items-center space-x-1.5 bg-slate-500 dark:bg-slate-700 hover:bg-slate-600 dark:hover:bg-slate-600 text-white rounded-md font-bold transition-colors shadow-sm px-2 py-0.5 text-[10px]"
         >
           {isPaused ? (
             <>

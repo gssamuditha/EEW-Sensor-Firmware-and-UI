@@ -384,7 +384,7 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
       <div className="flex-shrink-0 mt-2 flex items-center gap-2">
         <button
           onClick={togglePause}
-          className="flex items-center space-x-1.5 bg-primary dark:bg-slate-700 hover:bg-opacity-90 dark:hover:bg-slate-600 text-white rounded font-bold transition-colors shadow-sm px-2.5 py-1 text-[10px]"
+          className="flex items-center space-x-1.5 bg-slate-500 dark:bg-slate-700 hover:bg-slate-600 dark:hover:bg-slate-600 text-white rounded-md font-bold transition-colors shadow-sm px-2 py-0.5 text-[10px]"
         >
           {isPaused ? (
             <>
@@ -402,7 +402,7 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
         {!isExpanded && (
           <button
             onClick={() => window.open('/expanded', '_blank')}
-            className="flex items-center space-x-1.5 bg-primary dark:bg-slate-700 hover:bg-opacity-90 dark:hover:bg-slate-600 text-white rounded font-bold transition-colors shadow-sm px-2.5 py-1 text-[10px]"
+            className="flex items-center space-x-1.5 bg-slate-500 dark:bg-slate-700 hover:bg-slate-600 dark:hover:bg-slate-600 text-white rounded-md font-bold transition-colors shadow-sm px-2 py-0.5 text-[10px]"
           >
             <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
             <span>VIEW EXPANDED</span>
