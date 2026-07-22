@@ -109,7 +109,7 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
         analysisCursorSync.plugin(),
       ],
     });
-    chart.foregroundColour = themeRef.current === 'dark' ? '#cbd5e1' : '#374151';
+    chart.foregroundColour = themeRef.current === 'dark' ? '#22c55e' : '#374151';
     chart.backgroundColour = themeRef.current === 'dark' ? '#1e293b' : '#ffffff';
     chartRef.current = chart;
 
@@ -121,7 +121,7 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
 
   useEffect(() => {
     if (chartRef.current) {
-      chartRef.current.foregroundColour = theme === 'dark' ? '#cbd5e1' : '#374151';
+      chartRef.current.foregroundColour = theme === 'dark' ? '#22c55e' : '#374151';
       chartRef.current.backgroundColour = theme === 'dark' ? '#1e293b' : '#ffffff';
     }
   }, [theme]);
