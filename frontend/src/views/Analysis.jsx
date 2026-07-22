@@ -258,8 +258,8 @@ export default function Analysis() {
 
       <div className="flex-1 min-h-0 flex flex-col gap-3">
         {/* Controls Row */}
-        <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md flex-shrink-0">
-          <div className="flex flex-col gap-4">
+        <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-4 shadow-md flex-shrink-0">
+          <div className="flex flex-row justify-between items-start gap-2 flex-wrap">
 
             {/* Row 1: Time Range */}
             <div>
@@ -336,11 +336,8 @@ export default function Analysis() {
               )}
             </div>
 
-            {/* Divider */}
-            <div className="border-t border-slate-100 dark:border-slate-700/50"></div>
-
             {/* Row 2: Bandpass Filter */}
-            <div>
+            <div className="flex-1 max-w-2xl">
               <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Bandpass Filter</div>
               <div className="flex flex-wrap items-end gap-5">
                 {/* Presets */}
