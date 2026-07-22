@@ -263,7 +263,7 @@ export default function Analysis() {
         {/* Right Side: Control Cluster */}
         <div className="flex flex-col gap-2">
           {/* Row 1: Time Range */}
-          <div className="flex flex-row items-end gap-2 xl:justify-end flex-wrap">
+          <div className="flex flex-row items-end gap-2 xl:justify-between flex-wrap w-full">
             <div className="flex flex-col">
               <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Start</label>
               <input
@@ -313,16 +313,16 @@ export default function Analysis() {
           </div>
 
           {/* Row 2: Bandpass Filter */}
-          <div className="flex flex-row items-end gap-3 xl:justify-end flex-wrap">
+          <div className="flex flex-row items-end gap-2 xl:justify-between flex-wrap w-full">
             {Object.keys(presets).length > 0 && (
               <div className="flex flex-col">
                 <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Presets</label>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   {Object.entries(presets).map(([key, preset]) => (
                     <button
                       key={key}
                       onClick={() => applyPreset(key)}
-                      className={`h-7 px-2 rounded-md text-[9px] font-bold shadow-sm border transition-all ${
+                      className={`h-7 px-3 rounded-md text-[9px] font-bold shadow-sm border transition-all ${
                         activePreset === key ? 'bg-primary dark:bg-blue-600 text-white border-primary dark:border-blue-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
                       }`}
                     >
@@ -334,21 +334,21 @@ export default function Analysis() {
             )}
             <div className="flex flex-col">
               <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Low (Hz)</label>
-              <div className="flex items-center space-x-1">
-                <input type="range" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }} className="w-12 sm:w-16 accent-primary" />
+              <div className="flex items-center space-x-1.5">
+                <input type="range" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }} className="w-16 sm:w-24 accent-primary" />
                 <input type="number" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
               </div>
             </div>
             <div className="flex flex-col">
               <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">High (Hz)</label>
-              <div className="flex items-center space-x-1">
-                <input type="range" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }} className="w-12 sm:w-16 accent-primary" />
+              <div className="flex items-center space-x-1.5">
+                <input type="range" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }} className="w-16 sm:w-24 accent-primary" />
                 <input type="number" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value) || 0.5); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
               </div>
             </div>
             <button
               onClick={applyFilter}
-              className="h-7 bg-primary dark:bg-blue-600 hover:bg-opacity-90 text-white rounded-md font-bold transition-all shadow-md px-3 text-[9px] tracking-wider"
+              className="h-7 bg-primary dark:bg-blue-600 hover:bg-opacity-90 text-white rounded-md font-bold transition-all shadow-md px-4 text-[9px] tracking-wider"
             >
               APPLY FILTER
             </button>
