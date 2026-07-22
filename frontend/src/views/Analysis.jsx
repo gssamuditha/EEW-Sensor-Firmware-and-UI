@@ -243,27 +243,50 @@ export default function Analysis() {
   return (
     <div className="p-6 h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
       {/* Header & Controls */}
-      <div className="flex flex-col xl:flex-row xl:justify-between items-start gap-4 mb-4 flex-shrink-0">
-        {/* Left Side: Title & Badge */}
-        <div className="flex items-center space-x-3">
-          <h2 className="text-xl font-bold text-primary dark:text-blue-400 tracking-wide">SIGNAL ANALYSIS</h2>
-          {activeFilter && filterStatus === 'active' && (
-            <div className="px-2 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded-md border border-slate-100 dark:border-slate-700 shadow-sm flex items-center space-x-1.5">
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-              <span>BANDPASS {activeFilter.low_hz}–{activeFilter.high_hz} Hz</span>
-            </div>
-          )}
-          {filterStatus === 'updating' && (
-            <div className="px-2 py-1 bg-white dark:bg-slate-800 text-yellow-600 text-[10px] font-bold rounded border border-yellow-200 shadow-sm">
-              Updating filter…
+      <div className="flex flex-col xl:flex-row xl:justify-between items-start w-full gap-4 mb-4 flex-shrink-0">
+        {/* Left Column (Title + Filter Presets) */}
+        <div className="flex flex-col gap-2">
+          {/* Top: Title & Badge */}
+          <div className="flex flex-row items-center gap-3">
+            <h2 className="text-xl font-bold text-primary dark:text-blue-400 tracking-wide">SIGNAL ANALYSIS</h2>
+            {activeFilter && filterStatus === 'active' && (
+              <div className="px-2 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded-md border border-slate-100 dark:border-slate-700 shadow-sm flex items-center space-x-1.5">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                <span>BANDPASS {activeFilter.low_hz}–{activeFilter.high_hz} Hz</span>
+              </div>
+            )}
+            {filterStatus === 'updating' && (
+              <div className="px-2 py-1 bg-white dark:bg-slate-800 text-yellow-600 text-[10px] font-bold rounded border border-yellow-200 shadow-sm">
+                Updating filter…
+              </div>
+            )}
+          </div>
+          
+          {/* Bottom: Presets */}
+          {Object.keys(presets).length > 0 && (
+            <div className="flex flex-col">
+              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Presets</label>
+              <div className="flex flex-row items-center gap-1.5">
+                {Object.entries(presets).map(([key, preset]) => (
+                  <button
+                    key={key}
+                    onClick={() => applyPreset(key)}
+                    className={`h-7 px-3 rounded-md text-[9px] font-bold shadow-sm border transition-all ${
+                      activePreset === key ? 'bg-primary dark:bg-blue-600 text-white border-primary dark:border-blue-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {preset.label.split(' ')[0]}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
 
-        {/* Right Side: Control Cluster */}
-        <div className="flex flex-col gap-2">
-          {/* Row 1: Time Range */}
-          <div className="flex flex-row items-end gap-2 xl:justify-between flex-wrap w-full">
+        {/* Right Column (Stacked Boxes) */}
+        <div className="flex flex-col items-end gap-2">
+          {/* Top Box: Time Settings */}
+          <div className="flex flex-row items-end gap-2 flex-wrap">
             <div className="flex flex-col">
               <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Start</label>
               <input
@@ -312,50 +335,32 @@ export default function Analysis() {
             ))}
           </div>
 
-          {/* Row 2: Bandpass Filter */}
-          <div className="flex flex-row items-end gap-2 xl:justify-between flex-wrap w-full">
-            {Object.keys(presets).length > 0 && (
-              <div className="flex flex-col">
-                <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Presets</label>
-                <div className="flex items-center gap-1.5">
-                  {Object.entries(presets).map(([key, preset]) => (
-                    <button
-                      key={key}
-                      onClick={() => applyPreset(key)}
-                      className={`h-7 px-3 rounded-md text-[9px] font-bold shadow-sm border transition-all ${
-                        activePreset === key ? 'bg-primary dark:bg-blue-600 text-white border-primary dark:border-blue-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
-                      }`}
-                    >
-                      {preset.label.split(' ')[0]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="flex flex-col">
+          {/* Bottom Box: Frequency Sliders + Apply Button */}
+          <div className="flex flex-row items-end gap-3 w-full xl:justify-between flex-wrap">
+            <div className="flex flex-col flex-1">
               <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Low (Hz)</label>
-              <div className="flex items-center space-x-1.5">
-                <input type="range" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }} className="w-16 sm:w-24 accent-primary" />
+              <div className="flex items-center space-x-1.5 w-full">
+                <input type="range" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
                 <input type="number" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
               </div>
             </div>
-            <div className="flex flex-col">
+            <div className="flex flex-col flex-1">
               <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">High (Hz)</label>
-              <div className="flex items-center space-x-1.5">
-                <input type="range" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }} className="w-16 sm:w-24 accent-primary" />
+              <div className="flex items-center space-x-1.5 w-full">
+                <input type="range" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
                 <input type="number" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value) || 0.5); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
               </div>
             </div>
             <button
               onClick={applyFilter}
-              className="h-7 bg-primary dark:bg-blue-600 hover:bg-opacity-90 text-white rounded-md font-bold transition-all shadow-md px-4 text-[9px] tracking-wider"
+              className="h-7 bg-primary dark:bg-blue-600 hover:bg-opacity-90 text-white rounded-md font-bold transition-all shadow-md px-4 text-[9px] tracking-wider shrink-0"
             >
               APPLY FILTER
             </button>
           </div>
           
           {(errorMsg || durationError) && (
-            <div className="text-[9px] text-red-500 font-bold xl:text-right mt-[-4px]">
+            <div className="text-[9px] text-red-500 font-bold w-full text-right mt-[-4px]">
               {errorMsg} {durationError}
             </div>
           )}
