@@ -123,7 +123,7 @@ function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
     });
 
     // Use neutral dark color for axes/border; the data line also uses this
-    chart.foregroundColour = themeRef.current === 'dark' ? '#22c55e' : '#374151'; // green-500 for oscilloscope look
+    chart.foregroundColour = themeRef.current === 'dark' ? '#cbd5e1' : '#374151'; // gray-700 — readable for axes
     chart.backgroundColour = themeRef.current === 'dark' ? '#1e293b' : '#ffffff';
 
     chartRef.current = chart;
@@ -140,7 +140,7 @@ function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
 
   useEffect(() => {
     if (chartRef.current) {
-      chartRef.current.foregroundColour = theme === 'dark' ? '#22c55e' : '#374151';
+      chartRef.current.foregroundColour = theme === 'dark' ? '#cbd5e1' : '#374151';
       chartRef.current.backgroundColour = theme === 'dark' ? '#1e293b' : '#ffffff';
     }
   }, [theme]);
