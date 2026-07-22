@@ -227,7 +227,7 @@ export default function Settings() {
   ];
 
   return (
-    <div className="p-6 h-full bg-gray-50 dark:bg-slate-900 flex flex-col w-full overflow-hidden">
+    <div className="p-6 h-full bg-slate-50 dark:bg-slate-900 flex flex-col w-full overflow-hidden">
       
       <div className="w-full flex justify-between items-center mb-4 shrink-0">
         <h2 className="text-2xl font-bold text-primary dark:text-blue-400 tracking-wide uppercase">System Configuration</h2>
@@ -239,7 +239,7 @@ export default function Settings() {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="w-full border-b border-gray-200 dark:border-slate-700 mb-6 shrink-0">
+      <div className="w-full border-b border-slate-100 dark:border-slate-700 mb-6 shrink-0">
         <ul className="flex flex-wrap -mb-px text-sm font-bold text-center">
           {tabs.map(tab => (
             <li className="mr-8" key={tab.id}>
@@ -248,7 +248,7 @@ export default function Settings() {
                 className={`inline-block py-3 border-b-2 transition-all duration-200 ${
                   activeTab === tab.id 
                     ? 'text-[#1a4162] border-[#1a4162]' 
-                    : 'text-gray-400 dark:text-slate-500 border-transparent hover:text-gray-600 dark:text-slate-300 hover:border-gray-300 dark:border-slate-600'
+                    : 'text-slate-400 dark:text-slate-500 border-transparent hover:text-slate-600 dark:text-slate-300 hover:border-slate-200 dark:border-slate-600'
                 }`}
               >
                 {tab.label}
@@ -269,32 +269,32 @@ export default function Settings() {
             <div className="flex flex-col gap-6 overflow-y-auto">
 
               {/* Widget 1: Device Details */}
-              <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-6 shadow-sm flex flex-col">
-                <h3 className="text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
                   <Monitor size={16} className="mr-2" /> Device Details
                 </h3>
                 <div className="flex-1 flex flex-col space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">Device Name</label>
+                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Device Name</label>
                     <input 
                       type="text" 
                       value={deviceName}
                       onChange={e => setDeviceName(e.target.value)}
                       placeholder="CRISIS-NODE-01"
-                      className="w-full border border-gray-300 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm mb-3"
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm mb-3"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">Device ID (5 chars)</label>
+                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Device ID (5 chars)</label>
                     <input 
                       type="text" 
                       value={deviceId}
                       onChange={e => setDeviceId(e.target.value)}
                       maxLength={5}
                       placeholder="T0021"
-                      className="w-full border border-gray-300 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                     />
-                    <p className="text-xs text-gray-400 dark:text-slate-500 font-mono mt-1">Used for SEED station code (e.g. T0021)</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 font-mono mt-1">Used for SEED station code (e.g. T0021)</p>
                   </div>
 
                   <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-slate-700">
@@ -310,12 +310,12 @@ export default function Settings() {
               </div>
 
               {/* Widget 2: Device Response File */}
-              <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-6 shadow-sm flex flex-col">
-                <h3 className="text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
                   <Activity size={16} className="mr-2" /> Device Response File
                 </h3>
                 <div className="space-y-3">
-                  <p className="text-xs text-gray-500 dark:text-slate-400 font-mono leading-relaxed">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-mono leading-relaxed">
                     Download the <strong>StationXML</strong> instrument response file for this sensor. 
                     Required when a UDP target is set to <strong>Raw Counts</strong> mode — the receiving 
                     server uses this file to convert raw 24-bit ADC counts back to m/s².
@@ -334,12 +334,12 @@ export default function Settings() {
             </div>{/* end left column */}
 
             {/* Widget 3: Device Location — right column full height */}
-            <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-6 shadow-sm flex flex-col h-full min-h-0">
-              <h3 className="text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col h-full min-h-0">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
                 <MapPin size={16} className="mr-2" /> Device Location
               </h3>
               <div className="flex-1 flex flex-col min-h-0">
-                <div className="flex-1 min-h-0 mb-4 border border-gray-200 dark:border-slate-700 z-0 relative">
+                <div className="flex-1 min-h-0 mb-4 border border-slate-100 dark:border-slate-700 z-0 relative">
                   <MapContainer center={[lat || 0, lon || 0]} zoom={2} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <LocationMarker position={{lat, lng: lon}} setPosition={(pos) => { setLat(pos.lat); setLon(pos.lng); }} />
@@ -347,21 +347,21 @@ export default function Settings() {
                 </div>
                 <div className="grid grid-cols-2 gap-4 shrink-0 mb-4">
                   <div>
-                    <label className="block text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Latitude</label>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Latitude</label>
                     <input 
                       type="number" step="any"
                       value={lat}
                       onChange={e => setLat(parseFloat(e.target.value) || 0)}
-                      className="w-full border border-gray-300 dark:border-slate-600 rounded-none px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Longitude</label>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Longitude</label>
                     <input 
                       type="number" step="any"
                       value={lon}
                       onChange={e => setLon(parseFloat(e.target.value) || 0)}
-                      className="w-full border border-gray-300 dark:border-slate-600 rounded-none px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
                     />
                   </div>
                 </div>
@@ -386,8 +386,8 @@ export default function Settings() {
           <div className="grid grid-cols-2 gap-6 h-full">
             
             {/* Widget 1: Wi-Fi Manager */}
-            <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-6 shadow-sm flex flex-col h-fit">
-              <h3 className="text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col h-fit">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
                 <Wifi size={16} className="mr-2" /> Wi-Fi Configuration
               </h3>
               <div className="space-y-4">
@@ -402,15 +402,15 @@ export default function Settings() {
 
                 {/* Saved Networks List — TOP */}
                 <div>
-                  <h4 className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">Saved Networks</h4>
+                  <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Saved Networks</h4>
                   {savedNetworks.length === 0 ? (
-                    <p className="text-xs text-gray-400 dark:text-slate-500 font-mono italic py-2">No saved Wi-Fi networks.</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 font-mono italic py-2">No saved Wi-Fi networks.</p>
                   ) : (
                     <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                       {savedNetworks.map((net, idx) => {
                         const isActive = net.is_active || activeWifi === net.ssid;
                         return (
-                          <div key={idx} className={`flex items-center justify-between px-3 py-2 border ${isActive ? 'bg-green-50 border-green-200' : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700'}`}>
+                          <div key={idx} className={`flex items-center justify-between px-3 py-2 border ${isActive ? 'bg-green-50 border-green-200' : 'bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-700'}`}>
                             <div className="flex items-center space-x-2 min-w-0">
                               <div className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-green-500' : 'bg-gray-300'}`}></div>
                               <span className={`text-sm font-bold truncate ${isActive ? 'text-green-700' : 'text-gray-700 dark:text-slate-200'}`}>{net.ssid}</span>
@@ -429,7 +429,7 @@ export default function Settings() {
                               <button 
                                 onClick={() => handleForgetNetwork(net.ssid)}
                                 disabled={wifiLoading}
-                                className="p-1 text-gray-400 dark:text-slate-500 hover:text-red-600 transition-colors disabled:opacity-50"
+                                className="p-1 text-slate-400 dark:text-slate-500 hover:text-red-600 transition-colors disabled:opacity-50"
                                 title="Forget network"
                               >
                                 <Trash2 size={14} />
@@ -444,32 +444,32 @@ export default function Settings() {
 
                 {/* Add New Network — BELOW */}
                 <div className="pt-4 border-t border-gray-100 dark:border-slate-700">
-                  <h4 className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-3">Add New Network</h4>
+                  <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Add New Network</h4>
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">SSID (Network Name)</label>
+                      <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">SSID (Network Name)</label>
                       <input 
                         type="text" 
                         value={ssid}
                         onChange={e => setSsid(e.target.value)}
                         placeholder="Enter network name"
-                        className="w-full border border-gray-300 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                        className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Password</label>
+                      <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Password</label>
                       <div className="relative">
                         <input 
                           type={showPassword ? "text" : "password"} 
                           value={password}
                           onChange={e => setPassword(e.target.value)}
                           placeholder="Enter password"
-                          className="w-full border border-gray-300 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm pr-10"
+                          className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm pr-10"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:text-slate-300 focus:outline-none transition-colors"
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 focus:outline-none transition-colors"
                         >
                           {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                         </button>
@@ -499,15 +499,15 @@ export default function Settings() {
             </div>
 
             {/* Widget 2: Data Sharing (UDP Targets) */}
-            <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-6 shadow-sm flex flex-col h-full min-h-0">
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col h-full min-h-0">
               <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 shrink-0">
-                <h3 className="text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider flex items-center">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center">
                   <Activity size={16} className="mr-2" /> Data Sharing
                 </h3>
                 
                 {/* Master Toggle */}
                 <div className="flex items-center space-x-3">
-                  <span className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Data Forwarding
                   </span>
                   <button 
@@ -520,36 +520,36 @@ export default function Settings() {
               </div>
 
               <div className={`flex-1 flex flex-col min-h-0 transition-opacity ${!dataForwarding ? 'opacity-50 pointer-events-none' : ''}`}>
-                <h4 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-3 shrink-0">Data Cast IPs</h4>
+                <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 shrink-0">Data Cast IPs</h4>
                 
                 {/* Saved Targets List */}
                 <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2">
                   {targets.length === 0 ? (
-                      <p className="text-sm text-gray-400 dark:text-slate-500 font-mono italic">No targets configured.</p>
+                      <p className="text-sm text-slate-400 dark:text-slate-500 font-mono italic">No targets configured.</p>
                   ) : (
                       targets.map((t, i) => (
-                        <div key={i} className="flex flex-col border border-gray-200 dark:border-slate-700 p-3 bg-gray-50 dark:bg-slate-900">
+                        <div key={i} className="flex flex-col border border-slate-100 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-900">
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-bold text-primary dark:text-blue-400 text-sm uppercase tracking-wider">{t.name}</span>
-                            <button onClick={() => handleRemoveTarget(i)} className="text-gray-400 dark:text-slate-500 hover:text-red-600 transition-colors">
+                            <button onClick={() => handleRemoveTarget(i)} className="text-slate-400 dark:text-slate-500 hover:text-red-600 transition-colors">
                               <X size={16} />
                             </button>
                           </div>
-                          <div className="font-mono text-xs text-gray-600 dark:text-slate-300 flex items-center mb-2">
+                          <div className="font-mono text-xs text-slate-600 dark:text-slate-300 flex items-center mb-2">
                             <span className="font-bold mr-2">IP:</span> {t.ip} 
                             <span className="mx-3 text-gray-300">|</span> 
                             <span className="font-bold mr-2">PORT:</span> {t.port}
                           </div>
                           {/* Per-target format toggle */}
-                          <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-slate-700">
-                            <span className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Data Format</span>
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700">
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Data Format</span>
                             <div className="flex items-center bg-gray-200 dark:bg-slate-700 rounded-sm overflow-hidden">
                               <button
                                 onClick={() => t.format !== 'corrected' && handleToggleFormat(i)}
                                 className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
                                   t.format === 'corrected' || !t.format
                                     ? 'bg-[#1a4162] text-white'
-                                    : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
+                                    : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
                                 }`}
                               >
                                 m/s²
@@ -559,7 +559,7 @@ export default function Settings() {
                                 className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
                                   t.format === 'raw'
                                     ? 'bg-amber-600 text-white'
-                                    : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
+                                    : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
                                 }`}
                               >
                                 Raw Counts
@@ -578,31 +578,31 @@ export default function Settings() {
 
                 {/* Add Target Form */}
                 <div className="shrink-0 space-y-4 pt-4 border-t border-gray-100 dark:border-slate-700">
-                  <div className="flex space-x-2 items-end bg-gray-50 dark:bg-slate-900 p-3 border border-gray-200 dark:border-slate-700">
+                  <div className="flex space-x-2 items-end bg-slate-50 dark:bg-slate-900 p-3 border border-slate-100 dark:border-slate-700">
                     <div className="flex-1">
-                      <label className="block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-1">Name</label>
-                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Main Server" className="w-full border border-gray-300 dark:border-slate-600 rounded-none px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Name</label>
+                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Main Server" className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
                     </div>
                     <div className="flex-1">
-                      <label className="block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-1">IP Address</label>
-                      <input type="text" value={newIp} onChange={e => setNewIp(e.target.value)} placeholder="192.168.1.50" className="w-full border border-gray-300 dark:border-slate-600 rounded-none px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">IP Address</label>
+                      <input type="text" value={newIp} onChange={e => setNewIp(e.target.value)} placeholder="192.168.1.50" className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
                     </div>
                     <div className="w-20">
-                      <label className="block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-1">Port</label>
-                      <input type="number" value={newPort} onChange={e => setNewPort(e.target.value)} className="w-full border border-gray-300 dark:border-slate-600 rounded-none px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Port</label>
+                      <input type="number" value={newPort} onChange={e => setNewPort(e.target.value)} className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
                     </div>
                     <button onClick={handleAddTarget} className="bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-300 px-3 py-1.5 flex items-center font-bold text-xs uppercase transition-colors h-[30px]">
                       <Plus size={14} />
                     </button>
                   </div>
                   {/* Format selector for new target */}
-                  <div className="flex items-center justify-between bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 px-3 py-2">
-                    <span className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">New Target Format</span>
+                  <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 px-3 py-2">
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">New Target Format</span>
                     <div className="flex items-center bg-gray-200 dark:bg-slate-700 rounded-sm overflow-hidden">
                       <button
                         onClick={() => setNewFormat('corrected')}
                         className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                          newFormat === 'corrected' ? 'bg-[#1a4162] text-white' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
+                          newFormat === 'corrected' ? 'bg-[#1a4162] text-white' : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
                         }`}
                       >
                         Corrected m/s²
@@ -610,7 +610,7 @@ export default function Settings() {
                       <button
                         onClick={() => setNewFormat('raw')}
                         className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                          newFormat === 'raw' ? 'bg-amber-600 text-white' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
+                          newFormat === 'raw' ? 'bg-amber-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
                         }`}
                       >
                         Raw Counts
@@ -636,35 +636,35 @@ export default function Settings() {
         <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'system' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
           <div className="grid grid-cols-2 gap-6 h-full">
             {/* Calibration Settings */}
-            <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-6 shadow-sm flex flex-col h-fit">
-              <h3 className="text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col h-fit">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
                 <SettingsIcon size={16} className="mr-2" /> Calibration Settings
               </h3>
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">Calibration Time (seconds)</label>
+                  <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Calibration Time (seconds)</label>
                   <input 
                     type="number" 
                     value={calibrationTime}
                     onChange={e => setCalibrationTime(e.target.value)}
-                    className="w-full border border-gray-300 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                   />
-                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-2 font-mono">Recommended: 60 seconds</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 font-mono">Recommended: 60 seconds</p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">Data Retention (days)</label>
+                  <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Data Retention (days)</label>
                   <input 
                     type="number" 
                     value={retentionDays}
                     onChange={e => setRetentionDays(e.target.value)}
-                    className="w-full border border-gray-300 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-none px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                   />
-                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-2 font-mono">Older miniSEED files will be deleted.</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 font-mono">Older miniSEED files will be deleted.</p>
                 </div>
 
                 <div className="pt-2 border-t border-gray-100 dark:border-slate-700">
-                  <span className="block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-1">Archive Size</span>
+                  <span className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Archive Size</span>
                   <span className="text-sm font-mono font-bold text-[#1a4162] bg-gray-100 dark:bg-slate-800 px-3 py-1 inline-block">
                     {(archiveSize / (1024 * 1024)).toFixed(2)} MB
                   </span>
@@ -685,12 +685,12 @@ export default function Settings() {
             {/* Right Column: UI Settings & System Actions */}
             <div className="space-y-6">
               {/* UI Settings */}
-              <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-6 shadow-sm flex flex-col h-fit">
-                <h3 className="text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col h-fit">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
                   <Palette size={16} className="mr-2" /> UI Settings
                 </h3>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3 text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                  <div className="flex items-center space-x-3 text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
                     <span>{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</span>
                   </div>
@@ -704,8 +704,8 @@ export default function Settings() {
               </div>
 
               {/* System Actions */}
-              <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-6 shadow-sm flex flex-col h-fit">
-                <h3 className="text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-6 shadow-sm flex flex-col h-fit">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100 dark:border-slate-700 flex items-center shrink-0">
                   <Power size={16} className="mr-2" /> System Actions
                 </h3>
                 <div className="space-y-6">
@@ -716,7 +716,7 @@ export default function Settings() {
                     <Power size={20} />
                     <span>Restart Sensor</span>
                   </button>
-                  <p className="text-sm text-gray-500 dark:text-slate-400 font-mono text-center">Reboots the Raspberry Pi system. Telemetry will be temporarily unavailable.</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 font-mono text-center">Reboots the Raspberry Pi system. Telemetry will be temporarily unavailable.</p>
                 </div>
               </div>
             </div>
@@ -728,11 +728,11 @@ export default function Settings() {
       {/* Restart Confirmation Modal */}
       {isRestartModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 p-6 max-w-md w-full shadow-lg border border-gray-200 dark:border-slate-700">
+          <div className="bg-white dark:bg-slate-800 p-6 max-w-md w-full shadow-lg border border-slate-100 dark:border-slate-700">
             <h3 className="text-lg font-bold text-red-600 mb-2 uppercase tracking-wide flex items-center">
               <Power size={20} className="mr-2" /> Confirm Restart
             </h3>
-            <p className="text-sm text-gray-600 dark:text-slate-300 mb-6 font-mono leading-relaxed">
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-6 font-mono leading-relaxed">
               Are you sure you want to restart the sensor? Telemetry will be interrupted while the system reboots.
             </p>
             <div className="flex space-x-4">
@@ -756,7 +756,7 @@ export default function Settings() {
       {/* Network Switch Modal — NON-DISMISSIBLE */}
       {switchModal && (
         <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 p-8 max-w-lg w-full shadow-2xl border border-gray-200 dark:border-slate-700">
+          <div className="bg-white dark:bg-slate-800 p-8 max-w-lg w-full shadow-2xl border border-slate-100 dark:border-slate-700">
             <div className="flex items-center justify-center mb-6">
               <div className="w-16 h-16 rounded-full bg-blue-50 border-2 border-blue-200 flex items-center justify-center">
                 <Loader2 size={32} className="animate-spin text-primary dark:text-blue-400" />
@@ -765,7 +765,7 @@ export default function Settings() {
             <h3 className="text-lg font-bold text-[#1a4162] mb-3 uppercase tracking-wide text-center">
               Switching Network
             </h3>
-            <p className="text-sm text-gray-600 dark:text-slate-300 mb-4 font-mono leading-relaxed text-center">
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 font-mono leading-relaxed text-center">
               Sensor is connecting to <strong className="text-[#1a4162]">{switchModal.ssid}</strong>.
               Your connection to this dashboard will now be lost.
             </p>
@@ -775,7 +775,7 @@ export default function Settings() {
                 navigate to the sensor's new local IP address to regain access.
               </p>
             </div>
-            <p className="text-[10px] text-gray-400 dark:text-slate-500 font-mono text-center uppercase tracking-wider">
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono text-center uppercase tracking-wider">
               This modal will remain until the page is refreshed on the new network.
             </p>
           </div>
