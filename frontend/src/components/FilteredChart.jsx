@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useTheme } from '../ThemeContext';
 import {
   TimeLine,
   timeAxisPlugin,
@@ -74,6 +75,10 @@ const analysisCursorSync = {
 function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick, timeWindowMs }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
+  const { theme } = useTheme();
+  const themeRef = useRef(theme);
+
+  useEffect(() => { themeRef.current = theme; }, [theme]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -85,6 +90,11 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
       valueAxisLabel: '',
       lineWidth: 1.2,
       plugins: [
+        {
+          'draw:after': (chart) => {
+            chart.ctx.strokeStyle = themeRef.current === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+          }
+        },
         timeAxisPlugin((x) => {
           try {
             return new Intl.DateTimeFormat('en-US', {
@@ -99,8 +109,8 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
         analysisCursorSync.plugin(),
       ],
     });
-    chart.foregroundColour = '#374151';
-    chart.backgroundColour = '#ffffff';
+    chart.foregroundColour = themeRef.current === 'dark' ? '#cbd5e1' : '#374151';
+    chart.backgroundColour = themeRef.current === 'dark' ? '#1e293b' : '#ffffff';
     chartRef.current = chart;
 
     return () => {
@@ -108,6 +118,13 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
       if (containerRef.current) containerRef.current.innerHTML = '';
     };
   }, [timeZone, channelName]); // Note: NOT timeWindowMs — we update it dynamically below
+
+  useEffect(() => {
+    if (chartRef.current) {
+      chartRef.current.foregroundColour = theme === 'dark' ? '#cbd5e1' : '#374151';
+      chartRef.current.backgroundColour = theme === 'dark' ? '#1e293b' : '#ffffff';
+    }
+  }, [theme]);
 
   // Recompute on tick (data was mutated in-place on the same array ref)
   useEffect(() => {
@@ -413,7 +430,7 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
       <div className="flex-shrink-0 mt-2 flex items-center gap-2">
         <button
           onClick={() => setIsPaused(!isPaused)}
-          className="flex items-center space-x-1.5 bg-primary dark:bg-blue-600 hover:bg-opacity-90 text-white rounded font-bold transition-colors shadow-sm px-2.5 py-1 text-[10px]"
+          className="flex items-center space-x-1.5 bg-primary dark:bg-slate-700 hover:bg-opacity-90 dark:hover:bg-slate-600 text-white rounded font-bold transition-colors shadow-sm px-2.5 py-1 text-[10px]"
         >
           {isPaused ? (
             <>

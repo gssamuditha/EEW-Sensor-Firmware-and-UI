@@ -115,35 +115,35 @@ export default function Dashboard() {
             <div className="space-y-4 font-mono text-sm">
               <div className="flex justify-between items-center border-b border-gray-100 dark:border-slate-700 pb-2">
                 <span className="font-bold text-gray-500 dark:text-slate-400">NAME</span>
-                <span className="text-primary dark:text-blue-400 font-bold">{sensorSettings.device_name}</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{sensorSettings.device_name}</span>
               </div>
               <div className="flex justify-between items-center border-b border-gray-100 dark:border-slate-700 pb-2">
                 <span className="font-bold text-gray-500 dark:text-slate-400">MODEL</span>
-                <span className="text-primary dark:text-blue-400 font-bold">EEW-PI-4</span>
+                <span className="text-primary dark:text-slate-100 font-bold">EEW-PI-4</span>
               </div>
               <div className="flex justify-between items-center border-b border-gray-100 dark:border-slate-700 pb-2">
                 <span className="font-bold text-gray-500 dark:text-slate-400">CHANNELS</span>
-                <span className="text-primary dark:text-blue-400 font-bold">{activeChannels.join(', ') || '-'}</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{activeChannels.join(', ') || '-'}</span>
               </div>
               <div className="flex justify-between items-center border-b border-gray-100 dark:border-slate-700 pb-2">
                 <span className="font-bold text-gray-500 dark:text-slate-400">LOCAL IP</span>
-                <span className="text-primary dark:text-blue-400 font-bold">{systemStats.local_ip}</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{systemStats.local_ip}</span>
               </div>
               <div className="flex justify-between items-center border-b border-gray-100 dark:border-slate-700 pb-2">
                 <span className="font-bold text-gray-500 dark:text-slate-400">MAC ADDR</span>
-                <span className="text-primary dark:text-blue-400 font-bold">{systemStats.mac_address}</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{systemStats.mac_address}</span>
               </div>
               <div className="flex justify-between items-center border-b border-gray-100 dark:border-slate-700 pb-2">
                 <span className="font-bold text-gray-500 dark:text-slate-400">LATITUDE</span>
-                <span className="text-primary dark:text-blue-400 font-bold">{sensorSettings.latitude}</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{sensorSettings.latitude}</span>
               </div>
               <div className="flex justify-between items-center border-b border-gray-100 dark:border-slate-700 pb-2">
                 <span className="font-bold text-gray-500 dark:text-slate-400">LONGITUDE</span>
-                <span className="text-primary dark:text-blue-400 font-bold">{sensorSettings.longitude}</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{sensorSettings.longitude}</span>
               </div>
               <div className="flex justify-between items-center border-b border-gray-100 dark:border-slate-700 pb-2">
                 <span className="font-bold text-gray-500 dark:text-slate-400">UPTIME</span>
-                <span className="text-primary dark:text-blue-400 font-bold">{systemStats.uptime}</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{systemStats.uptime}</span>
               </div>
             </div>
           </div>
