@@ -460,17 +460,16 @@ def api_export(start: float, end: float, format: str = "csv"):
             tr_n = chans.get("ENN")
             tr_e = chans.get("ENE")
             
-            if not tr_z or not tr_n or not tr_e:
-                 # If all three aren't present, find minimum length among available
-                 pass
+            ref_tr = tr_z or tr_n or tr_e
+            if not ref_tr:
+                raise ValueError("No ENZ, ENN, or ENE channels found in archive")
             
-            # Default fallback logic for simplicity, assuming synchronised traces
-            times = tr_z.times(type="timestamp") if tr_z else []
-            z_data = tr_z.data if tr_z else []
-            n_data = tr_n.data if tr_n else []
-            e_data = tr_e.data if tr_e else []
+            times = ref_tr.times(type="timestamp")
+            z_data = tr_z.data if tr_z else [0] * len(times)
+            n_data = tr_n.data if tr_n else [0] * len(times)
+            e_data = tr_e.data if tr_e else [0] * len(times)
             
-            min_len = min(len(times), len(z_data), len(n_data), len(e_data)) if times else 0
+            min_len = min(len(times), len(z_data), len(n_data), len(e_data))
             
             for i in range(min_len):
                 writer.writerow([f"{times[i]:.6f}", f"{z_data[i]}", f"{n_data[i]}", f"{e_data[i]}"])
