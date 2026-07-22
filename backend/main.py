@@ -10,7 +10,7 @@ import sys
 import subprocess
 import threading
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
@@ -381,7 +381,7 @@ MAC_ADDRESS = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele 
 @app.get("/api/system_status")
 def api_system_status():
     try:
-        cpu = psutil.cpu_percent(interval=0.1) # short blocking is okay for this stats
+        cpu = psutil.cpu_percent(interval=None) # Non-blocking return since last call
         disk = psutil.disk_usage('/').percent
         uptime_sec = int(time.time() - psutil.boot_time())
         days = uptime_sec // (24 * 3600)
@@ -545,7 +545,7 @@ def api_set_filter(params: FilterModel):
     return {"status": "ok", **sensor_manager.get_filter_params()}
 
 @app.get("/api/analysis/window")
-async def api_analysis_window(start: float = None, end: float = None, seconds: float = None):
+async def api_analysis_window(request: Request, start: float = None, end: float = None, seconds: float = None):
     """Return filtered historical data for a time range.
     
     Accepts either:
@@ -586,10 +586,14 @@ async def api_analysis_window(start: float = None, end: float = None, seconds: f
     from database import get_settings
     settings_snapshot = get_settings()
     
+    # Check if client disconnected before starting heavy task
+    if await request.is_disconnected():
+        return {}
+
     # Flush the RAM buffer to SD card immediately so the subprocess
     # can read data right up to the exact millisecond of this request.
     from mseed_writer import mseed_writer
-    mseed_writer.flush()
+    await asyncio.to_thread(mseed_writer.flush)
         
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(

@@ -218,6 +218,7 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
   useEffect(() => {
     const protocol = window.location.protocol;
     const host = window.location.host;
+    const controller = new AbortController();
 
     setLoading(true);
     isFetchingRef.current = true;
@@ -225,7 +226,9 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
     // Clear the WS buffer at the start of a new fetch
     CHANNELS.forEach(ch => { wsBufferRef.current[ch].length = 0; });
 
-    fetch(`${protocol}//${host}/api/analysis/window?start=${startEpoch}&end=${endEpoch}`)
+    fetch(`${protocol}//${host}/api/analysis/window?start=${startEpoch}&end=${endEpoch}`, {
+      signal: controller.signal
+    })
       .then(r => r.json())
       .then(data => {
         if (!data.timestamps || data.timestamps.length === 0) {
@@ -275,10 +278,13 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
         setTick(t => t + 1);
       })
       .catch(err => {
+        if (err.name === 'AbortError') return;
         console.error('Failed to load analysis window:', err);
         isFetchingRef.current = false;
         setLoading(false);
       });
+
+    return () => controller.abort();
   }, [startEpoch, endEpoch, filterVersion]);
 
   // -----------------------------------------------------------------------
