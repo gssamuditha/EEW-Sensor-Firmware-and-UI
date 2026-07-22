@@ -424,6 +424,8 @@ def api_export(start: float, end: float, format: str = "csv"):
     if not st or len(st) == 0:
         raise HTTPException(status_code=404, detail="No data found in archive for this time range")
     
+    st.merge(method=1, fill_value='interpolate')
+    
     if format.lower() == "mseed":
         try:
             import zipfile
@@ -450,10 +452,6 @@ def api_export(start: float, end: float, format: str = "csv"):
             
     else:
         try:
-            output = io.StringIO()
-            writer = csv.writer(output, lineterminator='\n')
-            writer.writerow(["time", "ENZ", "ENN", "ENE"])
-            
             # This handles cases where channels may be missing or mismatched slightly
             chans = {tr.stats.channel: tr for tr in st}
             tr_z = chans.get("ENZ")
@@ -471,10 +469,18 @@ def api_export(start: float, end: float, format: str = "csv"):
             
             min_len = min(len(times), len(z_data), len(n_data), len(e_data))
             
-            for i in range(min_len):
-                writer.writerow([f"{times[i]:.6f}", f"{z_data[i]}", f"{n_data[i]}", f"{e_data[i]}"])
-                
-            response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
+            def iter_csv():
+                yield "time,ENZ,ENN,ENE\n"
+                chunk = []
+                for i in range(min_len):
+                    chunk.append(f"{times[i]:.6f},{z_data[i]},{n_data[i]},{e_data[i]}\n")
+                    if len(chunk) >= 10000:
+                        yield "".join(chunk)
+                        chunk.clear()
+                if chunk:
+                    yield "".join(chunk)
+                    
+            response = StreamingResponse(iter_csv(), media_type="text/csv")
             response.headers["Content-Disposition"] = f"attachment; filename=eew_export_{int(time.time())}.csv"
             return response
         except Exception as e:
