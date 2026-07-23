@@ -161,12 +161,12 @@ function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
   return (
     <div className="flex flex-col flex-1 min-h-[100px] mb-[2px] bg-white dark:bg-slate-800 shadow-sm p-1 rounded">
       <div className="flex items-center justify-between mb-0 px-1">
-        <span className="font-bold text-gray-500 dark:text-slate-400 text-[10px] tracking-widest leading-none">{channelName}</span>
+        <span className="font-bold text-gray-500 dark:text-slate-300 text-[10px] tracking-widest leading-none">{channelName}</span>
         <div className="flex items-center space-x-1.5">
           <span className={`text-sm font-mono font-bold leading-none ${labelColor(channelName)}`}>
             {latestValue !== null ? latestValue.toFixed(4) : '0.0000'}
           </span>
-          <span className="text-[10px] text-gray-400 dark:text-slate-500 leading-none">m/s²</span>
+          <span className="text-[10px] text-gray-400 dark:text-slate-400 leading-none">m/s²</span>
         </div>
       </div>
       {/* No overflow-hidden: axis plugins create positioned elements that must not be clipped.
@@ -365,7 +365,7 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
       <div className="relative flex-1 min-h-0 flex flex-col pr-1 overflow-y-auto">
         {statusBadge()}
         {channels.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-sm text-gray-400 dark:text-slate-500">Waiting for data…</div>
+          <div className="flex items-center justify-center h-full text-sm text-gray-400 dark:text-slate-400">Waiting for data…</div>
         ) : (
           channels.map(ch => (
             <ChannelPlot

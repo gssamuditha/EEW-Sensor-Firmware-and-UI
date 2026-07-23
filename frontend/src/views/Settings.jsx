@@ -245,7 +245,7 @@ export default function Settings() {
     <div className="p-6 h-full bg-slate-50 dark:bg-slate-900 flex flex-col w-full overflow-hidden">
 
       <div className="w-full flex justify-between items-center mb-4 shrink-0">
-        <h2 className="text-2xl font-bold text-primary dark:text-blue-400 tracking-wide">System Configuration</h2>
+        <h2 className="text-2xl font-bold text-primary dark:text-slate-300 tracking-wide">System Configuration</h2>
         {status && (
           <div className={`px-4 py-2 text-sm font-bold font-mono shadow-sm ${status.isError ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-green-50 text-emerald-600 dark:text-emerald-500 border border-green-200'}`}>
             {status.msg}
@@ -262,7 +262,7 @@ export default function Settings() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`inline-block py-3 border-b-2 transition-all duration-200 ${activeTab === tab.id
                   ? 'text-[#1a4162] border-[#1a4162]'
-                  : 'text-slate-400 dark:text-slate-500 border-transparent hover:text-slate-600 dark:text-slate-300 hover:border-slate-200 dark:border-slate-600'
+                  : 'text-slate-400 dark:text-slate-400 border-transparent hover:text-slate-600 dark:text-slate-200 hover:border-slate-200 dark:border-slate-600'
                   }`}
               >
                 {tab.label}
@@ -284,57 +284,57 @@ export default function Settings() {
 
               {/* Widget 1: Station & Operator Details */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                   <Monitor className="w-4 h-4 mr-2" /> Station Details
                 </h3>
                 <div className="flex-1 flex flex-col space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-2">Device Name</label>
+                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Device Name</label>
                     <input
                       type="text"
                       value={deviceName}
                       onChange={e => setDeviceName(e.target.value)}
                       placeholder="CRISIS-NODE-01"
-                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm mb-3"
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm mb-3"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-2">Device ID</label>
+                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Device ID</label>
                     <input
                       type="text"
                       value={deviceId}
                       onChange={e => setDeviceId(e.target.value)}
                       maxLength={5}
                       placeholder="T0021"
-                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                     />
-                    <p className="text-xs text-slate-400 dark:text-slate-500 font-mono mt-1 mb-2">Used for SEED station code (e.g. T0021)</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-400 font-mono mt-1 mb-2">Used for SEED station code (e.g. T0021)</p>
                   </div>
                   <div className="border-t border-slate-100 dark:border-slate-700/50 pt-3">
-                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-2">Device Owner's Name</label>
+                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Device Owner's Name</label>
                     <input
                       type="text"
                       value={ownerName}
                       onChange={e => setOwnerName(e.target.value)}
                       placeholder="First Last"
-                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm mb-3"
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm mb-3"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-2">Email</label>
+                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Email</label>
                     <input
                       type="email"
                       value={ownerEmail}
                       onChange={e => setOwnerEmail(e.target.value)}
                       placeholder="operator@example.com"
-                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                     />
                   </div>
 
                   <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
                     <button
                       onClick={handleSaveSettings}
-                      className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                      className="w-full bg-primary dark:bg-sky-700/80 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                     >
                       <Save className="w-4 h-4" />
                       <span>Save Details</span>
@@ -348,7 +348,7 @@ export default function Settings() {
 
             {/* Widget 3: Device Location — right column full height */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full min-h-0">
-              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                 <MapPin className="w-4 h-4 mr-2" /> Device Location
               </h3>
               <div className="flex-1 flex flex-col min-h-0">
@@ -360,63 +360,63 @@ export default function Settings() {
                 </div>
                 <div className="grid grid-cols-2 gap-4 shrink-0 mb-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-1">Latitude</label>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Latitude</label>
                     <input
                       type="number" step="any"
                       value={lat}
                       onChange={e => setLat(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-1">Longitude</label>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Longitude</label>
                     <input
                       type="number" step="any"
                       value={lon}
                       onChange={e => setLon(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4 shrink-0 mb-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-1">Elevation (m)</label>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Elevation (m)</label>
                     <input
                       type="number" step="any"
                       value={elevation}
                       onChange={e => setElevation(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-1">Floor Unit</label>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Floor Unit</label>
                     <input
                       type="number"
                       value={floorUnit}
                       onChange={e => setFloorUnit(parseInt(e.target.value) || 0)}
-                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-1">Total Floors</label>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Total Floors</label>
                     <input
                       type="number" min="1"
                       value={totalFloors}
                       onChange={e => setTotalFloors(parseInt(e.target.value) || 1)}
-                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
                     />
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-1 mb-4 px-1">
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono w-full">(Ground floor = 0, Basement = -1, First floor = 1)</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-400 font-mono w-full">(Ground floor = 0, Basement = -1, First floor = 1)</p>
                   <p className="text-[10px] text-slate-400 dark:text-emerald-500 font-bold tracking-wide w-full">* The sensor's exact location will not be revealed to the public.</p>
                 </div>
 
                 <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50 shrink-0">
                   <button
                     onClick={handleSaveSettings}
-                    className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                    className="w-full bg-primary dark:bg-sky-700/80 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                   >
                     <Save className="w-4 h-4" />
                     <span>Save Location</span>
@@ -434,13 +434,13 @@ export default function Settings() {
 
             {/* Widget 1: Wi-Fi Manager */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
-              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                 <Wifi className="w-4 h-4 mr-2" /> Wi-Fi Configuration
               </h3>
               <div className="space-y-4">
 
                 {/* Active Connection Indicator */}
-                <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm px-4 py-2">
+                <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm px-4 py-2">
                   <div className={`w-2 h-2 rounded-full ${activeWifi ? 'bg-emerald-500' : 'bg-gray-400'}`}></div>
                   <span className="text-xs font-bold text-[#1a4162] font-mono tracking-wide">
                     {activeWifi ? `CONNECTED TO: ${activeWifi}` : 'NOT CONNECTED'}
@@ -449,9 +449,9 @@ export default function Settings() {
 
                 {/* Saved Networks List — TOP */}
                 <div>
-                  <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Saved Networks</h4>
+                  <h4 className="text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Saved Networks</h4>
                   {savedNetworks.length === 0 ? (
-                    <p className="text-xs text-slate-400 dark:text-slate-500 font-mono italic py-2">No saved Wi-Fi networks.</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-400 font-mono italic py-2">No saved Wi-Fi networks.</p>
                   ) : (
                     <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                       {savedNetworks.map((net, idx) => {
@@ -468,7 +468,7 @@ export default function Settings() {
                                 <button
                                   onClick={() => handleConnectSaved(net.ssid)}
                                   disabled={wifiLoading}
-                                  className="px-2.5 py-1 text-xs font-bold uppercase bg-primary dark:bg-blue-600 text-white rounded-md hover:bg-opacity-90 transition-all shadow-sm disabled:opacity-50"
+                                  className="px-2.5 py-1 text-xs font-bold uppercase bg-primary dark:bg-sky-700/80 text-white rounded-md hover:bg-opacity-90 transition-all shadow-sm disabled:opacity-50"
                                 >
                                   Connect
                                 </button>
@@ -476,7 +476,7 @@ export default function Settings() {
                               <button
                                 onClick={() => handleForgetNetwork(net.ssid)}
                                 disabled={wifiLoading}
-                                className="p-1 text-slate-400 dark:text-slate-500 hover:text-red-600 transition-colors disabled:opacity-50"
+                                className="p-1 text-slate-400 dark:text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
                                 title="Forget network"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -491,32 +491,32 @@ export default function Settings() {
 
                 {/* Add New Network — BELOW */}
                 <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50">
-                  <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Add New Network</h4>
+                  <h4 className="text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-3">Add New Network</h4>
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">SSID (Network Name)</label>
+                      <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1">SSID</label>
                       <input
                         type="text"
                         value={ssid}
                         onChange={e => setSsid(e.target.value)}
                         placeholder="Enter network name"
-                        className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                        className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Password</label>
+                      <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Password</label>
                       <div className="relative">
                         <input
                           type={showPassword ? "text" : "password"}
                           value={password}
                           onChange={e => setPassword(e.target.value)}
                           placeholder="Enter password"
-                          className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm pr-10"
+                          className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm pr-10"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 focus:outline-none transition-colors"
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:text-slate-200 focus:outline-none transition-colors"
                         >
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
@@ -525,7 +525,7 @@ export default function Settings() {
                     <button
                       onClick={handleWifiConnect}
                       disabled={wifiLoading}
-                      className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity disabled:opacity-50"
+                      className="w-full bg-primary dark:bg-sky-700/80 text-white font-bold tracking-widest py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity disabled:opacity-50"
                     >
                       {wifiLoading ? (
                         <><Loader2 className="w-4 h-4 animate-spin" /><span>Connecting...</span></>
@@ -548,13 +548,13 @@ export default function Settings() {
             {/* Widget 2: Data Sharing (UDP Targets) */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full min-h-0">
               <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider flex items-center">
                   <Activity className="w-4 h-4 mr-2" /> Data Sharing
                 </h3>
 
                 {/* Master Toggle */}
                 <div className="flex items-center space-x-3">
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider">
                     Data Forwarding
                   </span>
                   <button
@@ -567,35 +567,35 @@ export default function Settings() {
               </div>
 
               <div className={`flex-1 flex flex-col min-h-0 transition-opacity ${!dataForwarding ? 'opacity-50 pointer-events-none' : ''}`}>
-                <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 shrink-0">Data Cast IPs</h4>
+                <h4 className="text-xs font-bold text-slate-400 dark:text-slate-400 tracking-widest mb-3 shrink-0">Data Cast IPs</h4>
 
                 {/* Saved Targets List */}
                 <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2">
                   {targets.length === 0 ? (
-                    <p className="text-sm text-slate-400 dark:text-slate-500 font-mono italic">No targets configured.</p>
+                    <p className="text-sm text-slate-400 dark:text-slate-400 font-mono italic">No targets configured.</p>
                   ) : (
                     targets.map((t, i) => (
                       <div key={i} className="flex flex-col border border-slate-100 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-900">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="font-bold text-primary dark:text-blue-400 text-sm uppercase tracking-wider">{t.name}</span>
-                          <button onClick={() => handleRemoveTarget(i)} className="text-slate-400 dark:text-slate-500 hover:text-red-600 transition-colors">
+                          <span className="font-bold text-primary dark:text-slate-300 text-sm uppercase tracking-wider">{t.name}</span>
+                          <button onClick={() => handleRemoveTarget(i)} className="text-slate-400 dark:text-slate-400 hover:text-red-600 transition-colors">
                             <X className="w-4 h-4" />
                           </button>
                         </div>
-                        <div className="font-mono text-xs text-slate-600 dark:text-slate-300 flex items-center mb-2">
+                        <div className="font-mono text-xs text-slate-600 dark:text-slate-200 flex items-center mb-2">
                           <span className="font-bold mr-2">IP:</span> {t.ip}
                           <span className="mx-3 text-gray-300">|</span>
                           <span className="font-bold mr-2">PORT:</span> {t.port}
                         </div>
                         {/* Per-target format toggle */}
                         <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700">
-                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Data Format</span>
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-400 tracking-wider">Data Format</span>
                           <div className="flex items-center bg-gray-200 dark:bg-slate-700 rounded-sm overflow-hidden">
                             <button
                               onClick={() => t.format !== 'corrected' && handleToggleFormat(i)}
                               className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${t.format === 'corrected' || !t.format
                                 ? 'bg-[#1a4162] text-white'
-                                : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
+                                : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
                                 }`}
                             >
                               m/s²
@@ -604,7 +604,7 @@ export default function Settings() {
                               onClick={() => t.format !== 'raw' && handleToggleFormat(i)}
                               className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${t.format === 'raw'
                                 ? 'bg-amber-600 text-white'
-                                : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
+                                : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
                                 }`}
                             >
                               Raw Counts
@@ -613,7 +613,7 @@ export default function Settings() {
                         </div>
                         {t.format === 'raw' && (
                           <p className="text-[10px] text-amber-700 font-mono mt-1.5 leading-relaxed">
-                            ⚠ Server needs the StationXML response file to convert counts → m/s²
+                            ⚠ Server needs the StationXML response file to convert counts to m/s²
                           </p>
                         )}
                       </div>
@@ -625,16 +625,16 @@ export default function Settings() {
                 <div className="shrink-0 space-y-4 pt-4 border-t border-slate-100 dark:border-slate-700/50">
                   <div className="flex space-x-2 items-end bg-slate-50 dark:bg-slate-900 p-3 border border-slate-100 dark:border-slate-700">
                     <div className="flex-1">
-                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Name</label>
-                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Main Server" className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-1">Name</label>
+                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Main Server" className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
                     </div>
                     <div className="flex-1">
-                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">IP Address</label>
-                      <input type="text" value={newIp} onChange={e => setNewIp(e.target.value)} placeholder="192.168.1.50" className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-1">IP Address</label>
+                      <input type="text" value={newIp} onChange={e => setNewIp(e.target.value)} placeholder="192.168.1.50" className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
                     </div>
                     <div className="w-20">
-                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Port</label>
-                      <input type="number" value={newPort} onChange={e => setNewPort(e.target.value)} className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-1">Port</label>
+                      <input type="number" value={newPort} onChange={e => setNewPort(e.target.value)} className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
                     </div>
                     <button onClick={handleAddTarget} className="bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-300 px-3 py-1.5 flex items-center font-bold text-xs uppercase transition-colors h-[30px]">
                       <Plus className="w-3.5 h-3.5" />
@@ -642,18 +642,18 @@ export default function Settings() {
                   </div>
                   {/* Format selector for new target */}
                   <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 px-3 py-2">
-                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">New Target Format</span>
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider">New Target Format</span>
                     <div className="flex items-center bg-gray-200 dark:bg-slate-700 rounded-sm overflow-hidden">
                       <button
                         onClick={() => setNewFormat('corrected')}
-                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${newFormat === 'corrected' ? 'bg-[#1a4162] text-white' : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
+                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${newFormat === 'corrected' ? 'bg-[#1a4162] text-white' : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
                           }`}
                       >
                         Corrected m/s²
                       </button>
                       <button
                         onClick={() => setNewFormat('raw')}
-                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${newFormat === 'raw' ? 'bg-amber-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
+                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${newFormat === 'raw' ? 'bg-amber-600 text-white' : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
                           }`}
                       >
                         Raw Counts
@@ -663,7 +663,7 @@ export default function Settings() {
 
                   <button
                     onClick={handleSaveSettings}
-                    className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                    className="w-full bg-primary dark:bg-sky-700/80 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                   >
                     <Save className="w-4 h-4" />
                     <span>Save Targets</span>
@@ -680,34 +680,34 @@ export default function Settings() {
           <div className="grid grid-cols-2 gap-6 h-full">
             {/* Calibration Settings */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
-              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                 <SettingsIcon className="w-4 h-4 mr-2" /> Calibration Settings
               </h3>
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Calibration Time (seconds)</label>
+                  <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-2">Calibration Time (seconds)</label>
                   <input
                     type="number"
                     value={calibrationTime}
                     onChange={e => setCalibrationTime(e.target.value)}
-                    className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                    className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                   />
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 font-mono">Recommended: 60 seconds</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-400 mt-2 font-mono">Recommended: 60 seconds</p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Data Retention (days)</label>
+                  <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-2">Data Retention (days)</label>
                   <input
                     type="number"
                     value={retentionDays}
                     onChange={e => setRetentionDays(e.target.value)}
-                    className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                    className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                   />
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 font-mono">Older miniSEED files will be deleted.</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-400 mt-2 font-mono">Older miniSEED files will be deleted.</p>
                 </div>
 
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50">
-                  <span className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Archive Size</span>
+                  <span className="block text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-1">Archive Size</span>
                   <span className="text-sm font-mono font-bold text-[#1a4162] bg-gray-100 dark:bg-slate-800 px-3 py-1 inline-block">
                     {(archiveSize / (1024 * 1024)).toFixed(2)} MB
                   </span>
@@ -716,7 +716,7 @@ export default function Settings() {
                 <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
                   <button
                     onClick={handleSaveSettings}
-                    className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                    className="w-full bg-primary dark:bg-sky-700/80 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                   >
                     <Save className="w-4 h-4" />
                     <span>Save Calibration</span>
@@ -729,11 +729,11 @@ export default function Settings() {
             <div className="space-y-6">
               {/* UI Settings */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                   <Palette className="w-4 h-4 mr-2" /> UI Settings
                 </h3>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3 text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <div className="flex items-center space-x-3 text-sm font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                     {theme === 'dark' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
                     <span>{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</span>
                   </div>
@@ -748,7 +748,7 @@ export default function Settings() {
 
               {/* System Actions */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                   <Power className="w-4 h-4 mr-2" /> System Actions
                 </h3>
                 <div className="space-y-6">
@@ -759,7 +759,7 @@ export default function Settings() {
                     <Power className="w-5 h-5" />
                     <span>Restart Sensor</span>
                   </button>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 font-mono text-center">Reboots the Raspberry Pi system. Telemetry will be temporarily unavailable.</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-300 font-mono text-center">Reboots the Raspberry Pi system. Telemetry will be temporarily unavailable.</p>
                 </div>
               </div>
             </div>
@@ -775,7 +775,7 @@ export default function Settings() {
             <h3 className="text-lg font-bold text-red-600 mb-2 uppercase tracking-wide flex items-center">
               <Power className="w-5 h-5 mr-2" /> Confirm Restart
             </h3>
-            <p className="text-sm text-slate-600 dark:text-slate-300 mb-6 font-mono leading-relaxed">
+            <p className="text-sm text-slate-600 dark:text-slate-200 mb-6 font-mono leading-relaxed">
               Are you sure you want to restart the sensor? Telemetry will be interrupted while the system reboots.
             </p>
             <div className="flex space-x-4">
@@ -802,13 +802,13 @@ export default function Settings() {
           <div className="bg-white dark:bg-slate-800 p-8 max-w-lg w-full shadow-2xl border border-slate-100 dark:border-slate-700">
             <div className="flex items-center justify-center mb-6">
               <div className="w-16 h-16 rounded-full bg-blue-50 border-2 border-blue-200 flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-primary dark:text-blue-400" />
+                <Loader2 className="w-8 h-8 animate-spin text-primary dark:text-slate-300" />
               </div>
             </div>
             <h3 className="text-lg font-bold text-[#1a4162] mb-3 uppercase tracking-wide text-center">
               Switching Network
             </h3>
-            <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 font-mono leading-relaxed text-center">
+            <p className="text-sm text-slate-600 dark:text-slate-200 mb-4 font-mono leading-relaxed text-center">
               Sensor is connecting to <strong className="text-[#1a4162]">{switchModal.ssid}</strong>.
               Your connection to this dashboard will now be lost.
             </p>
@@ -818,7 +818,7 @@ export default function Settings() {
                 navigate to the sensor's new local IP address to regain access.
               </p>
             </div>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono text-center uppercase tracking-wider">
+            <p className="text-[10px] text-slate-400 dark:text-slate-400 font-mono text-center uppercase tracking-wider">
               This modal will remain until the page is refreshed on the new network.
             </p>
           </div>

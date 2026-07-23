@@ -42,7 +42,7 @@ export default function Export() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6 flex-shrink-0">
         <div className="flex items-center space-x-3">
-          <h2 className="text-xl font-bold text-primary dark:text-blue-400 tracking-wide">Data Export</h2>
+          <h2 className="text-xl font-bold text-primary dark:text-slate-300 tracking-wide">Data Export</h2>
         </div>
       </div>
 
@@ -51,48 +51,48 @@ export default function Export() {
 
           {/* Custom Range Export Widget */}
           <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
-            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-5 flex items-center shrink-0">
+            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-5 flex items-center shrink-0">
               <FileText fill="currentColor" className="w-4 h-4 mr-2" /> Custom Range Export
             </h3>
 
             <div className="space-y-5 flex-1">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="flex items-center text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wide mb-1.5">
-                    Start Time <span className="ml-1 text-slate-400 dark:text-slate-500/70 font-normal">{timeLabelBadge}</span>
+                  <label className="flex items-center text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wide mb-1.5">
+                    Start Time <span className="ml-1 text-slate-400 dark:text-slate-400/70 font-normal">{timeLabelBadge}</span>
                   </label>
                   <input
                     type="datetime-local"
                     value={start}
                     onChange={e => setStart(e.target.value)}
-                    className="w-full h-9 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-md px-3 text-xs text-slate-600 dark:text-slate-300 font-semibold focus:outline-none focus:ring-1 focus:ring-primary/50 shadow-sm font-mono dark:[color-scheme:dark]"
+                    className="w-full h-9 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-3 text-xs text-slate-600 dark:text-slate-200 font-semibold focus:outline-none focus:ring-1 focus:ring-primary/50 shadow-sm font-mono dark:[color-scheme:dark]"
                   />
                 </div>
                 <div>
-                  <label className="flex items-center text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wide mb-1.5">
-                    End Time <span className="ml-1 text-slate-400 dark:text-slate-500/70 font-normal">{timeLabelBadge}</span>
+                  <label className="flex items-center text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wide mb-1.5">
+                    End Time <span className="ml-1 text-slate-400 dark:text-slate-400/70 font-normal">{timeLabelBadge}</span>
                   </label>
                   <input
                     type="datetime-local"
                     value={end}
                     onChange={e => setEnd(e.target.value)}
-                    className="w-full h-9 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-md px-3 text-xs text-slate-600 dark:text-slate-300 font-semibold focus:outline-none focus:ring-1 focus:ring-primary/50 shadow-sm font-mono dark:[color-scheme:dark]"
+                    className="w-full h-9 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-3 text-xs text-slate-600 dark:text-slate-200 font-semibold focus:outline-none focus:ring-1 focus:ring-primary/50 shadow-sm font-mono dark:[color-scheme:dark]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wide mb-1.5">Format</label>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wide mb-1.5">Format</label>
                 <select
                   value={formatType}
                   onChange={e => setFormatType(e.target.value)}
-                  className="w-full h-9 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-md px-3 text-xs text-slate-600 dark:text-slate-300 font-semibold focus:outline-none focus:ring-1 focus:ring-primary/50 shadow-sm cursor-pointer"
+                  className="w-full h-9 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-3 text-xs text-slate-600 dark:text-slate-200 font-semibold focus:outline-none focus:ring-1 focus:ring-primary/50 shadow-sm cursor-pointer"
                 >
                   <option value="csv">CSV</option>
                   <option value="mseed">miniSEED</option>
                 </select>
                 {formatType === 'mseed' && (
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-2 leading-relaxed">
+                  <p className="text-[10px] text-slate-400 dark:text-slate-400 font-mono mt-2 leading-relaxed">
                     Downloads a ZIP file containing one miniSEED file per channel
                   </p>
                 )}
@@ -102,7 +102,7 @@ export default function Export() {
             <div className="pt-5 mt-auto">
               <button
                 onClick={handleExport}
-                className="w-full bg-primary dark:bg-blue-600 hover:bg-opacity-90 text-white font-bold tracking-wider text-xs py-2.5 rounded-lg shadow-sm flex items-center justify-center space-x-2 transition-all"
+                className="w-full bg-primary dark:bg-sky-700/80 hover:bg-opacity-90 text-white font-bold tracking-wider text-xs py-2.5 rounded-lg shadow-sm flex items-center justify-center space-x-2 transition-all"
               >
                 <Download fill="currentColor" className="w-3.5 h-3.5" />
                 <span>EXPORT DATA</span>
@@ -113,10 +113,10 @@ export default function Export() {
           <div className="flex flex-col gap-6">
             {/* Full Archive Backup Widget */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
-              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-4 flex items-center shrink-0">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 flex items-center shrink-0">
                 <Database fill="currentColor" className="w-4 h-4 mr-2" /> Full Archive Backup
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mb-5 leading-relaxed">
+              <p className="text-xs text-slate-500 dark:text-slate-300 font-mono mb-5 leading-relaxed">
                 Download a complete backup of the SDS miniSEED archive. This includes all historical data currently saved on the device.
               </p>
               <button
@@ -130,17 +130,17 @@ export default function Export() {
 
             {/* Device Response File Widget */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
-              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-4 flex items-center shrink-0">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 flex items-center shrink-0">
                 <Activity fill="currentColor" className="w-4 h-4 mr-2" /> Device Response File
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mb-5 leading-relaxed">
+              <p className="text-xs text-slate-500 dark:text-slate-300 font-mono mb-5 leading-relaxed">
                 Download the <strong>StationXML</strong> instrument response file for this sensor.
                 Required when a UDP target is set to <strong>Raw Counts</strong> mode
               </p>
               <a
                 href="/api/metadata/stationxml"
                 download
-                className="w-full mt-auto bg-slate-700 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 text-white font-bold tracking-wider text-xs py-2.5 rounded-lg shadow-sm flex items-center justify-center space-x-2 transition-all"
+                className="w-full mt-auto bg-slate-700 dark:bg-sky-700/80 hover:bg-slate-800 dark:hover:bg-sky-600/80 text-white font-bold tracking-wider text-xs py-2.5 rounded-lg shadow-sm flex items-center justify-center space-x-2 transition-all"
               >
                 <Save fill="currentColor" className="w-3.5 h-3.5" />
                 <span>DOWNLOAD STATIONXML</span>

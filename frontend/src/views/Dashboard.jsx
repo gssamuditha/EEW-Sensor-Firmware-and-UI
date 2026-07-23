@@ -80,31 +80,31 @@ export default function Dashboard() {
             <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-wider">EEW SENSOR</h1>
             <span className="text-slate-300 dark:text-slate-700 text-xl">|</span>
           </div>
-          <h2 className="text-xl font-bold text-primary dark:text-blue-400 tracking-wide">LIVE TELEMETRY</h2>
+          <h2 className="text-xl font-bold text-primary dark:text-slate-300 tracking-wide">LIVE TELEMETRY</h2>
           {/* Sensor-side (hardware) SPS */}
-          <div className="px-3 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-md border border-slate-100 dark:border-slate-700 shadow-sm flex items-center space-x-2">
+          <div className="px-3 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 text-xs font-bold rounded-md border border-slate-100 dark:border-slate-700 shadow-sm flex items-center space-x-2">
             <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
             <span>Sensor {systemStats.avg_sps} sps</span>
           </div>
           {/* Client-side (browser) SPS */}
-          <div className="px-3 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-md border border-slate-100 dark:border-slate-700 shadow-sm flex items-center space-x-2">
+          <div className="px-3 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 text-xs font-bold rounded-md border border-slate-100 dark:border-slate-700 shadow-sm flex items-center space-x-2">
             <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
             <span>Client {clientSps} sps</span>
           </div>
         </div>
         <div className="flex items-center space-x-3 text-sm">
-          <div className="font-mono font-semibold text-slate-600 dark:text-slate-300 mr-4 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-md border-0 shadow-sm">
+          <div className="font-mono font-semibold text-slate-600 dark:text-slate-200 mr-4 bg-slate-100 dark:bg-slate-700 px-3 py-1.5 rounded-md border-0 shadow-sm">
             {new Intl.DateTimeFormat('en-US', {
               timeZone: timeZone,
               year: 'numeric', month: 'short', day: 'numeric',
               hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
             }).format(currentTime)}
           </div>
-          <label className="font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Timezone</label>
+          <label className="font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider">Timezone</label>
           <select
             value={timeZone}
             onChange={(e) => setTimeZone(e.target.value)}
-            className="border-0 rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300 font-mono text-sm bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 shadow-sm font-semibold cursor-pointer"
+            className="border-0 rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300 font-mono text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 shadow-sm font-semibold cursor-pointer"
           >
             {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
           </select>
@@ -116,7 +116,7 @@ export default function Dashboard() {
         {/* Left Column: Widget 1 */}
         <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md flex flex-col justify-between">
           <div>
-            <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Device Details</div>
+            <div className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-4">Device Details</div>
             <div className="space-y-3 font-mono text-sm">
               <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">NAME</span>
@@ -168,7 +168,7 @@ export default function Dashboard() {
 
           {/* Widget 2: Network & Connections */}
           <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md shrink-0">
-            <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Network</div>
+            <div className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-4">Network</div>
             <div className="space-y-3 font-mono text-sm">
               <div className="flex justify-between items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">INTERNET</span>
@@ -193,7 +193,7 @@ export default function Dashboard() {
 
           {/* Widget 4: System Status */}
           <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md shrink-0">
-            <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">System Status</div>
+            <div className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-4">System Status</div>
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between text-xs font-bold font-mono text-slate-400 mb-1">
@@ -218,13 +218,13 @@ export default function Dashboard() {
 
           {/* Widget 6: Server Actions */}
           <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md flex-1 flex flex-col shrink-0">
-            <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Server Actions</div>
+            <div className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-4">Server Actions</div>
             <div className="flex flex-col gap-3 h-full">
-              <a href="#station" className="flex items-center justify-center border border-slate-200 dark:border-slate-700/50 rounded-lg p-3 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all shadow-sm hover:shadow text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-blue-400 cursor-pointer">
+              <a href="#station" className="flex items-center justify-center border border-slate-200 dark:border-slate-700/50 rounded-lg p-3 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all shadow-sm hover:shadow text-slate-600 dark:text-slate-200 hover:text-primary dark:hover:text-blue-400 cursor-pointer">
                 <svg className="w-5 h-5 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                 <span className="text-xs font-bold">Station View</span>
               </a>
-              <a href="#data" className="flex items-center justify-center border border-slate-200 dark:border-slate-700/50 rounded-lg p-3 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all shadow-sm hover:shadow text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-blue-400 cursor-pointer">
+              <a href="#data" className="flex items-center justify-center border border-slate-200 dark:border-slate-700/50 rounded-lg p-3 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all shadow-sm hover:shadow text-slate-600 dark:text-slate-200 hover:text-primary dark:hover:text-blue-400 cursor-pointer">
                 <svg className="w-5 h-5 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                 <span className="text-xs font-bold">Data View</span>
               </a>
