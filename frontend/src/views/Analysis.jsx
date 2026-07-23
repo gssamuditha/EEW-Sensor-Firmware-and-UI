@@ -248,7 +248,7 @@ export default function Analysis() {
         <div className="flex flex-col gap-2">
           {/* Top: Title & Badge */}
           <div className="flex flex-row items-center gap-3">
-            <h2 className="text-xl font-bold text-primary dark:text-slate-300 tracking-wide">Signal Analysis</h2>
+            <h2 className="text-2xl font-bold text-primary dark:text-sky-400 tracking-wide">Signal Analysis</h2>
             {activeFilter && filterStatus === 'active' && (
               <div className="px-2 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 text-[10px] font-bold rounded-md border border-slate-100 dark:border-slate-700 shadow-sm flex items-center space-x-1.5">
                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>

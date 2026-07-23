@@ -245,7 +245,7 @@ export default function Settings() {
     <div className="p-6 h-full bg-slate-50 dark:bg-slate-900 flex flex-col w-full overflow-hidden">
 
       <div className="w-full flex justify-between items-center mb-4 shrink-0">
-        <h2 className="text-2xl font-bold text-primary dark:text-slate-300 tracking-wide">System Configuration</h2>
+        <h2 className="text-2xl font-bold text-primary dark:text-sky-400 tracking-wide">System Configuration</h2>
         {status && (
           <div className={`px-4 py-2 text-sm font-bold font-mono shadow-sm ${status.isError ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-green-50 text-emerald-600 dark:text-emerald-500 border border-green-200'}`}>
             {status.msg}

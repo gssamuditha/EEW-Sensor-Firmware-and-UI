@@ -42,7 +42,7 @@ export default function Export() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6 flex-shrink-0">
         <div className="flex items-center space-x-3">
-          <h2 className="text-xl font-bold text-primary dark:text-slate-300 tracking-wide">Data Export</h2>
+          <h2 className="text-2xl font-bold text-primary dark:text-sky-400 tracking-wide">Data Export</h2>
         </div>
       </div>
 
