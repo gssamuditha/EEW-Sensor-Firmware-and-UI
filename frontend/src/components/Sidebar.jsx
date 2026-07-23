@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Activity, Download, ActivitySquare, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ListBulletIcon, Squares2X2Icon as DashboardIcon, ArrowDownTrayIcon as Download, ChartBarIcon as AnalysisIcon, Cog8ToothIcon as Settings } from '@heroicons/react/24/solid';
 
 export default function Sidebar() {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const links = [
-    { name: 'Dashboard', path: '/dashboard', icon: <Activity size={20} /> },
-    { name: 'Data Export', path: '/export', icon: <Download size={20} /> },
-    { name: 'Analysis', path: '/analysis', icon: <ActivitySquare size={20} /> },
-    { name: 'Settings', path: '/settings', icon: <Settings size={20} /> },
+    { name: 'Dashboard', path: '/dashboard', icon: <DashboardIcon className="w-5 h-5" /> },
+    { name: 'Data Export', path: '/export', icon: <Download className="w-5 h-5" /> },
+    { name: 'Analysis', path: '/analysis', icon: <AnalysisIcon className="w-5 h-5" /> },
+    { name: 'Settings', path: '/settings', icon: <Settings className="w-5 h-5" /> },
   ];
 
   return (
@@ -22,7 +22,16 @@ export default function Sidebar() {
           <p className="text-[10px] text-white/50 uppercase tracking-widest mt-1 whitespace-nowrap">Network</p>
         </div>
       </div>
-      <nav className="flex-1 px-3 py-6 space-y-2 overflow-x-hidden">
+      <div className="pt-4 pb-4 mb-2 border-b border-white/10 flex justify-start pl-[18px]">
+        <button 
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="text-white/50 hover:text-white p-2 rounded-md hover:bg-white/10 transition-colors shrink-0"
+          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+        >
+          <ListBulletIcon className="w-6 h-6" />
+        </button>
+      </div>
+      <nav className="flex-1 px-3 py-2 space-y-2 overflow-x-hidden">
         {links.map((link) => {
           const isActive = location.pathname.startsWith(link.path);
           return (
@@ -40,17 +49,10 @@ export default function Sidebar() {
           );
         })}
       </nav>
-      <div className={`p-4 border-t border-white/10 text-xs text-white/40 flex items-center transition-all duration-300 overflow-hidden ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+      <div className="p-4 border-t border-white/10 text-xs text-white/40 flex items-center justify-center transition-all duration-300 overflow-hidden">
         <span className={`whitespace-nowrap transition-all duration-300 overflow-hidden ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
           STATUS: ONLINE
         </span>
-        <button 
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="text-white/50 hover:text-white p-1 rounded-md hover:bg-white/10 transition-colors shrink-0"
-          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-        >
-          {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-        </button>
       </div>
     </div>
   );

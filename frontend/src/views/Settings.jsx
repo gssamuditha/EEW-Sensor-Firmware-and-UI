@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Save, Plus, X, Wifi, Power, MapPin, Target, Monitor, Settings as SettingsIcon, Activity, Eye, EyeOff, Loader2, Trash2, Sun, Moon, Palette } from 'lucide-react';
+import { ArrowDownOnSquareIcon as Save, PlusIcon as Plus, XMarkIcon as X, WifiIcon as Wifi, PowerIcon as Power, MapPinIcon as MapPin, ComputerDesktopIcon as Monitor, Cog6ToothIcon as SettingsIcon, ChartBarIcon as Activity, EyeIcon as Eye, EyeSlashIcon as EyeOff, ArrowPathIcon as Loader2, TrashIcon as Trash2, SunIcon as Sun, MoonIcon as Moon, PaintBrushIcon as Palette } from '@heroicons/react/24/solid';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -271,7 +271,7 @@ export default function Settings() {
               {/* Widget 1: Device Details */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  <Monitor size={16} className="mr-2" /> Device Details
+                  <Monitor className="w-4 h-4 mr-2" /> Device Details
                 </h3>
                 <div className="flex-1 flex flex-col space-y-4">
                   <div>
@@ -302,41 +302,20 @@ export default function Settings() {
                       onClick={handleSaveSettings}
                       className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                     >
-                      <Save size={16} />
+                      <Save className="w-4 h-4" />
                       <span>Save Name</span>
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* Widget 2: Device Response File */}
-              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  <Activity size={16} className="mr-2" /> Device Response File
-                </h3>
-                <div className="space-y-3">
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-mono leading-relaxed">
-                    Download the <strong>StationXML</strong> instrument response file for this sensor. 
-                    Required when a UDP target is set to <strong>Raw Counts</strong> mode — the receiving 
-                    server uses this file to convert raw 24-bit ADC counts back to m/s².
-                  </p>
-                  <a
-                    href="/api/metadata/stationxml"
-                    download
-                    className="w-full w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow text-center"
-                  >
-                    <Save size={16} />
-                    <span>Download StationXML</span>
-                  </a>
-                </div>
-              </div>
 
             </div>{/* end left column */}
 
             {/* Widget 3: Device Location — right column full height */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full min-h-0">
               <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                <MapPin size={16} className="mr-2" /> Device Location
+                <MapPin className="w-4 h-4 mr-2" /> Device Location
               </h3>
               <div className="flex-1 flex flex-col min-h-0">
                 <div className="flex-1 min-h-0 mb-4 border border-slate-100 dark:border-slate-700 z-0 relative">
@@ -371,7 +350,7 @@ export default function Settings() {
                     onClick={handleSaveSettings}
                     className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                   >
-                    <Save size={16} />
+                    <Save className="w-4 h-4" />
                     <span>Save Location</span>
                   </button>
                 </div>
@@ -388,7 +367,7 @@ export default function Settings() {
             {/* Widget 1: Wi-Fi Manager */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
               <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                <Wifi size={16} className="mr-2" /> Wi-Fi Configuration
+                <Wifi className="w-4 h-4 mr-2" /> Wi-Fi Configuration
               </h3>
               <div className="space-y-4">
                 
@@ -432,7 +411,7 @@ export default function Settings() {
                                 className="p-1 text-slate-400 dark:text-slate-500 hover:text-red-600 transition-colors disabled:opacity-50"
                                 title="Forget network"
                               >
-                                <Trash2 size={14} />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           </div>
@@ -471,7 +450,7 @@ export default function Settings() {
                           onClick={() => setShowPassword(!showPassword)}
                           className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 focus:outline-none transition-colors"
                         >
-                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
                     </div>
@@ -481,9 +460,9 @@ export default function Settings() {
                       className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity disabled:opacity-50"
                     >
                       {wifiLoading ? (
-                        <><Loader2 size={16} className="animate-spin" /><span>Connecting...</span></>
+                        <><Loader2 className="w-4 h-4 animate-spin" /><span>Connecting...</span></>
                       ) : (
-                        <><Wifi size={16} /><span>Connect & Save</span></>
+                        <><Wifi className="w-4 h-4" /><span>Connect & Save</span></>
                       )}
                     </button>
                   </div>
@@ -502,7 +481,7 @@ export default function Settings() {
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full min-h-0">
               <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center">
-                  <Activity size={16} className="mr-2" /> Data Sharing
+                  <Activity className="w-4 h-4 mr-2" /> Data Sharing
                 </h3>
                 
                 {/* Master Toggle */}
@@ -532,7 +511,7 @@ export default function Settings() {
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-bold text-primary dark:text-blue-400 text-sm uppercase tracking-wider">{t.name}</span>
                             <button onClick={() => handleRemoveTarget(i)} className="text-slate-400 dark:text-slate-500 hover:text-red-600 transition-colors">
-                              <X size={16} />
+                              <X className="w-4 h-4" />
                             </button>
                           </div>
                           <div className="font-mono text-xs text-slate-600 dark:text-slate-300 flex items-center mb-2">
@@ -592,7 +571,7 @@ export default function Settings() {
                       <input type="number" value={newPort} onChange={e => setNewPort(e.target.value)} className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
                     </div>
                     <button onClick={handleAddTarget} className="bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-300 px-3 py-1.5 flex items-center font-bold text-xs uppercase transition-colors h-[30px]">
-                      <Plus size={14} />
+                      <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
                   {/* Format selector for new target */}
@@ -622,7 +601,7 @@ export default function Settings() {
                     onClick={handleSaveSettings}
                     className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                   >
-                    <Save size={16} />
+                    <Save className="w-4 h-4" />
                     <span>Save Targets</span>
                   </button>
                 </div>
@@ -638,7 +617,7 @@ export default function Settings() {
             {/* Calibration Settings */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
               <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                <SettingsIcon size={16} className="mr-2" /> Calibration Settings
+                <SettingsIcon className="w-4 h-4 mr-2" /> Calibration Settings
               </h3>
               <div className="space-y-6">
                 <div>
@@ -675,7 +654,7 @@ export default function Settings() {
                     onClick={handleSaveSettings}
                     className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                   >
-                    <Save size={16} />
+                    <Save className="w-4 h-4" />
                     <span>Save Calibration</span>
                   </button>
                 </div>
@@ -687,11 +666,11 @@ export default function Settings() {
               {/* UI Settings */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  <Palette size={16} className="mr-2" /> UI Settings
+                  <Palette className="w-4 h-4 mr-2" /> UI Settings
                 </h3>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3 text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
+                    {theme === 'dark' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
                     <span>{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</span>
                   </div>
                   <button 
@@ -706,14 +685,14 @@ export default function Settings() {
               {/* System Actions */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  <Power size={16} className="mr-2" /> System Actions
+                  <Power className="w-4 h-4 mr-2" /> System Actions
                 </h3>
                 <div className="space-y-6">
                   <button 
                     onClick={() => setIsRestartModalOpen(true)}
                     className="w-full bg-red-600 text-white font-bold tracking-widest uppercase px-6 py-4 flex items-center justify-center space-x-2 hover:bg-red-700 transition-colors"
                   >
-                    <Power size={20} />
+                    <Power className="w-5 h-5" />
                     <span>Restart Sensor</span>
                   </button>
                   <p className="text-sm text-slate-500 dark:text-slate-400 font-mono text-center">Reboots the Raspberry Pi system. Telemetry will be temporarily unavailable.</p>
@@ -730,7 +709,7 @@ export default function Settings() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-800 p-6 max-w-md w-full shadow-lg border border-slate-100 dark:border-slate-700">
             <h3 className="text-lg font-bold text-red-600 mb-2 uppercase tracking-wide flex items-center">
-              <Power size={20} className="mr-2" /> Confirm Restart
+              <Power className="w-5 h-5 mr-2" /> Confirm Restart
             </h3>
             <p className="text-sm text-slate-600 dark:text-slate-300 mb-6 font-mono leading-relaxed">
               Are you sure you want to restart the sensor? Telemetry will be interrupted while the system reboots.
@@ -759,7 +738,7 @@ export default function Settings() {
           <div className="bg-white dark:bg-slate-800 p-8 max-w-lg w-full shadow-2xl border border-slate-100 dark:border-slate-700">
             <div className="flex items-center justify-center mb-6">
               <div className="w-16 h-16 rounded-full bg-blue-50 border-2 border-blue-200 flex items-center justify-center">
-                <Loader2 size={32} className="animate-spin text-primary dark:text-blue-400" />
+                <Loader2 className="w-8 h-8 animate-spin text-primary dark:text-blue-400" />
               </div>
             </div>
             <h3 className="text-lg font-bold text-[#1a4162] mb-3 uppercase tracking-wide text-center">
