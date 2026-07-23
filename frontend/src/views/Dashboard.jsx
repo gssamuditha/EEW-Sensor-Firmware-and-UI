@@ -9,7 +9,7 @@ export default function Dashboard() {
   const [clientSps, setClientSps] = useState(0);
   const [activeChannels, setActiveChannels] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [sensorSettings, setSensorSettings] = useState({ latitude: 0.0, longitude: 0.0, device_name: 'Loading...' });
+  const [sensorSettings, setSensorSettings] = useState({ latitude: 0.0, longitude: 0.0, elevation: 0.0, device_name: 'Loading...' });
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -53,6 +53,7 @@ export default function Dashboard() {
         setSensorSettings({
           latitude: data.latitude || 0.0,
           longitude: data.longitude || 0.0,
+          elevation: data.elevation || 0.0,
           device_name: data.device_name || 'CRISIS-NODE-01'
         });
       })
@@ -139,11 +140,15 @@ export default function Dashboard() {
               </div>
               <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">LATITUDE</span>
-                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{sensorSettings.latitude}</span>
+                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{sensorSettings.latitude.toFixed(5)}</span>
               </div>
               <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">LONGITUDE</span>
-                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{sensorSettings.longitude}</span>
+                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{sensorSettings.longitude.toFixed(5)}</span>
+              </div>
+              <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
+                <span className="font-bold text-slate-400">ELEVATION</span>
+                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{sensorSettings.elevation.toFixed(1)} m</span>
               </div>
               <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">UPTIME</span>

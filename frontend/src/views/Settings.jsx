@@ -41,10 +41,13 @@ export default function Settings() {
   const [calibrationTime, setCalibrationTime] = useState(60);
   const [retentionDays, setRetentionDays] = useState(7);
   const [archiveSize, setArchiveSize] = useState(0);
+  const [elevation, setElevation] = useState(0.0);
+  const [floorUnit, setFloorUnit] = useState(0);
+  const [totalFloors, setTotalFloors] = useState(1);
   const [ssid, setSsid] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  
+
   const [dataForwarding, setDataForwarding] = useState(true);
   const [activeWifi, setActiveWifi] = useState(null);
   const [savedNetworks, setSavedNetworks] = useState([]);
@@ -65,6 +68,9 @@ export default function Settings() {
         setLon(data.longitude || 0.0);
         if (data.device_name) setDeviceName(data.device_name);
         if (data.device_id) setDeviceId(data.device_id);
+        if (data.elevation !== undefined) setElevation(data.elevation);
+        if (data.floor_unit !== undefined) setFloorUnit(data.floor_unit);
+        if (data.total_floors !== undefined) setTotalFloors(data.total_floors);
         if (data.calibration_time) setCalibrationTime(data.calibration_time);
         if (data.retention_days !== undefined) setRetentionDays(data.retention_days);
         if (data.archive_size_bytes !== undefined) setArchiveSize(data.archive_size_bytes);
@@ -115,10 +121,13 @@ export default function Settings() {
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           targets,
           latitude: parseFloat(lat),
           longitude: parseFloat(lon),
+          elevation: parseFloat(elevation),
+          floor_unit: parseInt(floorUnit),
+          total_floors: parseInt(totalFloors),
           device_name: deviceName,
           device_id: deviceId,
           calibration_time: parseInt(calibrationTime),
@@ -140,7 +149,7 @@ export default function Settings() {
   const handleWifiConnect = async () => {
     if (!ssid) { showWifiStatus('SSID is required.', true); return; }
     if (!password) { showWifiStatus('Password is required.', true); return; }
-    
+
     setWifiLoading(true);
     showWifiStatus('Saving and connecting...');
     try {
@@ -190,7 +199,7 @@ export default function Settings() {
 
   const handleForgetNetwork = async (targetSsid) => {
     try {
-      const res = await fetch('/api/wifi/forget', { 
+      const res = await fetch('/api/wifi/forget', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ssid: targetSsid })
@@ -228,7 +237,7 @@ export default function Settings() {
 
   return (
     <div className="p-6 h-full bg-slate-50 dark:bg-slate-900 flex flex-col w-full overflow-hidden">
-      
+
       <div className="w-full flex justify-between items-center mb-4 shrink-0">
         <h2 className="text-2xl font-bold text-primary dark:text-blue-400 tracking-wide uppercase">System Configuration</h2>
         {status && (
@@ -245,11 +254,10 @@ export default function Settings() {
             <li className="mr-8" key={tab.id}>
               <button
                 onClick={() => setActiveTab(tab.id)}
-                className={`inline-block py-3 border-b-2 transition-all duration-200 ${
-                  activeTab === tab.id 
-                    ? 'text-[#1a4162] border-[#1a4162]' 
-                    : 'text-slate-400 dark:text-slate-500 border-transparent hover:text-slate-600 dark:text-slate-300 hover:border-slate-200 dark:border-slate-600'
-                }`}
+                className={`inline-block py-3 border-b-2 transition-all duration-200 ${activeTab === tab.id
+                  ? 'text-[#1a4162] border-[#1a4162]'
+                  : 'text-slate-400 dark:text-slate-500 border-transparent hover:text-slate-600 dark:text-slate-300 hover:border-slate-200 dark:border-slate-600'
+                  }`}
               >
                 {tab.label}
               </button>
@@ -260,11 +268,11 @@ export default function Settings() {
 
       {/* Tab Content Container */}
       <div className="w-full flex-1 relative min-h-0">
-        
+
         {/* Tab 1: General */}
         <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'general' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
           <div className="grid grid-cols-2 gap-6 h-full">
-            
+
             {/* Left column: Device Details + Response File */}
             <div className="flex flex-col gap-6 overflow-y-auto">
 
@@ -276,8 +284,8 @@ export default function Settings() {
                 <div className="flex-1 flex flex-col space-y-4">
                   <div>
                     <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Device Name</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={deviceName}
                       onChange={e => setDeviceName(e.target.value)}
                       placeholder="CRISIS-NODE-01"
@@ -286,8 +294,8 @@ export default function Settings() {
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Device ID (5 chars)</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={deviceId}
                       onChange={e => setDeviceId(e.target.value)}
                       maxLength={5}
@@ -298,7 +306,7 @@ export default function Settings() {
                   </div>
 
                   <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
-                    <button 
+                    <button
                       onClick={handleSaveSettings}
                       className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                     >
@@ -321,13 +329,13 @@ export default function Settings() {
                 <div className="flex-1 min-h-0 mb-4 border border-slate-100 dark:border-slate-700 z-0 relative">
                   <MapContainer center={[lat || 0, lon || 0]} zoom={2} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    <LocationMarker position={{lat, lng: lon}} setPosition={(pos) => { setLat(pos.lat); setLon(pos.lng); }} />
+                    <LocationMarker position={{ lat, lng: lon }} setPosition={(pos) => { setLat(pos.lat); setLon(pos.lng); }} />
                   </MapContainer>
                 </div>
                 <div className="grid grid-cols-2 gap-4 shrink-0 mb-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Latitude</label>
-                    <input 
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-1">Latitude</label>
+                    <input
                       type="number" step="any"
                       value={lat}
                       onChange={e => setLat(parseFloat(e.target.value) || 0)}
@@ -335,8 +343,8 @@ export default function Settings() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Longitude</label>
-                    <input 
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-1">Longitude</label>
+                    <input
                       type="number" step="any"
                       value={lon}
                       onChange={e => setLon(parseFloat(e.target.value) || 0)}
@@ -344,9 +352,39 @@ export default function Settings() {
                     />
                   </div>
                 </div>
+                <div className="grid grid-cols-3 gap-4 shrink-0 mb-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-1">Elevation (m)</label>
+                    <input
+                      type="number" step="any"
+                      value={elevation}
+                      onChange={e => setElevation(parseFloat(e.target.value) || 0)}
+                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-1">Floor Unit</label>
+                    <input
+                      type="number"
+                      value={floorUnit}
+                      onChange={e => setFloorUnit(parseInt(e.target.value) || 0)}
+                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
+                    />
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-1">(Ground floor = 0, Basement = -1, First floor = 1)</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-1">Total Floors</label>
+                    <input
+                      type="number" min="1"
+                      value={totalFloors}
+                      onChange={e => setTotalFloors(parseInt(e.target.value) || 1)}
+                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
+                    />
+                  </div>
+                </div>
 
                 <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50 shrink-0">
-                  <button 
+                  <button
                     onClick={handleSaveSettings}
                     className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                   >
@@ -363,14 +401,14 @@ export default function Settings() {
         {/* Tab 2: Network */}
         <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'network' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
           <div className="grid grid-cols-2 gap-6 h-full">
-            
+
             {/* Widget 1: Wi-Fi Manager */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
               <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                 <Wifi className="w-4 h-4 mr-2" /> Wi-Fi Configuration
               </h3>
               <div className="space-y-4">
-                
+
                 {/* Active Connection Indicator */}
                 <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm px-4 py-2">
                   <div className={`w-2 h-2 rounded-full ${activeWifi ? 'bg-emerald-500' : 'bg-gray-400'}`}></div>
@@ -397,7 +435,7 @@ export default function Settings() {
                             </div>
                             <div className="flex items-center space-x-1.5 shrink-0 ml-2">
                               {!isActive && (
-                                <button 
+                                <button
                                   onClick={() => handleConnectSaved(net.ssid)}
                                   disabled={wifiLoading}
                                   className="px-2.5 py-1 text-xs font-bold uppercase bg-primary dark:bg-blue-600 text-white rounded-md hover:bg-opacity-90 transition-all shadow-sm disabled:opacity-50"
@@ -405,7 +443,7 @@ export default function Settings() {
                                   Connect
                                 </button>
                               )}
-                              <button 
+                              <button
                                 onClick={() => handleForgetNetwork(net.ssid)}
                                 disabled={wifiLoading}
                                 className="p-1 text-slate-400 dark:text-slate-500 hover:text-red-600 transition-colors disabled:opacity-50"
@@ -427,8 +465,8 @@ export default function Settings() {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">SSID (Network Name)</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={ssid}
                         onChange={e => setSsid(e.target.value)}
                         placeholder="Enter network name"
@@ -438,8 +476,8 @@ export default function Settings() {
                     <div>
                       <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Password</label>
                       <div className="relative">
-                        <input 
-                          type={showPassword ? "text" : "password"} 
+                        <input
+                          type={showPassword ? "text" : "password"}
                           value={password}
                           onChange={e => setPassword(e.target.value)}
                           placeholder="Enter password"
@@ -454,7 +492,7 @@ export default function Settings() {
                         </button>
                       </div>
                     </div>
-                    <button 
+                    <button
                       onClick={handleWifiConnect}
                       disabled={wifiLoading}
                       className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity disabled:opacity-50"
@@ -483,13 +521,13 @@ export default function Settings() {
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center">
                   <Activity className="w-4 h-4 mr-2" /> Data Sharing
                 </h3>
-                
+
                 {/* Master Toggle */}
                 <div className="flex items-center space-x-3">
                   <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Data Forwarding
                   </span>
-                  <button 
+                  <button
                     onClick={() => setDataForwarding(!dataForwarding)}
                     className={`w-12 h-6 rounded-full p-1 transition-colors flex items-center ${dataForwarding ? 'bg-[#10B981]' : 'bg-gray-300'}`}
                   >
@@ -500,58 +538,56 @@ export default function Settings() {
 
               <div className={`flex-1 flex flex-col min-h-0 transition-opacity ${!dataForwarding ? 'opacity-50 pointer-events-none' : ''}`}>
                 <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 shrink-0">Data Cast IPs</h4>
-                
+
                 {/* Saved Targets List */}
                 <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2">
                   {targets.length === 0 ? (
-                      <p className="text-sm text-slate-400 dark:text-slate-500 font-mono italic">No targets configured.</p>
+                    <p className="text-sm text-slate-400 dark:text-slate-500 font-mono italic">No targets configured.</p>
                   ) : (
-                      targets.map((t, i) => (
-                        <div key={i} className="flex flex-col border border-slate-100 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-900">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-bold text-primary dark:text-blue-400 text-sm uppercase tracking-wider">{t.name}</span>
-                            <button onClick={() => handleRemoveTarget(i)} className="text-slate-400 dark:text-slate-500 hover:text-red-600 transition-colors">
-                              <X className="w-4 h-4" />
+                    targets.map((t, i) => (
+                      <div key={i} className="flex flex-col border border-slate-100 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-900">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-bold text-primary dark:text-blue-400 text-sm uppercase tracking-wider">{t.name}</span>
+                          <button onClick={() => handleRemoveTarget(i)} className="text-slate-400 dark:text-slate-500 hover:text-red-600 transition-colors">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="font-mono text-xs text-slate-600 dark:text-slate-300 flex items-center mb-2">
+                          <span className="font-bold mr-2">IP:</span> {t.ip}
+                          <span className="mx-3 text-gray-300">|</span>
+                          <span className="font-bold mr-2">PORT:</span> {t.port}
+                        </div>
+                        {/* Per-target format toggle */}
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700">
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Data Format</span>
+                          <div className="flex items-center bg-gray-200 dark:bg-slate-700 rounded-sm overflow-hidden">
+                            <button
+                              onClick={() => t.format !== 'corrected' && handleToggleFormat(i)}
+                              className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${t.format === 'corrected' || !t.format
+                                ? 'bg-[#1a4162] text-white'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
+                                }`}
+                            >
+                              m/s²
+                            </button>
+                            <button
+                              onClick={() => t.format !== 'raw' && handleToggleFormat(i)}
+                              className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${t.format === 'raw'
+                                ? 'bg-amber-600 text-white'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
+                                }`}
+                            >
+                              Raw Counts
                             </button>
                           </div>
-                          <div className="font-mono text-xs text-slate-600 dark:text-slate-300 flex items-center mb-2">
-                            <span className="font-bold mr-2">IP:</span> {t.ip} 
-                            <span className="mx-3 text-gray-300">|</span> 
-                            <span className="font-bold mr-2">PORT:</span> {t.port}
-                          </div>
-                          {/* Per-target format toggle */}
-                          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700">
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Data Format</span>
-                            <div className="flex items-center bg-gray-200 dark:bg-slate-700 rounded-sm overflow-hidden">
-                              <button
-                                onClick={() => t.format !== 'corrected' && handleToggleFormat(i)}
-                                className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                                  t.format === 'corrected' || !t.format
-                                    ? 'bg-[#1a4162] text-white'
-                                    : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
-                                }`}
-                              >
-                                m/s²
-                              </button>
-                              <button
-                                onClick={() => t.format !== 'raw' && handleToggleFormat(i)}
-                                className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                                  t.format === 'raw'
-                                    ? 'bg-amber-600 text-white'
-                                    : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
-                                }`}
-                              >
-                                Raw Counts
-                              </button>
-                            </div>
-                          </div>
-                          {t.format === 'raw' && (
-                            <p className="text-[10px] text-amber-700 font-mono mt-1.5 leading-relaxed">
-                              ⚠ Server needs the StationXML response file to convert counts → m/s²
-                            </p>
-                          )}
                         </div>
-                      ))
+                        {t.format === 'raw' && (
+                          <p className="text-[10px] text-amber-700 font-mono mt-1.5 leading-relaxed">
+                            ⚠ Server needs the StationXML response file to convert counts → m/s²
+                          </p>
+                        )}
+                      </div>
+                    ))
                   )}
                 </div>
 
@@ -580,24 +616,22 @@ export default function Settings() {
                     <div className="flex items-center bg-gray-200 dark:bg-slate-700 rounded-sm overflow-hidden">
                       <button
                         onClick={() => setNewFormat('corrected')}
-                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                          newFormat === 'corrected' ? 'bg-[#1a4162] text-white' : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
-                        }`}
+                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${newFormat === 'corrected' ? 'bg-[#1a4162] text-white' : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
+                          }`}
                       >
                         Corrected m/s²
                       </button>
                       <button
                         onClick={() => setNewFormat('raw')}
-                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                          newFormat === 'raw' ? 'bg-amber-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
-                        }`}
+                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${newFormat === 'raw' ? 'bg-amber-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200'
+                          }`}
                       >
                         Raw Counts
                       </button>
                     </div>
                   </div>
-                  
-                  <button 
+
+                  <button
                     onClick={handleSaveSettings}
                     className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                   >
@@ -622,8 +656,8 @@ export default function Settings() {
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Calibration Time (seconds)</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     value={calibrationTime}
                     onChange={e => setCalibrationTime(e.target.value)}
                     className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
@@ -633,8 +667,8 @@ export default function Settings() {
 
                 <div>
                   <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Data Retention (days)</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     value={retentionDays}
                     onChange={e => setRetentionDays(e.target.value)}
                     className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
@@ -650,7 +684,7 @@ export default function Settings() {
                 </div>
 
                 <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
-                  <button 
+                  <button
                     onClick={handleSaveSettings}
                     className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                   >
@@ -673,7 +707,7 @@ export default function Settings() {
                     {theme === 'dark' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
                     <span>{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</span>
                   </div>
-                  <button 
+                  <button
                     onClick={toggleTheme}
                     className={`w-14 h-7 rounded-full p-1 transition-colors flex items-center ${theme === 'dark' ? 'bg-[#10B981]' : 'bg-gray-300 dark:bg-slate-600'}`}
                   >
@@ -688,7 +722,7 @@ export default function Settings() {
                   <Power className="w-4 h-4 mr-2" /> System Actions
                 </h3>
                 <div className="space-y-6">
-                  <button 
+                  <button
                     onClick={() => setIsRestartModalOpen(true)}
                     className="w-full bg-red-600 text-white font-bold tracking-widest uppercase px-6 py-4 flex items-center justify-center space-x-2 hover:bg-red-700 transition-colors"
                   >
@@ -715,13 +749,13 @@ export default function Settings() {
               Are you sure you want to restart the sensor? Telemetry will be interrupted while the system reboots.
             </p>
             <div className="flex space-x-4">
-              <button 
+              <button
                 onClick={() => setIsRestartModalOpen(false)}
                 className="flex-1 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-200 font-bold uppercase tracking-wider py-2 transition-colors"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={handleRestartConfirm}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold uppercase tracking-wider py-2 transition-colors"
               >
@@ -750,7 +784,7 @@ export default function Settings() {
             </p>
             <div className="bg-amber-50 border border-amber-200 p-4 mb-4">
               <p className="text-xs font-bold text-amber-800 font-mono leading-relaxed text-center">
-                Please connect this computer to <strong>"{switchModal.ssid}"</strong> and 
+                Please connect this computer to <strong>"{switchModal.ssid}"</strong> and
                 navigate to the sensor's new local IP address to regain access.
               </p>
             </div>

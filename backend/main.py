@@ -74,6 +74,9 @@ class SettingsModel(BaseModel):
     targets: list[TargetModel]
     latitude: float
     longitude: float
+    elevation: float | None = 0.0
+    floor_unit: int | None = 0
+    total_floors: int | None = 1
     data_forwarding: bool = True
     device_name: str | None = None
     device_id: str | None = None
@@ -285,6 +288,9 @@ def api_get_settings():
         "targets": targets, 
         "latitude": float(s.get("latitude", 0.0)),
         "longitude": float(s.get("longitude", 0.0)),
+        "elevation": float(s.get("elevation", 0.0)),
+        "floor_unit": int(s.get("floor_unit", 0)),
+        "total_floors": int(s.get("total_floors", 1)),
         "device_name": s.get("device_name", "CRISIS-NODE-01"),
         "device_id": s.get("device_id", "T0021"),
         "calibration_time": int(s.get("calibration_time", 60)),
@@ -304,6 +310,9 @@ def api_set_settings(settings: SettingsModel):
         "targets": targets_json,
         "latitude": settings.latitude,
         "longitude": settings.longitude,
+        "elevation": settings.elevation if settings.elevation is not None else 0.0,
+        "floor_unit": settings.floor_unit if settings.floor_unit is not None else 0,
+        "total_floors": settings.total_floors if settings.total_floors is not None else 1,
         "data_forwarding": "true" if settings.data_forwarding else "false"
     }
     if settings.device_name is not None:
