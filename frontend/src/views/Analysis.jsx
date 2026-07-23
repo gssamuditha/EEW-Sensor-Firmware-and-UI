@@ -5,7 +5,7 @@ import { useTimeZone } from '../TimeZoneContext';
 
 // Quick-select durations (minutes)
 const QUICK_OPTIONS = [
-  { label: '5 min',  value: 5 },
+  { label: '5 min', value: 5 },
   { label: '15 min', value: 15 },
   { label: '30 min', value: 30 },
   { label: '1 hour', value: 60 },
@@ -81,12 +81,12 @@ export default function Analysis() {
     fetch(`${base}/api/analysis/presets`)
       .then(r => r.json())
       .then(data => setPresets(data.presets || {}))
-      .catch(() => {});
+      .catch(() => { });
 
     fetch(`${base}/api/analysis/availability`)
       .then(r => r.json())
       .then(data => setAvailability(data))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // When switching to live mode, snap the end time to now.
@@ -248,7 +248,7 @@ export default function Analysis() {
         <div className="flex flex-col gap-2">
           {/* Top: Title & Badge */}
           <div className="flex flex-row items-center gap-3">
-            <h2 className="text-xl font-bold text-primary dark:text-blue-400 tracking-wide">SIGNAL ANALYSIS</h2>
+            <h2 className="text-xl font-bold text-primary dark:text-blue-400 tracking-wide">Signal Analysis</h2>
             {activeFilter && filterStatus === 'active' && (
               <div className="px-2 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded-md border border-slate-100 dark:border-slate-700 shadow-sm flex items-center space-x-1.5">
                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
@@ -261,7 +261,7 @@ export default function Analysis() {
               </div>
             )}
           </div>
-          
+
           {/* Bottom: Presets */}
           {Object.keys(presets).length > 0 && (
             <div className="flex flex-col">
@@ -271,9 +271,8 @@ export default function Analysis() {
                   <button
                     key={key}
                     onClick={() => applyPreset(key)}
-                    className={`h-7 px-3 rounded-md text-[9px] font-bold shadow-sm border transition-all ${
-                      activePreset === key ? 'bg-primary dark:bg-blue-600 text-white border-primary dark:border-blue-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
-                    }`}
+                    className={`h-7 px-3 rounded-md text-[9px] font-bold shadow-sm border transition-all ${activePreset === key ? 'bg-primary dark:bg-blue-600 text-white border-primary dark:border-blue-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                      }`}
                   >
                     {preset.label.split(' ')[0]}
                   </button>
@@ -288,7 +287,7 @@ export default function Analysis() {
           {/* Top Box: Time Settings */}
           <div className="flex flex-row items-end gap-2 flex-wrap">
             <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Start</label>
+              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-0.5">Start</label>
               <input
                 type="datetime-local"
                 value={epochToLocal(startEpoch, timeZone)}
@@ -300,7 +299,7 @@ export default function Analysis() {
             </div>
             <span className="text-slate-300 font-bold text-[10px] pb-1.5">→</span>
             <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">End</label>
+              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-0.5">End</label>
               <input
                 type="datetime-local"
                 value={epochToLocal(endEpoch, timeZone)}
@@ -313,15 +312,13 @@ export default function Analysis() {
             </div>
             <button
               onClick={toggleLive}
-              className={`h-7 px-2.5 rounded-md text-[9px] font-bold tracking-wider shadow-sm border ${
-                isLive ? 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:text-emerald-600'
-              }`}
+              className={`h-7 px-2.5 rounded-md text-[9px] font-bold tracking-wider shadow-sm border ${isLive ? 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:text-emerald-600'
+                }`}
             >
               {isLive ? '● LIVE' : 'NOW'}
             </button>
-            <div className={`h-7 flex items-center px-2 rounded-md text-[9px] font-bold font-mono border ${
-              durationError ? 'bg-red-50 text-red-500 border-red-200' : 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/50'
-            }`}>
+            <div className={`h-7 flex items-center px-2 rounded-md text-[9px] font-bold font-mono border ${durationError ? 'bg-red-50 text-red-500 border-red-200' : 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/50'
+              }`}>
               {durationStr}
             </div>
             {QUICK_OPTIONS.map(opt => (
@@ -338,14 +335,14 @@ export default function Analysis() {
           {/* Bottom Box: Frequency Sliders + Apply Button */}
           <div className="flex flex-row items-end gap-3 w-full xl:justify-between flex-wrap">
             <div className="flex flex-col flex-1">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Low (Hz)</label>
+              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-0.5">Low (Hz)</label>
               <div className="flex items-center space-x-1.5 w-full">
                 <input type="range" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
                 <input type="number" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
               </div>
             </div>
             <div className="flex flex-col flex-1">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">High (Hz)</label>
+              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-0.5">High (Hz)</label>
               <div className="flex items-center space-x-1.5 w-full">
                 <input type="range" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
                 <input type="number" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value) || 0.5); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
@@ -358,7 +355,7 @@ export default function Analysis() {
               APPLY FILTER
             </button>
           </div>
-          
+
           {(errorMsg || durationError) && (
             <div className="text-[9px] text-red-500 font-bold w-full text-right mt-[-4px]">
               {errorMsg} {durationError}

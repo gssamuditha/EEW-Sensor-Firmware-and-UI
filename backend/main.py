@@ -80,6 +80,8 @@ class SettingsModel(BaseModel):
     data_forwarding: bool = True
     device_name: str | None = None
     device_id: str | None = None
+    owner_name: str | None = None
+    owner_email: str | None = None
     calibration_time: int | None = None
     retention_days: int | None = None
 
@@ -293,6 +295,8 @@ def api_get_settings():
         "total_floors": int(s.get("total_floors", 1)),
         "device_name": s.get("device_name", "CRISIS-NODE-01"),
         "device_id": s.get("device_id", "T0021"),
+        "owner_name": s.get("owner_name", ""),
+        "owner_email": s.get("owner_email", ""),
         "calibration_time": int(s.get("calibration_time", 60)),
         "retention_days": int(s.get("retention_days", 7)),
         "archive_size_bytes": mseed_writer.get_archive_size_bytes(),
@@ -319,6 +323,10 @@ def api_set_settings(settings: SettingsModel):
         settings_dict["device_name"] = settings.device_name
     if settings.device_id is not None:
         settings_dict["device_id"] = settings.device_id
+    if settings.owner_name is not None:
+        settings_dict["owner_name"] = settings.owner_name
+    if settings.owner_email is not None:
+        settings_dict["owner_email"] = settings.owner_email
     if settings.calibration_time is not None:
         settings_dict["calibration_time"] = settings.calibration_time
     if settings.retention_days is not None:

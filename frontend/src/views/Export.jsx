@@ -51,7 +51,7 @@ export default function Export() {
 
           {/* Custom Range Export Widget */}
           <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
-            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-5 flex items-center shrink-0">
+            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-5 flex items-center shrink-0">
               <FileText fill="currentColor" className="w-4 h-4 mr-2" /> Custom Range Export
             </h3>
 
@@ -113,7 +113,7 @@ export default function Export() {
           <div className="flex flex-col gap-6">
             {/* Full Archive Backup Widget */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
-              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 flex items-center shrink-0">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-4 flex items-center shrink-0">
                 <Database fill="currentColor" className="w-4 h-4 mr-2" /> Full Archive Backup
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mb-5 leading-relaxed">
@@ -130,7 +130,7 @@ export default function Export() {
 
             {/* Device Response File Widget */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
-              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 flex items-center shrink-0">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-4 flex items-center shrink-0">
                 <Activity fill="currentColor" className="w-4 h-4 mr-2" /> Device Response File
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mb-5 leading-relaxed">

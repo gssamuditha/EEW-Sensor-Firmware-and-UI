@@ -38,6 +38,8 @@ export default function Settings() {
   const [lon, setLon] = useState(0.0);
   const [deviceName, setDeviceName] = useState('CRISIS-NODE-01');
   const [deviceId, setDeviceId] = useState('T0021');
+  const [ownerName, setOwnerName] = useState('');
+  const [ownerEmail, setOwnerEmail] = useState('');
   const [calibrationTime, setCalibrationTime] = useState(60);
   const [retentionDays, setRetentionDays] = useState(7);
   const [archiveSize, setArchiveSize] = useState(0);
@@ -68,6 +70,8 @@ export default function Settings() {
         setLon(data.longitude || 0.0);
         if (data.device_name) setDeviceName(data.device_name);
         if (data.device_id) setDeviceId(data.device_id);
+        if (data.owner_name !== undefined) setOwnerName(data.owner_name);
+        if (data.owner_email !== undefined) setOwnerEmail(data.owner_email);
         if (data.elevation !== undefined) setElevation(data.elevation);
         if (data.floor_unit !== undefined) setFloorUnit(data.floor_unit);
         if (data.total_floors !== undefined) setTotalFloors(data.total_floors);
@@ -130,6 +134,8 @@ export default function Settings() {
           total_floors: parseInt(totalFloors),
           device_name: deviceName,
           device_id: deviceId,
+          owner_name: ownerName,
+          owner_email: ownerEmail,
           calibration_time: parseInt(calibrationTime),
           retention_days: parseInt(retentionDays),
           data_forwarding: dataForwarding
@@ -160,7 +166,7 @@ export default function Settings() {
       });
       const data = await res.json();
       if (data.status === 'ok') {
-        // Backend accepted — it will switch networks in ~3 seconds
+        // Backend accepted it will switch networks in ~3 seconds
         setSwitchModal({ ssid });
       } else {
         showWifiStatus('Failed: ' + data.message, true);
@@ -239,7 +245,7 @@ export default function Settings() {
     <div className="p-6 h-full bg-slate-50 dark:bg-slate-900 flex flex-col w-full overflow-hidden">
 
       <div className="w-full flex justify-between items-center mb-4 shrink-0">
-        <h2 className="text-2xl font-bold text-primary dark:text-blue-400 tracking-wide uppercase">System Configuration</h2>
+        <h2 className="text-2xl font-bold text-primary dark:text-blue-400 tracking-wide">System Configuration</h2>
         {status && (
           <div className={`px-4 py-2 text-sm font-bold font-mono shadow-sm ${status.isError ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-green-50 text-emerald-600 dark:text-emerald-500 border border-green-200'}`}>
             {status.msg}
@@ -276,14 +282,14 @@ export default function Settings() {
             {/* Left column: Device Details + Response File */}
             <div className="flex flex-col gap-6 overflow-y-auto">
 
-              {/* Widget 1: Device Details */}
+              {/* Widget 1: Station & Operator Details */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  <Monitor className="w-4 h-4 mr-2" /> Device Details
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
+                  <Monitor className="w-4 h-4 mr-2" /> Station Details
                 </h3>
                 <div className="flex-1 flex flex-col space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Device Name</label>
+                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-2">Device Name</label>
                     <input
                       type="text"
                       value={deviceName}
@@ -293,7 +299,7 @@ export default function Settings() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Device ID (5 chars)</label>
+                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-2">Device ID</label>
                     <input
                       type="text"
                       value={deviceId}
@@ -302,7 +308,27 @@ export default function Settings() {
                       placeholder="T0021"
                       className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
                     />
-                    <p className="text-xs text-slate-400 dark:text-slate-500 font-mono mt-1">Used for SEED station code (e.g. T0021)</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 font-mono mt-1 mb-2">Used for SEED station code (e.g. T0021)</p>
+                  </div>
+                  <div className="border-t border-slate-100 dark:border-slate-700/50 pt-3">
+                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-2">Device Owner's Name</label>
+                    <input
+                      type="text"
+                      value={ownerName}
+                      onChange={e => setOwnerName(e.target.value)}
+                      placeholder="First Last"
+                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm mb-3"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-2">Email</label>
+                    <input
+                      type="email"
+                      value={ownerEmail}
+                      onChange={e => setOwnerEmail(e.target.value)}
+                      placeholder="operator@example.com"
+                      className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                    />
                   </div>
 
                   <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
@@ -311,7 +337,7 @@ export default function Settings() {
                       className="w-full bg-primary dark:bg-blue-600 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                     >
                       <Save className="w-4 h-4" />
-                      <span>Save Name</span>
+                      <span>Save Details</span>
                     </button>
                   </div>
                 </div>
@@ -322,7 +348,7 @@ export default function Settings() {
 
             {/* Widget 3: Device Location — right column full height */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full min-h-0">
-              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                 <MapPin className="w-4 h-4 mr-2" /> Device Location
               </h3>
               <div className="flex-1 flex flex-col min-h-0">
@@ -370,7 +396,6 @@ export default function Settings() {
                       onChange={e => setFloorUnit(parseInt(e.target.value) || 0)}
                       className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
                     />
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-1">(Ground floor = 0, Basement = -1, First floor = 1)</p>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-1">Total Floors</label>
@@ -381,6 +406,11 @@ export default function Settings() {
                       className="w-full bg-slate-100 dark:bg-slate-800/80 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
                     />
                   </div>
+                </div>
+
+                <div className="flex flex-col gap-1 mb-4 px-1">
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono w-full">(Ground floor = 0, Basement = -1, First floor = 1)</p>
+                  <p className="text-[10px] text-slate-400 dark:text-emerald-500 font-bold tracking-wide w-full">* The sensor's exact location will not be revealed to the public.</p>
                 </div>
 
                 <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50 shrink-0">
