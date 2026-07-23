@@ -271,7 +271,7 @@ export default function Analysis() {
                   <button
                     key={key}
                     onClick={() => applyPreset(key)}
-                    className={`h-7 px-3 rounded-md text-[9px] font-bold shadow-sm border transition-all ${activePreset === key ? 'bg-primary dark:bg-sky-700/80 text-white border-primary dark:border-slate-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    className={`h-7 px-3 rounded-md text-[9px] font-bold shadow-sm border transition-all ${activePreset === key ? 'bg-primary dark:bg-sky-600 text-white border-primary dark:border-slate-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
                       }`}
                   >
                     {preset.label.split(' ')[0]}
@@ -350,7 +350,7 @@ export default function Analysis() {
             </div>
             <button
               onClick={applyFilter}
-              className="h-7 bg-primary dark:bg-sky-700/80 hover:bg-opacity-90 text-white rounded-md font-bold transition-all shadow-md px-4 text-[9px] tracking-wider shrink-0"
+              className="h-7 bg-primary dark:bg-sky-600 hover:bg-opacity-90 text-white rounded-md font-bold transition-all shadow-md px-4 text-[9px] tracking-wider shrink-0"
             >
               APPLY FILTER
             </button>

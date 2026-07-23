@@ -132,11 +132,11 @@ export default function Dashboard() {
               </div>
               <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">LOCAL IP</span>
-                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{systemStats.local_ip}</span>
+                <span className="text-primary dark:text-amber-500 font-bold col-span-2">{systemStats.local_ip}</span>
               </div>
               <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">MAC ADDR</span>
-                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{systemStats.mac_address}</span>
+                <span className="text-primary dark:text-amber-500 font-bold col-span-2">{systemStats.mac_address}</span>
               </div>
               <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">LATITUDE</span>
@@ -220,11 +220,11 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md flex-1 flex flex-col shrink-0">
             <div className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-4">Server Actions</div>
             <div className="flex flex-col gap-3 h-full">
-              <a href="#station" className="flex items-center justify-center border border-slate-200 dark:border-slate-700/50 rounded-lg p-3 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all shadow-sm hover:shadow text-slate-600 dark:text-slate-200 hover:text-primary dark:hover:text-blue-400 cursor-pointer">
+              <a href="#station" className="flex items-center justify-center border border-slate-200 dark:border-transparent dark:bg-slate-800 rounded-lg p-3 hover:bg-slate-50 transition-all shadow-sm hover:shadow text-slate-600 dark:text-slate-300 hover:text-primary hover:dark:border-amber-500 hover:dark:text-amber-400 cursor-pointer">
                 <svg className="w-5 h-5 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                 <span className="text-xs font-bold">Station View</span>
               </a>
-              <a href="#data" className="flex items-center justify-center border border-slate-200 dark:border-slate-700/50 rounded-lg p-3 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all shadow-sm hover:shadow text-slate-600 dark:text-slate-200 hover:text-primary dark:hover:text-blue-400 cursor-pointer">
+              <a href="#data" className="flex items-center justify-center border border-slate-200 dark:border-transparent dark:bg-slate-800 rounded-lg p-3 hover:bg-slate-50 transition-all shadow-sm hover:shadow text-slate-600 dark:text-slate-300 hover:text-primary hover:dark:border-amber-500 hover:dark:text-amber-400 cursor-pointer">
                 <svg className="w-5 h-5 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                 <span className="text-xs font-bold">Data View</span>
               </a>

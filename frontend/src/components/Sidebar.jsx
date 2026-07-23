@@ -56,7 +56,7 @@ export default function Sidebar() {
               key={link.name}
               to={link.path}
               title={isCollapsed ? link.name : undefined}
-              className={`flex items-center rounded-xl transition-all duration-300 ${isActive ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5 hover:text-white'} ${isCollapsed ? 'justify-center p-3' : 'px-4 py-3 space-x-4'}`}
+              className={`flex items-center rounded-xl transition-all duration-300 ${isActive ? 'bg-white/10 text-white dark:bg-amber-500/10 dark:text-amber-500' : 'text-white/70 hover:bg-white/5 hover:text-white hover:dark:text-amber-400'} ${isCollapsed ? 'justify-center p-3' : 'px-4 py-3 space-x-4'}`}
             >
               <div className="shrink-0">{link.icon}</div>
               <span className={`font-medium tracking-wide whitespace-nowrap transition-all duration-300 overflow-hidden ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>

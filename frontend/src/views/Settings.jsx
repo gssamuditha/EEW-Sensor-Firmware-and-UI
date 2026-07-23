@@ -334,7 +334,7 @@ export default function Settings() {
                   <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
                     <button
                       onClick={handleSaveSettings}
-                      className="w-full bg-primary dark:bg-sky-700/80 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                      className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                     >
                       <Save className="w-4 h-4" />
                       <span>Save Details</span>
@@ -416,7 +416,7 @@ export default function Settings() {
                 <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50 shrink-0">
                   <button
                     onClick={handleSaveSettings}
-                    className="w-full bg-primary dark:bg-sky-700/80 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                    className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                   >
                     <Save className="w-4 h-4" />
                     <span>Save Location</span>
@@ -468,7 +468,7 @@ export default function Settings() {
                                 <button
                                   onClick={() => handleConnectSaved(net.ssid)}
                                   disabled={wifiLoading}
-                                  className="px-2.5 py-1 text-xs font-bold uppercase bg-primary dark:bg-sky-700/80 text-white rounded-md hover:bg-opacity-90 transition-all shadow-sm disabled:opacity-50"
+                                  className="px-2.5 py-1 text-xs font-bold uppercase bg-primary dark:bg-sky-600 text-white rounded-md hover:bg-opacity-90 transition-all shadow-sm disabled:opacity-50"
                                 >
                                   Connect
                                 </button>
@@ -525,7 +525,7 @@ export default function Settings() {
                     <button
                       onClick={handleWifiConnect}
                       disabled={wifiLoading}
-                      className="w-full bg-primary dark:bg-sky-700/80 text-white font-bold tracking-widest py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity disabled:opacity-50"
+                      className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity disabled:opacity-50"
                     >
                       {wifiLoading ? (
                         <><Loader2 className="w-4 h-4 animate-spin" /><span>Connecting...</span></>
@@ -594,7 +594,7 @@ export default function Settings() {
                             <button
                               onClick={() => t.format !== 'corrected' && handleToggleFormat(i)}
                               className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${t.format === 'corrected' || !t.format
-                                ? 'bg-primary dark:bg-sky-700/80 text-white'
+                                ? 'bg-primary dark:bg-sky-600 text-white'
                                 : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
                                 }`}
                             >
@@ -646,7 +646,7 @@ export default function Settings() {
                     <div className="flex items-center bg-gray-200 dark:bg-slate-700 rounded-sm overflow-hidden">
                       <button
                         onClick={() => setNewFormat('corrected')}
-                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${newFormat === 'corrected' ? 'bg-primary dark:bg-sky-700/80 text-white' : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
+                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${newFormat === 'corrected' ? 'bg-primary dark:bg-sky-600 text-white' : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
                           }`}
                       >
                         Corrected m/s²
@@ -663,7 +663,7 @@ export default function Settings() {
 
                   <button
                     onClick={handleSaveSettings}
-                    className="w-full bg-primary dark:bg-sky-700/80 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                    className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                   >
                     <Save className="w-4 h-4" />
                     <span>Save Targets</span>
@@ -708,7 +708,7 @@ export default function Settings() {
                   <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
                     <button
                       onClick={handleSaveSettings}
-                      className="w-full bg-primary dark:bg-sky-700/80 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                      className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                     >
                       <Save className="w-4 h-4" />
                       <span>Save Storage</span>
@@ -759,7 +759,7 @@ export default function Settings() {
                   <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
                     <button
                       onClick={handleSaveSettings}
-                      className="w-full bg-primary dark:bg-sky-700/80 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                      className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
                     >
                       <Save className="w-4 h-4" />
                       <span>Save Calibration</span>
