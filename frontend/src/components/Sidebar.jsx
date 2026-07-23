@@ -1,6 +1,23 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ListBulletIcon, Squares2X2Icon as DashboardIcon, ArrowDownTrayIcon as Download, ChartBarIcon as AnalysisIcon, Cog8ToothIcon as Settings } from '@heroicons/react/24/solid';
+import { ListBulletIcon, Squares2X2Icon as DashboardIcon, CircleStackIcon as DatabaseIcon, Cog8ToothIcon as Settings } from '@heroicons/react/24/solid';
+
+const WaveformCircleIcon = ({ className }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <defs>
+      <mask id="waveform-circle-mask">
+        <rect width="24" height="24" fill="white" />
+        <path d="M 3 12 h 3.5 l 1.5 -2.5 l 1.5 4 l 2.5 -8 l 2.5 10 l 2 -3.5 h 4.5" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </mask>
+    </defs>
+    <circle cx="12" cy="12" r="10" fill="currentColor" mask="url(#waveform-circle-mask)" />
+  </svg>
+);
 
 export default function Sidebar() {
   const location = useLocation();
@@ -8,8 +25,8 @@ export default function Sidebar() {
 
   const links = [
     { name: 'Dashboard', path: '/dashboard', icon: <DashboardIcon className="w-5 h-5" /> },
-    { name: 'Data Export', path: '/export', icon: <Download className="w-5 h-5" /> },
-    { name: 'Analysis', path: '/analysis', icon: <AnalysisIcon className="w-5 h-5" /> },
+    { name: 'Data Export', path: '/export', icon: <DatabaseIcon className="w-5 h-5" /> },
+    { name: 'Analysis', path: '/analysis', icon: <WaveformCircleIcon className="w-5 h-5" /> },
     { name: 'Settings', path: '/settings', icon: <Settings className="w-5 h-5" /> },
   ];
 

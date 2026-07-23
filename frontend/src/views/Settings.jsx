@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowDownOnSquareIcon as Save, PlusIcon as Plus, XMarkIcon as X, WifiIcon as Wifi, PowerIcon as Power, MapPinIcon as MapPin, ComputerDesktopIcon as Monitor, Cog6ToothIcon as SettingsIcon, ChartBarIcon as Activity, EyeIcon as Eye, EyeSlashIcon as EyeOff, ArrowPathIcon as Loader2, TrashIcon as Trash2, SunIcon as Sun, MoonIcon as Moon, PaintBrushIcon as Palette } from '@heroicons/react/24/solid';
+import { ArrowDownOnSquareIcon as Save, PlusIcon as Plus, XMarkIcon as X, WifiIcon as Wifi, PowerIcon as Power, MapPinIcon as MapPin, ComputerDesktopIcon as Monitor, Cog6ToothIcon as SettingsIcon, ChartBarIcon as Activity, EyeIcon as Eye, EyeSlashIcon as EyeOff, ArrowPathIcon as Loader2, TrashIcon as Trash2, SunIcon as Sun, MoonIcon as Moon, PaintBrushIcon as Palette, CircleStackIcon as Database } from '@heroicons/react/24/solid';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -261,7 +261,7 @@ export default function Settings() {
               <button
                 onClick={() => setActiveTab(tab.id)}
                 className={`inline-block py-3 border-b-2 transition-all duration-200 ${activeTab === tab.id
-                  ? 'text-[#1a4162] border-[#1a4162]'
+                  ? 'text-[#1a4162] dark:text-sky-400 border-[#1a4162] dark:border-sky-400'
                   : 'text-slate-400 dark:text-slate-400 border-transparent hover:text-slate-600 dark:text-slate-200 hover:border-slate-200 dark:border-slate-600'
                   }`}
               >
@@ -442,7 +442,7 @@ export default function Settings() {
                 {/* Active Connection Indicator */}
                 <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm px-4 py-2">
                   <div className={`w-2 h-2 rounded-full ${activeWifi ? 'bg-emerald-500' : 'bg-gray-400'}`}></div>
-                  <span className="text-xs font-bold text-[#1a4162] font-mono tracking-wide">
+                  <span className="text-xs font-bold text-[#1a4162] dark:text-sky-300 font-mono tracking-wide">
                     {activeWifi ? `CONNECTED TO: ${activeWifi}` : 'NOT CONNECTED'}
                   </span>
                 </div>
@@ -594,7 +594,7 @@ export default function Settings() {
                             <button
                               onClick={() => t.format !== 'corrected' && handleToggleFormat(i)}
                               className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${t.format === 'corrected' || !t.format
-                                ? 'bg-[#1a4162] text-white'
+                                ? 'bg-primary dark:bg-sky-700/80 text-white'
                                 : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
                                 }`}
                             >
@@ -646,7 +646,7 @@ export default function Settings() {
                     <div className="flex items-center bg-gray-200 dark:bg-slate-700 rounded-sm overflow-hidden">
                       <button
                         onClick={() => setNewFormat('corrected')}
-                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${newFormat === 'corrected' ? 'bg-[#1a4162] text-white' : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
+                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${newFormat === 'corrected' ? 'bg-primary dark:bg-sky-700/80 text-white' : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
                           }`}
                       >
                         Corrected m/s²
@@ -678,62 +678,52 @@ export default function Settings() {
         {/* Tab 3: System */}
         <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'system' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
           <div className="grid grid-cols-2 gap-6 h-full">
-            {/* Calibration Settings */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
-              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                <SettingsIcon className="w-4 h-4 mr-2" /> Calibration Settings
-              </h3>
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-2">Calibration Time (seconds)</label>
-                  <input
-                    type="number"
-                    value={calibrationTime}
-                    onChange={e => setCalibrationTime(e.target.value)}
-                    className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
-                  />
-                  <p className="text-xs text-slate-400 dark:text-slate-400 mt-2 font-mono">Recommended: 60 seconds</p>
-                </div>
+            {/* Left Column */}
+            <div className="space-y-6 flex flex-col">
 
-                <div>
-                  <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-2">Data Retention (days)</label>
-                  <input
-                    type="number"
-                    value={retentionDays}
-                    onChange={e => setRetentionDays(e.target.value)}
-                    className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
-                  />
-                  <p className="text-xs text-slate-400 dark:text-slate-400 mt-2 font-mono">Older miniSEED files will be deleted.</p>
-                </div>
+              {/* Data Storage Settings */}
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
+                  <Database className="w-4 h-4 mr-2" /> Data Storage
+                </h3>
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Data Storage Limit (days)</label>
+                    <input
+                      type="number"
+                      value={retentionDays}
+                      onChange={e => setRetentionDays(e.target.value)}
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                    />
+                    <p className="text-xs text-slate-400 dark:text-slate-400 mt-2 font-mono">Older miniSEED files will be deleted.</p>
+                  </div>
 
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50">
-                  <span className="block text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-1">Archive Size</span>
-                  <span className="text-sm font-mono font-bold text-[#1a4162] bg-gray-100 dark:bg-slate-800 px-3 py-1 inline-block">
-                    {(archiveSize / (1024 * 1024)).toFixed(2)} MB
-                  </span>
-                </div>
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50">
+                    <span className="block text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-1">Archive Size</span>
+                    <span className="text-sm font-mono font-bold text-[#1a4162] dark:text-sky-300 bg-gray-100 dark:bg-slate-800 px-3 py-1 inline-block">
+                      {(archiveSize / (1024 * 1024)).toFixed(2)} MB
+                    </span>
+                  </div>
 
-                <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
-                  <button
-                    onClick={handleSaveSettings}
-                    className="w-full bg-primary dark:bg-sky-700/80 text-white font-bold tracking-widest uppercase px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>Save Calibration</span>
-                  </button>
+                  <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                    <button
+                      onClick={handleSaveSettings}
+                      className="w-full bg-primary dark:bg-sky-700/80 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Save Storage</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Right Column: UI Settings & System Actions */}
-            <div className="space-y-6">
               {/* UI Settings */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                   <Palette className="w-4 h-4 mr-2" /> UI Settings
                 </h3>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3 text-sm font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider">
+                  <div className="flex items-center space-x-3 text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider">
                     {theme === 'dark' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
                     <span>{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</span>
                   </div>
@@ -745,16 +735,48 @@ export default function Settings() {
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* Right Column: Calibration Settings & System Actions */}
+            <div className="space-y-6">
+              {/* Calibration Settings */}
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
+                  <SettingsIcon className="w-4 h-4 mr-2" /> Calibration Settings
+                </h3>
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Calibration Time (seconds)</label>
+                    <input
+                      type="number"
+                      value={calibrationTime}
+                      onChange={e => setCalibrationTime(e.target.value)}
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                    />
+                    <p className="text-xs text-slate-400 dark:text-slate-400 mt-2 font-mono">Recommended: 60 seconds</p>
+                  </div>
+
+                  <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                    <button
+                      onClick={handleSaveSettings}
+                      className="w-full bg-primary dark:bg-sky-700/80 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Save Calibration</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
 
               {/* System Actions */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                   <Power className="w-4 h-4 mr-2" /> System Actions
                 </h3>
                 <div className="space-y-6">
                   <button
                     onClick={() => setIsRestartModalOpen(true)}
-                    className="w-full bg-red-600 text-white font-bold tracking-widest uppercase px-6 py-4 flex items-center justify-center space-x-2 hover:bg-red-700 transition-colors"
+                    className="w-full bg-red-600 text-white font-bold tracking-widest px-6 py-4 flex items-center justify-center space-x-2 hover:bg-red-700 transition-colors"
                   >
                     <Power className="w-5 h-5" />
                     <span>Restart Sensor</span>
@@ -805,11 +827,11 @@ export default function Settings() {
                 <Loader2 className="w-8 h-8 animate-spin text-primary dark:text-slate-300" />
               </div>
             </div>
-            <h3 className="text-lg font-bold text-[#1a4162] mb-3 uppercase tracking-wide text-center">
+            <h3 className="text-lg font-bold text-[#1a4162] dark:text-sky-300 mb-3 uppercase tracking-wide text-center">
               Switching Network
             </h3>
             <p className="text-sm text-slate-600 dark:text-slate-200 mb-4 font-mono leading-relaxed text-center">
-              Sensor is connecting to <strong className="text-[#1a4162]">{switchModal.ssid}</strong>.
+              Sensor is connecting to <strong className="text-[#1a4162] dark:text-sky-300">{switchModal.ssid}</strong>.
               Your connection to this dashboard will now be lost.
             </p>
             <div className="bg-amber-50 border border-amber-200 p-4 mb-4">
