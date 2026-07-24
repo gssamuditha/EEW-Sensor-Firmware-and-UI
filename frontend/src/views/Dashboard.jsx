@@ -74,9 +74,9 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <div className="p-6 h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
-      <div className="flex justify-between items-center mb-4 flex-shrink-0">
-        <div className="flex items-center space-x-3">
+    <div className="p-3 md:p-6 h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-y-auto lg:overflow-hidden">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center space-x-2 mr-2">
             <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-wider">Eew Sensor</h1>
             <span className="text-slate-300 dark:text-slate-700 text-xl">|</span>
@@ -93,8 +93,8 @@ export default function Dashboard() {
             <span>Client {clientSps} sps</span>
           </div>
         </div>
-        <div className="flex items-center space-x-3 text-sm">
-          <div className="font-mono font-semibold text-slate-600 dark:text-slate-200 mr-4 bg-slate-100 dark:bg-slate-700 px-3 py-1.5 rounded-md border-0 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <div className="font-mono font-semibold text-slate-500 dark:text-slate-400 mr-4">
             {new Intl.DateTimeFormat('en-US', {
               timeZone: timeZone,
               year: 'numeric', month: 'short', day: 'numeric',
@@ -112,7 +112,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 grid grid-cols-4 gap-6">
+      <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 overflow-y-auto pb-4">
 
         {/* Left Column: Widget 1 */}
         <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md flex flex-col justify-between">
@@ -160,7 +160,7 @@ export default function Dashboard() {
         </div>
 
         {/* Middle Column: Widget 3 */}
-        <div className="col-span-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-4 shadow-md flex flex-col min-h-0 overflow-hidden">
+        <div className="md:col-span-2 xl:col-span-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-4 shadow-md flex flex-col min-h-0 overflow-hidden min-h-[250px] md:min-h-[300px]">
           <LiveChart timeZone={timeZone} updateSps={updateSps} onClientSps={handleClientSps} onChannelsFound={handleChannelsFound} />
         </div>
 

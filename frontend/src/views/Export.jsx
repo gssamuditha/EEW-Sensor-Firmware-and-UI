@@ -38,10 +38,10 @@ export default function Export() {
   const timeLabelBadge = `(${timeZone})`;
 
   return (
-    <div className="p-6 h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
+    <div className="p-3 md:p-6 h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-y-auto lg:overflow-hidden">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6 flex-shrink-0">
-        <div className="flex items-center space-x-3">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 flex-shrink-0">
+        <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold text-primary dark:text-sky-400 tracking-wide">Data Export</h2>
         </div>
       </div>
@@ -56,7 +56,7 @@ export default function Export() {
             </h3>
 
             <div className="space-y-5 flex-1">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="flex items-center text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wide mb-1.5">
                     Start Time <span className="ml-1 text-slate-400 dark:text-slate-400/70 font-normal">{timeLabelBadge}</span>
