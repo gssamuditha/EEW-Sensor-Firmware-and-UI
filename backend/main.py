@@ -9,6 +9,11 @@ import uuid
 import sys
 import subprocess
 import threading
+try:
+    import pamela as _pamela
+    _PAM_AVAILABLE = True
+except ImportError:
+    _PAM_AVAILABLE = False
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -109,6 +114,23 @@ class FilterModel(BaseModel):
         if v > 50.0:
             raise ValueError('high_hz must be <= 50.0')
         return v
+
+class SystemActionRequest(BaseModel):
+    username: str = "pi"
+    password: str
+
+# ---------------------------------------------------------------------------
+# PAM Authentication helper
+# ---------------------------------------------------------------------------
+
+def _authenticate(username: str, password: str):
+    """Verify credentials using Linux PAM (same as SSH/sudo). Raises 403 on failure."""
+    if not _PAM_AVAILABLE:
+        raise HTTPException(status_code=503, detail="PAM authentication not available on this OS")
+    try:
+        _pamela.authenticate(username, password)
+    except Exception:
+        raise HTTPException(status_code=403, detail="Invalid credentials")
 
 # ---------------------------------------------------------------------------
 # Wi-Fi Manager helpers
@@ -265,8 +287,15 @@ def api_wifi_forget(wifi: WifiActionModel):
         return {"status": "error", "message": str(e)}
 
 @app.post("/api/system/restart")
-def api_system_restart():
+def api_system_restart(req: SystemActionRequest):
+    _authenticate(req.username, req.password)
     subprocess.Popen(["sudo", "/sbin/reboot"])
+    return {"status": "ok"}
+
+@app.post("/api/system/shutdown")
+def api_system_shutdown(req: SystemActionRequest):
+    _authenticate(req.username, req.password)
+    subprocess.Popen(["sudo", "/sbin/poweroff"])
     return {"status": "ok"}
 
 @app.get("/api/settings")
