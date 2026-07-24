@@ -60,26 +60,15 @@ export default function Settings() {
   const [wifiStatus, setWifiStatus] = useState(null);
   const [activeTab, setActiveTab] = useState('general');
 
-  // --- Auth Modal State ---
-  const [authModal, setAuthModal] = useState(null); // null | 'restart' | 'shutdown'
-  const [authUsername, setAuthUsername] = useState('pi');
-  const [authPassword, setAuthPassword] = useState('');
-  const [showAuthPassword, setShowAuthPassword] = useState(false);
-  const [authError, setAuthError] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
+  // --- System Action Modal State ---
+  const [confirmModal, setConfirmModal] = useState(null); // null | 'restart' | 'shutdown'
 
-  const openAuthModal = (action) => {
-    setAuthModal(action);
-    setAuthUsername('pi');
-    setAuthPassword('');
-    setAuthError('');
-    setShowAuthPassword(false);
+  const openConfirmModal = (action) => {
+    setConfirmModal(action);
   };
 
-  const closeAuthModal = () => {
-    setAuthModal(null);
-    setAuthPassword('');
-    setAuthError('');
+  const closeConfirmModal = () => {
+    setConfirmModal(null);
   };
 
   useEffect(() => {
@@ -245,38 +234,16 @@ export default function Settings() {
     }
   };
 
-  const handleAuthConfirm = async () => {
-    if (!authPassword) { setAuthError('Password is required.'); return; }
-    setAuthLoading(true);
-    setAuthError('');
-    const endpoint = authModal === 'shutdown' ? '/api/system/shutdown' : '/api/system/restart';
-    const successMsg = authModal === 'shutdown' ? 'Shutting down Pi...' : 'System is restarting...';
+  const handleSystemActionConfirm = async () => {
+    const endpoint = confirmModal === 'shutdown' ? '/api/system/shutdown' : '/api/system/restart';
+    const successMsg = confirmModal === 'shutdown' ? 'Shutting down Pi...' : 'System is restarting...';
+    setConfirmModal(null);
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: authUsername, password: authPassword }),
-      });
-      if (res.status === 403) {
-        setAuthError('Invalid credentials. Please try again.');
-        setAuthLoading(false);
-        return;
-      }
-      if (res.status === 503) {
-        setAuthError('PAM auth not available on this system.');
-        setAuthLoading(false);
-        return;
-      }
-      if (!res.ok) {
-        setAuthError('Request failed. Check the server.');
-        setAuthLoading(false);
-        return;
-      }
-      closeAuthModal();
+      await fetch(endpoint, { method: 'POST' });
       showStatus(successMsg);
     } catch (e) {
-      setAuthError('Network error. Could not reach server.');
-      setAuthLoading(false);
+      console.error(e);
+      showStatus('Failed to trigger action.', true);
     }
   };
 
@@ -820,21 +787,21 @@ export default function Settings() {
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
                   <button
-                    onClick={() => openAuthModal('restart')}
+                    onClick={() => openConfirmModal('restart')}
                     className="bg-red-500 text-white font-bold tracking-widest px-4 py-4 flex flex-col items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
                   >
                     <Power className="w-5 h-5" />
                     <span className="text-xs">Restart Sensor</span>
                   </button>
                   <button
-                    onClick={() => openAuthModal('shutdown')}
+                    onClick={() => openConfirmModal('shutdown')}
                     className="bg-red-500 text-white font-bold tracking-widest px-4 py-4 flex flex-col items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
                   >
                     <Power className="w-5 h-5" />
                     <span className="text-xs">Shutdown Pi</span>
                   </button>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-mono text-center mt-4">Both actions require SSH credentials to execute.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-mono text-center mt-4">This will disrupt telemetry until the system reboots.</p>
               </div>
             </div>
           </div>
@@ -842,73 +809,31 @@ export default function Settings() {
 
       </div>
 
-      {/* Unified Auth Modal (Restart / Shutdown) */}
-      {authModal && (
+      {/* Unified Confirm Modal (Restart / Shutdown) */}
+      {confirmModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-800 p-6 max-w-sm w-full shadow-lg border border-slate-100 dark:border-slate-700 rounded-xl">
-            <h3 className={`text-lg font-bold mb-1 uppercase tracking-wide flex items-center ${authModal === 'shutdown' ? 'text-amber-600' : 'text-red-600'}`}>
+            <h3 className={`text-lg font-bold mb-1 uppercase tracking-wide flex items-center ${confirmModal === 'shutdown' ? 'text-amber-600' : 'text-red-600'}`}>
               <Power className="w-5 h-5 mr-2" />
-              {authModal === 'shutdown' ? 'Shutdown Pi' : 'Restart Sensor'}
+              {confirmModal === 'shutdown' ? 'Shutdown Pi' : 'Restart Sensor'}
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mb-5 leading-relaxed">
-              {authModal === 'shutdown'
-                ? 'This will gracefully power off the Raspberry Pi. Enter your system credentials to authorise.'
-                : 'This will reboot the Raspberry Pi. Telemetry will be temporarily unavailable. Enter your system credentials to authorise.'}
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-mono mb-6 leading-relaxed">
+              {confirmModal === 'shutdown'
+                ? 'Are you sure you want to gracefully power off the Raspberry Pi?'
+                : 'Are you sure you want to reboot the Raspberry Pi? Telemetry will be temporarily unavailable.'}
             </p>
-            <div className="space-y-3 mb-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-1">Username</label>
-                <input
-                  type="text"
-                  value={authUsername}
-                  onChange={e => setAuthUsername(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-md px-3 py-2 text-sm font-mono text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary"
-                  placeholder="pi"
-                  autoComplete="username"
-                />
-              </div>
-              <div className="relative">
-                <label className="block text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-1">Password</label>
-                <input
-                  type={showAuthPassword ? 'text' : 'password'}
-                  value={authPassword}
-                  onChange={e => { setAuthPassword(e.target.value); setAuthError(''); }}
-                  onKeyDown={e => e.key === 'Enter' && handleAuthConfirm()}
-                  className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-md px-3 py-2 pr-10 text-sm font-mono text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary"
-                  placeholder="SSH password"
-                  autoComplete="current-password"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowAuthPassword(v => !v)}
-                  className="absolute right-2 top-7 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
-                >
-                  {showAuthPassword ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                </button>
-              </div>
-              {authError && (
-                <p className="text-xs text-red-500 font-bold font-mono">{authError}</p>
-              )}
-            </div>
             <div className="flex space-x-3">
               <button
-                onClick={closeAuthModal}
-                disabled={authLoading}
+                onClick={closeConfirmModal}
                 className="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold uppercase tracking-wider py-2 rounded-lg transition-colors text-sm"
               >
                 Cancel
               </button>
               <button
-                onClick={handleAuthConfirm}
-                disabled={authLoading}
-                className={`flex-1 font-bold uppercase tracking-wider py-2 rounded-lg transition-colors text-sm text-white flex items-center justify-center gap-2 ${authLoading ? 'opacity-60 cursor-not-allowed' : ''} ${authModal === 'shutdown' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-red-600 hover:bg-red-700'}`}
+                onClick={handleSystemActionConfirm}
+                className={`flex-1 font-bold uppercase tracking-wider py-2 rounded-lg transition-colors text-sm text-white flex items-center justify-center gap-2 ${confirmModal === 'shutdown' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-red-600 hover:bg-red-700'}`}
               >
-                {authLoading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Authorising…</>
-                ) : (
-                  authModal === 'shutdown' ? 'Confirm Shutdown' : 'Confirm Restart'
-                )}
+                {confirmModal === 'shutdown' ? 'Confirm Shutdown' : 'Confirm Restart'}
               </button>
             </div>
           </div>
