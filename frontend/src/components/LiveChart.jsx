@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useTheme } from '../ThemeContext';
 import {
   TimeLine,
   timeAxisPlugin,
@@ -78,6 +79,10 @@ const cursorSync = {
 function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
+  const { theme } = useTheme();
+  const themeRef = useRef(theme);
+
+  useEffect(() => { themeRef.current = theme; }, [theme]);
 
   // Build TimeLine instance once
   useEffect(() => {
@@ -94,6 +99,11 @@ function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
       // in their construct() hooks. Setting base padding = 0 lets the plugins
       // control the layout entirely.
       plugins: [
+        {
+          'draw:after': (chart) => {
+            chart.ctx.strokeStyle = themeRef.current === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+          }
+        },
         timeAxisPlugin((x) => {
           try {
             return new Intl.DateTimeFormat('en-US', {
@@ -113,8 +123,8 @@ function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
     });
 
     // Use neutral dark color for axes/border; the data line also uses this
-    chart.foregroundColour = '#374151'; // gray-700 — readable for axes
-    chart.backgroundColour = '#ffffff';
+    chart.foregroundColour = themeRef.current === 'dark' ? '#cbd5e1' : '#374151'; // gray-700 — readable for axes
+    chart.backgroundColour = themeRef.current === 'dark' ? '#1e293b' : '#ffffff';
 
     chartRef.current = chart;
 
@@ -127,6 +137,13 @@ function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
       }
     };
   }, [timeZone, channelName]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (chartRef.current) {
+      chartRef.current.foregroundColour = theme === 'dark' ? '#cbd5e1' : '#374151';
+      chartRef.current.backgroundColour = theme === 'dark' ? '#1e293b' : '#ffffff';
+    }
+  }, [theme]);
 
   // Trigger recompute on tick (TimeLine reads the mutated data array directly)
   useEffect(() => {
@@ -142,14 +159,14 @@ function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-[100px] mb-[2px] bg-white shadow-sm p-1 rounded">
+    <div className="flex flex-col flex-1 min-h-[100px] mb-[2px] bg-white dark:bg-slate-800 shadow-sm p-1 rounded">
       <div className="flex items-center justify-between mb-0 px-1">
-        <span className="font-bold text-gray-500 text-[10px] tracking-widest leading-none">{channelName}</span>
+        <span className="font-bold text-gray-500 dark:text-slate-300 text-[10px] tracking-widest leading-none">{channelName}</span>
         <div className="flex items-center space-x-1.5">
           <span className={`text-sm font-mono font-bold leading-none ${labelColor(channelName)}`}>
             {latestValue !== null ? latestValue.toFixed(4) : '0.0000'}
           </span>
-          <span className="text-[10px] text-gray-400 leading-none">m/s²</span>
+          <span className="text-[10px] text-gray-400 dark:text-slate-400 leading-none">m/s²</span>
         </div>
       </div>
       {/* No overflow-hidden: axis plugins create positioned elements that must not be clipped.
@@ -330,9 +347,9 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
   const statusBadge = () => {
     if (connectionStatus === 'connected') return null;
     const cfg = {
-      connecting: { bg: 'bg-white border-yellow-200 text-yellow-600', label: 'Connecting…' },
-      no_data: { bg: 'bg-white border-orange-200 text-orange-600', label: 'No Data' },
-      disconnected: { bg: 'bg-white border-red-200 text-red-600', label: 'Disconnected — retrying…' },
+      connecting: { bg: 'bg-white dark:bg-slate-800 border-yellow-200 text-yellow-600', label: 'Connecting…' },
+      no_data: { bg: 'bg-white dark:bg-slate-800 border-orange-200 text-orange-600', label: 'No Data' },
+      disconnected: { bg: 'bg-white dark:bg-slate-800 border-red-200 text-red-600', label: 'Disconnected — retrying…' },
     }[connectionStatus];
     if (!cfg) return null;
     return (
@@ -348,7 +365,7 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
       <div className="relative flex-1 min-h-0 flex flex-col pr-1 overflow-y-auto">
         {statusBadge()}
         {channels.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-sm text-gray-400">Waiting for data…</div>
+          <div className="flex items-center justify-center h-full text-sm text-gray-400 dark:text-slate-400">Waiting for data…</div>
         ) : (
           channels.map(ch => (
             <ChannelPlot
@@ -367,7 +384,7 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
       <div className="flex-shrink-0 mt-2 flex items-center gap-2">
         <button
           onClick={togglePause}
-          className="flex items-center space-x-1.5 bg-primary hover:bg-opacity-90 text-white rounded font-bold transition-colors shadow-sm px-2.5 py-1 text-[10px]"
+          className="flex items-center space-x-1.5 bg-slate-500 dark:bg-slate-700 hover:bg-slate-600 dark:hover:bg-slate-600 text-white rounded-md font-bold transition-colors shadow-sm px-2 py-0.5 text-[10px]"
         >
           {isPaused ? (
             <>
@@ -385,7 +402,7 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
         {!isExpanded && (
           <button
             onClick={() => window.open('/expanded', '_blank')}
-            className="flex items-center space-x-1.5 bg-primary hover:bg-opacity-90 text-white rounded font-bold transition-colors shadow-sm px-2.5 py-1 text-[10px]"
+            className="flex items-center space-x-1.5 bg-slate-500 dark:bg-slate-700 hover:bg-slate-600 dark:hover:bg-slate-600 text-white rounded-md font-bold transition-colors shadow-sm px-2 py-0.5 text-[10px]"
           >
             <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
             <span>VIEW EXPANDED</span>

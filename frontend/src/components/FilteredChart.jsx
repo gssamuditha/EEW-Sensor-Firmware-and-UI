@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useTheme } from '../ThemeContext';
 import {
   TimeLine,
   timeAxisPlugin,
@@ -74,6 +75,10 @@ const analysisCursorSync = {
 function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick, timeWindowMs }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
+  const { theme } = useTheme();
+  const themeRef = useRef(theme);
+
+  useEffect(() => { themeRef.current = theme; }, [theme]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -85,6 +90,11 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
       valueAxisLabel: '',
       lineWidth: 1.2,
       plugins: [
+        {
+          'draw:after': (chart) => {
+            chart.ctx.strokeStyle = themeRef.current === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+          }
+        },
         timeAxisPlugin((x) => {
           try {
             return new Intl.DateTimeFormat('en-US', {
@@ -99,8 +109,8 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
         analysisCursorSync.plugin(),
       ],
     });
-    chart.foregroundColour = '#374151';
-    chart.backgroundColour = '#ffffff';
+    chart.foregroundColour = themeRef.current === 'dark' ? '#cbd5e1' : '#374151';
+    chart.backgroundColour = themeRef.current === 'dark' ? '#1e293b' : '#ffffff';
     chartRef.current = chart;
 
     return () => {
@@ -108,6 +118,13 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
       if (containerRef.current) containerRef.current.innerHTML = '';
     };
   }, [timeZone, channelName]); // Note: NOT timeWindowMs — we update it dynamically below
+
+  useEffect(() => {
+    if (chartRef.current) {
+      chartRef.current.foregroundColour = theme === 'dark' ? '#cbd5e1' : '#374151';
+      chartRef.current.backgroundColour = theme === 'dark' ? '#1e293b' : '#ffffff';
+    }
+  }, [theme]);
 
   // Recompute on tick (data was mutated in-place on the same array ref)
   useEffect(() => {
@@ -129,17 +146,17 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-[100px] mb-[2px] bg-white shadow-sm p-1 rounded">
+    <div className="flex flex-col flex-1 min-h-[100px] mb-[2px] bg-white dark:bg-slate-800 shadow-sm p-1 rounded">
       <div className="flex items-center justify-between mb-0 px-1">
         <div className="flex items-center space-x-2">
-          <span className="font-bold text-gray-500 text-[10px] tracking-widest leading-none">{channelName}</span>
-          <span className="text-[9px] text-gray-400 leading-none font-mono">FILTERED</span>
+          <span className="font-bold text-gray-500 dark:text-slate-300 text-[10px] tracking-widest leading-none">{channelName}</span>
+          <span className="text-[9px] text-gray-400 dark:text-slate-400 leading-none font-mono">FILTERED</span>
         </div>
         <div className="flex items-center space-x-1.5">
           <span className={`text-sm font-mono font-bold leading-none ${labelColor(channelName)}`}>
             {latestValue !== null ? latestValue.toFixed(4) : '0.0000'}
           </span>
-          <span className="text-[10px] text-gray-400 leading-none">m/s²</span>
+          <span className="text-[10px] text-gray-400 dark:text-slate-400 leading-none">m/s²</span>
         </div>
       </div>
       <div ref={containerRef} className="w-full flex-1 min-h-0" />
@@ -201,6 +218,7 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
   useEffect(() => {
     const protocol = window.location.protocol;
     const host = window.location.host;
+    const controller = new AbortController();
 
     setLoading(true);
     isFetchingRef.current = true;
@@ -208,7 +226,9 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
     // Clear the WS buffer at the start of a new fetch
     CHANNELS.forEach(ch => { wsBufferRef.current[ch].length = 0; });
 
-    fetch(`${protocol}//${host}/api/analysis/window?start=${startEpoch}&end=${endEpoch}`)
+    fetch(`${protocol}//${host}/api/analysis/window?start=${startEpoch}&end=${endEpoch}`, {
+      signal: controller.signal
+    })
       .then(r => r.json())
       .then(data => {
         if (!data.timestamps || data.timestamps.length === 0) {
@@ -258,10 +278,13 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
         setTick(t => t + 1);
       })
       .catch(err => {
+        if (err.name === 'AbortError') return;
         console.error('Failed to load analysis window:', err);
         isFetchingRef.current = false;
         setLoading(false);
       });
+
+    return () => controller.abort();
   }, [startEpoch, endEpoch, filterVersion]);
 
   // -----------------------------------------------------------------------
@@ -373,16 +396,16 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
   const statusBadge = () => {
     if (loading) {
       return (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded border text-[10px] font-bold shadow-sm bg-white border-blue-200 text-blue-600">
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded border text-[10px] font-bold shadow-sm bg-white dark:bg-slate-800 border-blue-200 text-blue-600">
           Loading filtered data…
         </div>
       );
     }
     if (connectionStatus === 'connected' || connectionStatus === 'historical') return null;
     const cfg = {
-      connecting: { bg: 'bg-white border-yellow-200 text-yellow-600', label: 'Connecting…' },
-      no_data: { bg: 'bg-white border-orange-200 text-orange-600', label: 'No Data' },
-      disconnected: { bg: 'bg-white border-red-200 text-red-600', label: 'Disconnected — retrying…' },
+      connecting: { bg: 'bg-white dark:bg-slate-800 border-yellow-200 text-yellow-600', label: 'Connecting…' },
+      no_data: { bg: 'bg-white dark:bg-slate-800 border-orange-200 text-orange-600', label: 'No Data' },
+      disconnected: { bg: 'bg-white dark:bg-slate-800 border-red-200 text-red-600', label: 'Disconnected — retrying…' },
     }[connectionStatus];
     if (!cfg) return null;
     return (
@@ -413,7 +436,7 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
       <div className="flex-shrink-0 mt-2 flex items-center gap-2">
         <button
           onClick={() => setIsPaused(!isPaused)}
-          className="flex items-center space-x-1.5 bg-primary hover:bg-opacity-90 text-white rounded font-bold transition-colors shadow-sm px-2.5 py-1 text-[10px]"
+          className="flex items-center space-x-1.5 bg-slate-500 dark:bg-slate-700 hover:bg-slate-600 dark:hover:bg-slate-600 text-white rounded-md font-bold transition-colors shadow-sm px-2 py-0.5 text-[10px]"
         >
           {isPaused ? (
             <>

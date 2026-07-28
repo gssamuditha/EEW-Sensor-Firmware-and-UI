@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import FilteredChart from '../components/FilteredChart';
 import { useTimeZone } from '../TimeZoneContext';
 
 // Quick-select durations (minutes)
 const QUICK_OPTIONS = [
-  { label: '5 min',  value: 5 },
+  { label: '5 min', value: 5 },
   { label: '15 min', value: 15 },
   { label: '30 min', value: 30 },
   { label: '1 hour', value: 60 },
@@ -60,6 +61,9 @@ export default function Analysis() {
   // --- Data availability ---
   const [availability, setAvailability] = useState(null);
 
+  // --- UI state ---
+  const [isControlsExpanded, setIsControlsExpanded] = useState(true);
+
   // Fetch filter, presets, and availability on mount
   useEffect(() => {
     const base = `${window.location.protocol}//${window.location.host}`;
@@ -77,12 +81,12 @@ export default function Analysis() {
     fetch(`${base}/api/analysis/presets`)
       .then(r => r.json())
       .then(data => setPresets(data.presets || {}))
-      .catch(() => {});
+      .catch(() => { });
 
     fetch(`${base}/api/analysis/availability`)
       .then(r => r.json())
       .then(data => setAvailability(data))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // When switching to live mode, snap the end time to now.
@@ -90,7 +94,7 @@ export default function Analysis() {
   // historical data re-fetches every tick. FilteredChart handles the live tail.
   useEffect(() => {
     if (!isLive) return;
-    setEndEpoch(floorMinute(nowEpoch()));
+    setEndEpoch(nowEpoch());
   }, [isLive]);
 
   // Duration in minutes
@@ -167,7 +171,7 @@ export default function Analysis() {
 
   // Quick select: set start = now - minutes, end = now, go live
   const quickSelect = useCallback((minutes) => {
-    const now = floorMinute(nowEpoch());
+    const now = nowEpoch();
     setStartEpoch(now - minutes * 60);
     setEndEpoch(now);
     setIsLive(true);
@@ -194,7 +198,7 @@ export default function Analysis() {
   const toggleLive = () => {
     if (!isLive) {
       // Switch to live: set end to now
-      const now = floorMinute(nowEpoch());
+      const now = nowEpoch();
       setEndEpoch(now);
       // Adjust start if window too large
       if (now - startEpoch > 3600) {
@@ -237,218 +241,135 @@ export default function Analysis() {
   }, [lowHz, highHz, presets]);
 
   return (
-    <div className="p-6 h-full flex flex-col bg-gray-50 overflow-hidden">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-4 flex-shrink-0">
-        <div className="flex items-center space-x-3">
-          <h2 className="text-xl font-bold text-primary tracking-wide">SIGNAL ANALYSIS</h2>
-          {activeFilter && filterStatus === 'active' && (
-            <div className="px-3 py-1 bg-white text-gray-600 text-xs font-bold rounded border border-gray-200 shadow-sm flex items-center space-x-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-              <span>BANDPASS {activeFilter.low_hz}–{activeFilter.high_hz} Hz</span>
+    <div className="p-3 md:p-6 h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-y-auto lg:overflow-hidden">
+      {/* Header & Controls */}
+      <div className="flex flex-col xl:flex-row xl:justify-between items-start w-full gap-4 mb-4 flex-shrink-0">
+        {/* Left Column (Title + Filter Presets) */}
+        <div className="flex flex-col gap-2">
+          {/* Top: Title & Badge */}
+          <div className="flex flex-row items-center gap-3">
+            <h2 className="text-2xl font-bold text-primary dark:text-sky-400 tracking-wide">Signal Analysis</h2>
+            {activeFilter && filterStatus === 'active' && (
+              <div className="px-2 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 text-[10px] font-bold rounded-md border border-slate-100 dark:border-slate-700 shadow-sm flex items-center space-x-1.5">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                <span>BANDPASS {activeFilter.low_hz}–{activeFilter.high_hz} Hz</span>
+              </div>
+            )}
+            {filterStatus === 'updating' && (
+              <div className="px-2 py-1 bg-white dark:bg-slate-800 text-yellow-600 text-[10px] font-bold rounded border border-yellow-200 shadow-sm">
+                Updating filter…
+              </div>
+            )}
+          </div>
+
+          {/* Bottom: Presets */}
+          {Object.keys(presets).length > 0 && (
+            <div className="flex flex-col">
+              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-0.5">Presets</label>
+              <div className="flex flex-row items-center gap-1.5">
+                {Object.entries(presets).map(([key, preset]) => (
+                  <button
+                    key={key}
+                    onClick={() => applyPreset(key)}
+                    className={`h-7 px-3 rounded-md text-[9px] font-bold shadow-sm border transition-all ${activePreset === key ? 'bg-primary dark:bg-sky-600 text-white border-primary dark:border-slate-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                      }`}
+                  >
+                    {preset.label.split(' ')[0]}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
-          {filterStatus === 'updating' && (
-            <div className="px-3 py-1 bg-white text-yellow-600 text-xs font-bold rounded border border-yellow-200 shadow-sm">
-              Updating filter…
+        </div>
+
+        {/* Right Column (Stacked Boxes) */}
+        <div className="flex flex-col items-end gap-2">
+          {/* Top Box: Time Settings */}
+          <div className="flex flex-row items-end gap-2 flex-wrap">
+            <div className="flex flex-col">
+              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Start</label>
+              <input
+                type="datetime-local"
+                value={epochToLocal(startEpoch, timeZone)}
+                onChange={handleStartChange}
+                min={minDatetime}
+                max={maxDatetime}
+                className="h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300"
+              />
+            </div>
+            <span className="text-slate-300 font-bold text-[10px] pb-1.5">→</span>
+            <div className="flex flex-col">
+              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">End</label>
+              <input
+                type="datetime-local"
+                value={epochToLocal(endEpoch, timeZone)}
+                onChange={handleEndChange}
+                min={minDatetime}
+                max={maxDatetime}
+                disabled={isLive}
+                className={`h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300 ${isLive ? 'opacity-50 cursor-not-allowed' : ''}`}
+              />
+            </div>
+            <button
+              onClick={toggleLive}
+              className={`h-7 px-2.5 rounded-md text-[9px] font-bold tracking-wider shadow-sm border ${isLive ? 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:text-emerald-600'
+                }`}
+            >
+              {isLive ? '● LIVE' : 'NOW'}
+            </button>
+            <div className={`h-7 flex items-center px-2 rounded-md text-[9px] font-bold font-mono border ${durationError ? 'bg-red-50 text-red-500 border-red-200' : 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700/50'
+              }`}>
+              {durationStr}
+            </div>
+            {QUICK_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => quickSelect(opt.value)}
+                className="h-7 px-2 rounded-md text-[9px] font-bold text-slate-500 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 shadow-sm transition-colors"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Bottom Box: Frequency Sliders + Apply Button */}
+          <div className="flex flex-row items-end gap-3 w-full xl:justify-between flex-wrap">
+            <div className="flex flex-col flex-1">
+              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Low (Hz)</label>
+              <div className="flex items-center space-x-1.5 w-full">
+                <input type="range" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
+                <input type="number" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
+              </div>
+            </div>
+            <div className="flex flex-col flex-1">
+              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">High (Hz)</label>
+              <div className="flex items-center space-x-1.5 w-full">
+                <input type="range" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
+                <input type="number" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value) || 0.5); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
+              </div>
+            </div>
+            <button
+              onClick={applyFilter}
+              className="h-7 bg-primary dark:bg-sky-600 hover:bg-opacity-90 text-white rounded-md font-bold transition-all shadow-md px-4 text-[9px] tracking-wider shrink-0"
+            >
+              APPLY FILTER
+            </button>
+          </div>
+
+          {(errorMsg || durationError) && (
+            <div className="text-[9px] text-red-500 font-bold w-full text-right mt-[-4px]">
+              {errorMsg} {durationError}
             </div>
           )}
         </div>
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col gap-3">
-        {/* Controls Row */}
-        <div className="bg-white border border-gray-200 p-4 shadow-sm flex-shrink-0">
-          <div className="flex flex-col gap-4">
-
-            {/* Row 1: Time Range */}
-            <div>
-              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Time Range</div>
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Start time */}
-                <div className="flex flex-col">
-                  <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">Start</label>
-                  <input
-                    type="datetime-local"
-                    id="analysis-start-time"
-                    value={epochToLocal(startEpoch, timeZone)}
-                    onChange={handleStartChange}
-                    min={minDatetime}
-                    max={maxDatetime}
-                    className="border border-gray-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-primary bg-white shadow-sm"
-                  />
-                </div>
-
-                <span className="text-gray-300 font-bold text-xs mt-3">→</span>
-
-                {/* End time */}
-                <div className="flex flex-col">
-                  <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">End</label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="datetime-local"
-                      id="analysis-end-time"
-                      value={epochToLocal(endEpoch, timeZone)}
-                      onChange={handleEndChange}
-                      min={minDatetime}
-                      max={maxDatetime}
-                      disabled={isLive}
-                      className={`border border-gray-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-primary bg-white shadow-sm ${isLive ? 'opacity-50' : ''}`}
-                    />
-                    <button
-                      id="analysis-live-toggle"
-                      onClick={toggleLive}
-                      className={`px-2.5 py-1 rounded text-[10px] font-bold tracking-wider transition-colors shadow-sm border ${
-                        isLive
-                          ? 'bg-green-500 text-white border-green-500'
-                          : 'bg-white text-gray-500 border-gray-300 hover:border-green-400 hover:text-green-600'
-                      }`}
-                    >
-                      {isLive ? '● LIVE' : 'NOW'}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Duration badge */}
-                <div className={`px-2.5 py-1 rounded text-[10px] font-bold font-mono mt-3 border ${
-                  durationError
-                    ? 'bg-red-50 text-red-500 border-red-200'
-                    : 'bg-gray-50 text-gray-500 border-gray-200'
-                }`}>
-                  {durationStr}
-                </div>
-
-                {/* Quick select buttons */}
-                <div className="flex items-center gap-1 mt-3">
-                  {QUICK_OPTIONS.map(opt => (
-                    <button
-                      key={opt.value}
-                      onClick={() => quickSelect(opt.value)}
-                      className="px-2 py-1 rounded text-[10px] font-bold text-gray-500 bg-gray-100 hover:bg-primary hover:text-white transition-colors border border-gray-200 hover:border-primary"
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {durationError && (
-                <div className="mt-1 text-[10px] text-red-500 font-bold">{durationError}</div>
-              )}
-            </div>
-
-            {/* Divider */}
-            <div className="border-t border-gray-100"></div>
-
-            {/* Row 2: Bandpass Filter */}
-            <div>
-              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Bandpass Filter</div>
-              <div className="flex flex-wrap items-end gap-4">
-                {/* Presets */}
-                {Object.keys(presets).length > 0 && (
-                  <div className="flex flex-col">
-                    <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">Presets</label>
-                    <div className="flex items-center gap-1">
-                      {Object.entries(presets).map(([key, preset]) => (
-                        <button
-                          key={key}
-                          onClick={() => applyPreset(key)}
-                          title={`${preset.low_hz}–${preset.high_hz} Hz`}
-                          className={`px-2 py-1 rounded text-[10px] font-bold transition-colors border ${
-                            activePreset === key
-                              ? 'bg-primary text-white border-primary'
-                              : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-primary hover:text-primary'
-                          }`}
-                        >
-                          {preset.label.split(' ')[0]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Low Frequency */}
-                <div className="flex flex-col">
-                  <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">Low Cutoff (Hz)</label>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="range"
-                      id="analysis-low-hz-slider"
-                      min="0.01"
-                      max="10"
-                      step="0.01"
-                      value={lowHz}
-                      onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }}
-                      className="w-28 accent-primary"
-                    />
-                    <input
-                      type="number"
-                      id="analysis-low-hz-input"
-                      min="0.01"
-                      max="10"
-                      step="0.01"
-                      value={lowHz}
-                      onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }}
-                      className="w-16 border border-gray-300 rounded px-2 py-1 text-xs font-mono text-center focus:outline-none focus:border-primary"
-                    />
-                  </div>
-                </div>
-
-                {/* High Frequency */}
-                <div className="flex flex-col">
-                  <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">High Cutoff (Hz)</label>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="range"
-                      id="analysis-high-hz-slider"
-                      min="0.5"
-                      max="50"
-                      step="0.5"
-                      value={highHz}
-                      onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }}
-                      className="w-28 accent-primary"
-                    />
-                    <input
-                      type="number"
-                      id="analysis-high-hz-input"
-                      min="0.5"
-                      max="50"
-                      step="0.5"
-                      value={highHz}
-                      onChange={e => { setHighHz(parseFloat(e.target.value) || 0.5); setActivePreset(null); }}
-                      className="w-16 border border-gray-300 rounded px-2 py-1 text-xs font-mono text-center focus:outline-none focus:border-primary"
-                    />
-                  </div>
-                </div>
-
-                {/* Apply Button */}
-                <button
-                  id="analysis-apply-filter"
-                  onClick={applyFilter}
-                  className="bg-primary hover:bg-opacity-90 text-white rounded font-bold transition-colors shadow-sm px-4 py-1.5 text-xs tracking-wider"
-                >
-                  APPLY FILTER
-                </button>
-
-                {/* Filter info */}
-                {activeFilter && (
-                  <div className="text-[10px] text-gray-400 font-mono ml-auto self-center">
-                    Order: {activeFilter.order} · Fs: {activeFilter.fs} Hz · Zero-Phase Butterworth
-                  </div>
-                )}
-              </div>
-
-              {/* Error message */}
-              {errorMsg && (
-                <div className="mt-2 text-xs text-red-500 font-bold">{errorMsg}</div>
-              )}
-            </div>
-          </div>
-        </div>
 
         {/* Filtered Waveform Charts */}
-        <div className="flex-1 min-h-0 bg-white border border-gray-200 p-4 shadow-sm flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-4 shadow-md flex flex-col overflow-hidden">
           {durationError ? (
-            <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+            <div className="flex-1 flex items-center justify-center text-slate-400 dark:text-slate-400 text-sm">
               {durationError}. Adjust the time range above.
             </div>
           ) : (

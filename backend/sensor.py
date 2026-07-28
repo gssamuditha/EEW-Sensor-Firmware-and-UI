@@ -6,19 +6,26 @@ import random
 import sys
 import json
 
-from database import insert_batch, get_data_for_range, get_data_availability
+from database import insert_batch, get_data_for_range
 from filters import BandpassFilter, minmax_downsample, FILTER_PRESETS
 import numpy as np
+from mseed_writer import mseed_writer
 
-def process_historical_data_task(start_time: float, end_time: float, low_hz: float, high_hz: float, target_display_points: int = 4000) -> dict:
+def process_historical_data_task(start_time: float, end_time: float, low_hz: float, high_hz: float, target_display_points: int = 4000, settings_snapshot: dict = None) -> dict:
     """
-    Top-level standalone function to query DB and apply DSP.
+    Top-level standalone function to query miniSEED and apply DSP.
     Designed to run in a separate ProcessPoolExecutor to avoid blocking the GIL.
     """
+    import numpy as np
+    from mseed_writer import read_waveform_range
+    from filters import BandpassFilter, minmax_downsample
+    
     window_seconds = end_time - start_time
-    rows = get_data_for_range(start_time, end_time)
-
-    if not rows:
+    
+    # ObsPy returns a Stream object with Traces
+    st = read_waveform_range(start_time, end_time, settings=settings_snapshot)
+    
+    if not st or len(st) == 0:
         return {
             "timestamps": [],
             "samples": {ch: [] for ch in CHANNEL_NAMES},
@@ -26,13 +33,43 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
             "window_seconds": window_seconds,
         }
 
-    arr = np.array(rows, dtype=np.float64)
-    timestamps = arr[:, 0]
-    raw = {'ENZ': arr[:, 1], 'ENN': arr[:, 2], 'ENE': arr[:, 3]}
+    raw = {}
+    timestamps = None
     
-    del rows
-    del arr
-    
+    # For each expected channel, extract data, detrend, and scale
+    for ch in CHANNEL_NAMES:
+        # channel codes in miniSEED are usually 3 chars (e.g. ENZ)
+        tr = st.select(channel=ch)
+        if len(tr) > 0:
+            # Merge in case there are gaps
+            tr.merge(method=1, fill_value='interpolate')
+            t_obj = tr[0]
+            
+            # Extract raw counts and timestamps
+            counts = t_obj.data.astype(np.float64)
+            # Ensure timestamps aligns with the longest trace
+            if timestamps is None or len(t_obj.times('timestamp')) > len(timestamps):
+                timestamps = t_obj.times('timestamp')
+                
+            # Detrend (remove mean) to bypass need for exact RAW_COUNTS_ZERO at boot
+            if len(counts) > 0:
+                counts = counts - np.mean(counts)
+                
+            # Scale to m/s²
+            ms2 = counts * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
+            raw[ch] = ms2
+        else:
+            raw[ch] = np.array([])
+            
+    # If no data found, return empty
+    if timestamps is None or len(timestamps) == 0:
+        return {
+            "timestamps": [],
+            "samples": {ch: [] for ch in CHANNEL_NAMES},
+            "sps": 100,
+            "window_seconds": window_seconds,
+        }
+
     filtered = {}
     for ch in CHANNEL_NAMES:
         if len(raw[ch]) < 13:
@@ -42,17 +79,25 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
             filtered[ch] = filt.apply_zerophase(raw[ch])
 
     result_samples = {}
+    out_t = []
     for ch in CHANNEL_NAMES:
-        ds_t, ds_v = minmax_downsample(timestamps, filtered[ch], target_display_points)
-        result_samples[ch] = ds_v.tolist()
+        if len(filtered[ch]) > 0:
+            # slice arrays to match shortest length just in case they differ by 1 sample
+            min_len = min(len(timestamps), len(filtered[ch]))
+            ds_t, ds_v = minmax_downsample(timestamps[:min_len], filtered[ch][:min_len], target_display_points)
+            result_samples[ch] = ds_v.tolist()
+            if len(out_t) == 0:
+                out_t = ds_t.tolist()
+        else:
+            result_samples[ch] = []
 
     return {
-        "timestamps": ds_t.tolist(),
+        "timestamps": out_t,
         "samples": result_samples,
         "sps": 100,
         "window_seconds": window_seconds,
         "raw_sample_count": len(timestamps),
-        "display_points": len(ds_t.tolist()),
+        "display_points": len(out_t),
     }
 
 # === ADC Config ===
@@ -425,11 +470,14 @@ class SensorManager:
                     
                     record = (t, z_ms2, x_ms2, y_ms2)
                     
-                    # 1. Background DB writer queueing (non-blocking, exactly 100 SPS)
+                    # 1. Background DB writer queueing (2h ring buffer for analysis)
                     buffer.append(record)
                     if len(buffer) >= 50:
                         insert_batch(buffer)
                         buffer = []
+                        
+                    # 1.5 MiniSEED Writer (permanent archive, raw int32 counts)
+                    mseed_writer.enqueue(t, int(round(z_f)), int(round(x_f)), int(round(y_f)))
                     
                     # 2. Push to analytics thread (non-blocking)
                     if not self._analytics_queue.full():
@@ -506,6 +554,7 @@ class SensorManager:
         if len(buffer) > 0:
             insert_batch(buffer)
             buffer = []
+        mseed_writer.flush()
 
     def _safe_put(self, q, msg):
         try:

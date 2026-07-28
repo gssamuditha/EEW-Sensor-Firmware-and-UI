@@ -8,3 +8,4 @@ psutil
 scipy
 numpy
 obspy
+pamela

@@ -7,7 +7,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: "#1A365D", // Deep Navy Blue
+        primary: "#1292dcff", // Lighter Navy/Royal Blue (blue-700)
         background: "#FFFFFF", // Pure White
       },
       fontFamily: {
