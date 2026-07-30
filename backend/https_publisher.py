@@ -70,7 +70,7 @@ logger = logging.getLogger(__name__)
 # ZeroTier example:  "http://172.24.0.1:8080"
 # HTTPS example:     "https://172.24.0.1:8443"
 # Leave as None to disable publishing entirely (safe for development).
-CENTRAL_SERVER_URL: str | None = None   # TODO: set before deployment
+CENTRAL_SERVER_URL: str | None = "http://127.0.0.1:8080"   # TODO: set before deployment
 
 # No API key — authentication is handled by the ZeroTier controller.
 # Only nodes explicitly authorised in the ZeroTier network can reach this server.
@@ -282,12 +282,9 @@ class HttpsPublisher:
         Metrics:
           cpu_temp_c        — SoC temperature (°C), None on non-Pi platforms
           cpu_percent       — CPU utilisation (0–100), non-blocking snapshot
-          disk_total_bytes  — root filesystem total capacity in bytes
-          disk_used_bytes   — root filesystem used bytes
           disk_percent      — root filesystem usage percentage
           uptime_sec        — seconds since last boot
           avg_sps           — rolling average sensor samples/sec
-          hardware_sps      — current hardware samples/sec
         """
         with self._settings_lock:
             device_id = self._device_id
@@ -301,12 +298,9 @@ class HttpsPublisher:
             "ts":               time.time(),
             "cpu_temp_c":       _read_cpu_temp(),
             "cpu_percent":      psutil.cpu_percent(interval=None),
-            "disk_total_bytes": disk.total,
-            "disk_used_bytes":  disk.used,
             "disk_percent":     round(disk.percent, 1),
             "uptime_sec":       uptime_sec,
             "avg_sps":          sm.avg_sps if sm else None,
-            "hardware_sps":     sm.hardware_sps if sm else None,
         }
 
     def _send_startup_metadata(self) -> None:
