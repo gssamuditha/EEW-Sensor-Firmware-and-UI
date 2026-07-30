@@ -347,17 +347,20 @@ def api_set_settings(settings: SettingsModel):
 
     # Refresh device_id cache and push updated metadata to the central server
     https_publisher.refresh_settings()
+    
+    # Fetch the definitively saved settings from the database
+    updated_s = get_settings()
     https_publisher.send_metadata({
-        "device_id":    settings.device_id or get_settings().get("device_id", "T0021"),
+        "device_id":    updated_s.get("device_id", "T0021"),
         "ts":           time.time(),
-        "device_name":  settings.device_name or "",
-        "owner_name":   settings.owner_name or "",
-        "owner_email":  settings.owner_email or "",
-        "latitude":     settings.latitude,
-        "longitude":    settings.longitude,
-        "elevation_m":  settings.elevation if settings.elevation is not None else 0.0,
-        "floor":        settings.floor_unit if settings.floor_unit is not None else 0,
-        "total_floors": settings.total_floors if settings.total_floors is not None else 1,
+        "device_name":  updated_s.get("device_name", "CRISIS-NODE-01"),
+        "owner_name":   updated_s.get("owner_name", ""),
+        "owner_email":  updated_s.get("owner_email", ""),
+        "latitude":     float(updated_s.get("latitude", 0.0)),
+        "longitude":    float(updated_s.get("longitude", 0.0)),
+        "elevation_m":  float(updated_s.get("elevation", 0.0)),
+        "floor":        int(updated_s.get("floor_unit", 0)),
+        "total_floors": int(updated_s.get("total_floors", 1)),
     })
 
     return {"status": "ok"}
