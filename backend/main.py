@@ -19,6 +19,7 @@ from database import init_db, cleanup_old_data, get_settings, update_settings, s
 from mseed_writer import mseed_writer
 from filters import FILTER_PRESETS
 from sensor import sensor_manager, process_historical_data_task, CHANNEL_NAMES
+from https_publisher import https_publisher
 from concurrent.futures import ProcessPoolExecutor
 
 # Use a ProcessPool to run heavy numpy/scipy operations entirely out-of-process, bypassing the GIL.
@@ -33,6 +34,9 @@ async def lifespan(app: FastAPI):
     # (RealSensor.init_sensor sleeps ~11s, calibrate sleeps ~100s)
     loop = asyncio.get_running_loop()
     await asyncio.to_thread(sensor_manager.start, loop)
+    
+    # Start HTTPS telemetry / metadata publisher (non-blocking daemon thread)
+    https_publisher.start(sensor_manager)
     
     # Background task for cleanup
     async def cleanup_task():
@@ -50,6 +54,7 @@ async def lifespan(app: FastAPI):
     sensor_manager.stop()
     stop_db_writer()
     mseed_writer.stop()
+    https_publisher.stop()
     task.cancel()
     retention_task.cancel()
     process_pool.shutdown(wait=False)
@@ -339,6 +344,22 @@ def api_set_settings(settings: SettingsModel):
         settings_dict["retention_days"] = settings.retention_days
         
     update_settings(settings_dict)
+
+    # Refresh device_id cache and push updated metadata to the central server
+    https_publisher.refresh_settings()
+    https_publisher.send_metadata({
+        "device_id":    settings.device_id or get_settings().get("device_id", "T0021"),
+        "ts":           time.time(),
+        "device_name":  settings.device_name or "",
+        "owner_name":   settings.owner_name or "",
+        "owner_email":  settings.owner_email or "",
+        "latitude":     settings.latitude,
+        "longitude":    settings.longitude,
+        "elevation_m":  settings.elevation if settings.elevation is not None else 0.0,
+        "floor":        settings.floor_unit if settings.floor_unit is not None else 0,
+        "total_floors": settings.total_floors if settings.total_floors is not None else 1,
+    })
+
     return {"status": "ok"}
 
 # ---------------------------------------------------------------------------
