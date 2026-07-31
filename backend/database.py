@@ -126,10 +126,9 @@ def init_db():
                     'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)',
                     (key, value)
                 )
-            
-            # Force update archive_root to ensure it matches the new path,
-            # as the old /opt/data path may still be cached in the DB from previous runs.
-            c.execute("UPDATE settings SET value = ? WHERE key = 'archive_root'", (_SETTINGS_DEFAULTS['archive_root'],))
+            # NOTE: All settings use INSERT OR IGNORE so that user-configured values
+            # (e.g. archive_root, device_id) are never overwritten by code defaults
+            # on service restart or after an OTA update.
 
             # ----------------------------------------------------------------
             # event_log — anomaly event metadata
