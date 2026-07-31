@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
-from database import init_db, cleanup_old_data, get_settings, update_settings, stop_db_writer
+from database import init_db, get_settings, update_settings
 from mseed_writer import mseed_writer
 from filters import FILTER_PRESETS
 from sensor import sensor_manager, process_historical_data_task, CHANNEL_NAMES
@@ -38,24 +38,14 @@ async def lifespan(app: FastAPI):
     # Start HTTPS telemetry / metadata publisher (non-blocking daemon thread)
     https_publisher.start(sensor_manager)
     
-    # Background task for cleanup
-    async def cleanup_task():
-        while True:
-            await asyncio.sleep(3600)  # Every hour
-            cleanup_old_data()
-            
-    task = asyncio.create_task(cleanup_task())
-    
     # Background task for miniSEED retention
     from retention import run_retention_task
     retention_task = asyncio.create_task(run_retention_task(3600))
     
     yield
     sensor_manager.stop()
-    stop_db_writer()
     mseed_writer.stop()
     https_publisher.stop()
-    task.cancel()
     retention_task.cancel()
     process_pool.shutdown(wait=False)
 

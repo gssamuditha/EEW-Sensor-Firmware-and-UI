@@ -283,6 +283,12 @@ SQL
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('targets', '$SAVED_TARGETS');" 2>/dev/null
     fi
     log "  Settings restored."
+
+    # Migration: drop the legacy sensor_data ring buffer table.
+    # Waveform data now lives exclusively in the miniSEED SDS archive.
+    # This immediately reclaims the disk space that caused the 9 GB bloat.
+    sqlite3 "$DB_PATH" "DROP TABLE IF EXISTS sensor_data;" 2>/dev/null
+    log "  Dropped legacy sensor_data ring buffer (miniSEED archive is now the sole store)."
 else
     log "  sqlite3 not available — settings will be preserved by INSERT OR IGNORE on next start."
 fi

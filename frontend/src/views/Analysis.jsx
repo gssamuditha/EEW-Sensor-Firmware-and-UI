@@ -208,11 +208,12 @@ export default function Analysis() {
     setIsLive(!isLive);
   };
 
-  // Min datetime for the picker (24 hours ago or earliest data)
+  // Min datetime for the picker — use the archive's actual earliest timestamp.
+  // Falls back to 7 days ago if archive availability is not yet loaded.
   const minDatetime = useMemo(() => {
-    const twentyFourHoursAgo = nowEpoch() - 86400;
-    const earliest = availability?.earliest || twentyFourHoursAgo;
-    return epochToLocal(Math.max(earliest, twentyFourHoursAgo), timeZone);
+    const sevenDaysAgo = nowEpoch() - 7 * 86400;
+    const earliest = availability?.earliest || sevenDaysAgo;
+    return epochToLocal(earliest, timeZone);
   }, [availability, timeZone]);
 
   const maxDatetime = useMemo(() => {
@@ -368,6 +369,14 @@ export default function Analysis() {
 
         {/* Filtered Waveform Charts */}
         <div className="flex-1 min-h-0 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-4 shadow-md flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between mb-2 flex-shrink-0">
+            <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Acceleration · miniSEED Archive</span>
+            {availability?.earliest && (
+              <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">
+                Archive from {new Date(availability.earliest * 1000).toLocaleDateString()}
+              </span>
+            )}
+          </div>
           {durationError ? (
             <div className="flex-1 flex items-center justify-center text-slate-400 dark:text-slate-400 text-sm">
               {durationError}. Adjust the time range above.

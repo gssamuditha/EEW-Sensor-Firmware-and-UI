@@ -103,7 +103,12 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
             }).format(new Date(x));
           } catch { return ''; }
         }),
-        valueAxisPlugin((v) => v.toFixed(4)),
+        valueAxisPlugin((v) => {
+          const abs = Math.abs(v);
+          if (abs === 0) return '0';
+          if (abs >= 0.001) return v.toFixed(4);
+          return v.toExponential(2);
+        }),
         pointerCrosshairPlugin(),
         highlightNearestPointPlugin(),
         analysisCursorSync.plugin(),
@@ -150,11 +155,13 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
       <div className="flex items-center justify-between mb-0 px-1">
         <div className="flex items-center space-x-2">
           <span className="font-bold text-gray-500 dark:text-slate-300 text-[10px] tracking-widest leading-none">{channelName}</span>
-          <span className="text-[9px] text-gray-400 dark:text-slate-400 leading-none font-mono">FILTERED</span>
+          <span className="text-[9px] text-gray-400 dark:text-slate-400 leading-none font-mono">FILTERED · m/s²</span>
         </div>
         <div className="flex items-center space-x-1.5">
           <span className={`text-sm font-mono font-bold leading-none ${labelColor(channelName)}`}>
-            {latestValue !== null ? latestValue.toFixed(4) : '0.0000'}
+            {latestValue !== null && latestValue !== 0
+              ? (Math.abs(latestValue) >= 0.001 ? latestValue.toFixed(4) : latestValue.toExponential(3))
+              : '0.000'}
           </span>
           <span className="text-[10px] text-gray-400 dark:text-slate-400 leading-none">m/s²</span>
         </div>

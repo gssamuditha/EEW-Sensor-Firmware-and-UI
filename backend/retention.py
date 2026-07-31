@@ -117,11 +117,10 @@ def delete_old_mseed_files(archive_root: str, retention_days: int) -> dict:
 async def run_retention_task(interval_seconds: int = 3600):
     """
     Async wrapper for use as a FastAPI lifespan background task.
-    Runs delete_old_mseed_files() every interval_seconds.
+    Runs delete_old_mseed_files() immediately on startup, then every interval_seconds.
     """
     import asyncio
     while True:
-        await asyncio.sleep(interval_seconds)
         try:
             from database import get_settings
             s = get_settings()
@@ -131,3 +130,5 @@ async def run_retention_task(interval_seconds: int = 3600):
             root, retention_days = '/home/crisislab/data/archive', 7
 
         await asyncio.to_thread(delete_old_mseed_files, root, retention_days)
+        await asyncio.sleep(interval_seconds)
+
