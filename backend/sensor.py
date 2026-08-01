@@ -344,15 +344,8 @@ class SensorManager:
         self._cached_data_forwarding = True
         self._filter_lock = threading.Lock()
 
-        # --- Industrial-Grade Timing State ---
-        # The hw_loop never calls time.time() per sample. Instead, it takes one
-        # NTP-anchored reference timestamp (_time_anchor) and derives every
-        # sample's timestamp mathematically: t = anchor + counter / sample_rate.
-        # _anchor_lock protects atomic read/write of both anchor and counter.
-        self._time_anchor    = None   # float epoch — set at hw_loop start
-        self._sample_counter = 0      # samples elapsed since anchor
-        self._anchor_lock    = threading.Lock()
-        self._last_reanchor  = 0.0    # monotonic time of last anchor update
+        # Timing state is managed entirely inside _hw_loop using the Software PLL
+        # approach (time.time() + chrony discipline). No shared state needed here.
         
     def start(self, loop=None):
         if self.running:
@@ -426,134 +419,134 @@ class SensorManager:
         """
         Strictly prioritized hardware loop for 100 SPS SPI reading and UDP sending.
 
-        TIMING ARCHITECTURE:
-        --------------------
-        Industrial seismographs (Raspberry Shake, Nanometrics) never call time.time()
-        per sample. Instead they maintain a monotonic sample counter disciplined to a
-        stable time source (GPS PPS or NTP). We implement the same pattern:
+        TIMING ARCHITECTURE — Software PLL via chrony-disciplined UTC clock
+        -------------------------------------------------------------------
+        The loop schedules each iteration against time.time() (POSIX CLOCK_REALTIME).
+        On Raspberry Pi, the Linux kernel's chrony daemon continuously disciplines
+        CLOCK_REALTIME to NTP via *slewing* (adjusting the clock rate by ±500 ppm),
+        never by jumping.  This means time.time() IS the Software PLL output.
 
-          1. At startup, take the initial NTP-anchored timestamp (_time_anchor).
-          2. Every decimated sample's timestamp = anchor + counter / DECIMATED_RATE.
-          3. Every RE_ANCHOR_INTERVAL seconds, atomically resync to NTP by sampling
-             time.time() NTP_SAMPLES times and taking the median to reduce scheduler
-             jitter, then reset counter = 0 and update anchor.
+        By accumulating next_loop_utc on time.time(), the loop speed is automatically
+        steered by chrony to match true UTC — no custom PLL code required.
 
-        This guarantees a mathematically perfect 100 Hz sample grid in the miniSEED
-        archive regardless of Linux scheduler jitter or NTP step corrections.
+        Sample timestamp:
+            t = next_loop_utc   (the pre-computed UTC instant this iteration fires)
+        This is the actual UTC moment the ADC conversion was commanded, with no
+        per-sample syscall jitter because we use the *scheduled* time, not the
+        *measured* time.
+
+        Rate limiting:
+            The spin-wait uses time.monotonic() (fast VDSO, no kernel context switch).
+            We derive the equivalent monotonic target from a short-lived reference pair
+            (_utc_ref, _mono_ref), refreshed every iteration to stay accurate.
+
+        NTP step detection:
+            chrony slews by default; steps only occur for large errors (e.g. at boot).
+            If time.time() diverges from the expected monotonic-derived value by more
+            than NTP_STEP_THRESHOLD, we treat it as an NTP step and reset the anchor.
         """
-        DECIMATED_RATE   = 100.0        # 100 SPS after decimation
-        RE_ANCHOR_INTERVAL  = 60.0      # seconds between NTP re-anchors
-        NTP_SAMPLES         = 5         # number of time.time() readings to median
-        NTP_SAMPLE_DELAY    = 0.001     # seconds between each NTP reading
+        NTP_STEP_THRESHOLD = 0.5        # seconds — anything larger is an NTP step
+        target_interval    = 1.0 / 200  # 5 ms per oversampled iteration (200 Hz)
 
-        udp_buffers = [[], [], []]  # corrected m/s² per axis (for corrected UDP path)
-        raw_buffers  = [[], [], []]  # filtered integer counts per axis (for raw UDP path)
-        
+        # ── Startup: establish UTC anchor ──────────────────────────────────────
+        # Take median of 5 time.time() readings to reduce OS scheduler jitter
+        # on the very first sample.
+        _init = sorted(time.time() for _ in range(5))
+        next_loop_utc = _init[2]           # median → UTC-accurate start
+        _utc_ref      = next_loop_utc
+        _mono_ref     = time.monotonic()
+        print(f"sensor-hw: Software PLL started. Initial UTC anchor: {next_loop_utc:.6f}", file=sys.stderr)
+
+        udp_buffers = [[], [], []]         # m/s² per axis (corrected UDP path)
+        raw_buffers  = [[], [], []]        # integer counts per axis (raw UDP path)
+
         total_samples = 0
-        total_time = 0
-        packet_start_monotonic = time.monotonic()
-        sample_count = 0
-        target_interval = 1.0 / 200  # 5 ms per sample (200 Hz Oversampling)
-        next_loop_time = time.monotonic()
-        
-        # --- Initial NTP Anchor ---
-        # Sample time.time() multiple times and take the median to get a robust
-        # OS-jitter-resistant initial timestamp anchored to the current NTP time.
-        _readings = [time.time() for _ in range(NTP_SAMPLES)]
-        _readings.sort()
-        with self._anchor_lock:
-            self._time_anchor    = _readings[NTP_SAMPLES // 2]  # median
-            self._sample_counter = 0
-        last_reanchor_mono = time.monotonic()
-        print(f"sensor-hw: Initial NTP anchor set: {self._time_anchor:.6f}", file=sys.stderr)
+        total_time    = 0
+        sps_mono_ref  = time.monotonic()  # monotonic reference for SPS tracking
+        sample_count  = 0
 
-        # 2nd-Order Butterworth Low-Pass (fc=50Hz, fs=200Hz) for Anti-Aliasing.
-        # Applied directly to demeaned integer ADC counts — same coefficients,
-        # just different input units.  Output is float (sub-count precision).
-        # b0, b1, b2, a1, a2
+        # 2nd-Order Butterworth Low-Pass (fc=50 Hz, fs=200 Hz) — Anti-Aliasing.
+        # Pure integer arithmetic; bypasses Numpy/Scipy GIL. ~1 µs per sample.
         b0, b1, b2 = 0.29289322, 0.58578644, 0.29289322
-        a1, a2 = 0.0, 0.17157288
-        
-        # Per-axis filter state (floats even though input is int — sub-count precision)
+        a1, a2     = 0.0, 0.17157288
+
+        # Per-axis IIR state
         x_hist = {'Z': [0.0, 0.0], 'X': [0.0, 0.0], 'Y': [0.0, 0.0]}
         y_hist = {'Z': [0.0, 0.0], 'X': [0.0, 0.0], 'Y': [0.0, 0.0]}
-        
+
         decimate_flag = False
-        # Local fast reference to avoid attribute lookup on every sample
-        _lock = self._anchor_lock
 
         while self.running:
             try:
-                next_loop_time += target_interval
+                # Advance UTC scheduling accumulator
+                next_loop_utc += target_interval
 
-                # --- Periodic NTP Re-Anchor ---
-                # Every RE_ANCHOR_INTERVAL seconds, re-sync our counter to NTP time.
-                # We sample time.time() several times and take the median, which
-                # cancels out most OS scheduler jitter (typically ±0.5–2ms on Linux).
+                # ── Software PLL: NTP step detection ──────────────────────────
+                # Under normal chrony operation time.time() slews smoothly — no
+                # jump will be detected here.  A jump > NTP_STEP_THRESHOLD means
+                # a manual NTP step (e.g. chrony makestep at boot) — we reset.
+                now_utc  = time.time()
                 now_mono = time.monotonic()
-                if now_mono - last_reanchor_mono >= RE_ANCHOR_INTERVAL:
-                    _readings = [time.time() for _ in range(NTP_SAMPLES)]
-                    _readings.sort()
-                    new_anchor = _readings[NTP_SAMPLES // 2]
-                    with _lock:
-                        self._time_anchor    = new_anchor
-                        self._sample_counter = 0
-                    last_reanchor_mono = now_mono
+                expected_utc = _utc_ref + (now_mono - _mono_ref)
+                utc_error    = now_utc - expected_utc
 
-                # Read 24-bit integer counts from hardware (no timestamp — handled here).
+                if abs(utc_error) > NTP_STEP_THRESHOLD:
+                    # Large NTP step: re-anchor to current UTC
+                    next_loop_utc = now_utc
+                    print(
+                        f"sensor-hw: NTP step detected ({utc_error:+.3f}s). "
+                        f"Timing re-anchored to {now_utc:.6f}",
+                        file=sys.stderr
+                    )
+
+                # Update short-lived references for spin-wait calculation
+                _utc_ref  = now_utc
+                _mono_ref = now_mono
+
+                # ── Hardware Read (no timestamp — timing is handled here) ──────
                 z_cnt, x_cnt, y_cnt = self.sensor.read_all_raw()
-                
-                # --- Pure Arithmetic Anti-Aliasing Filter (on integer counts) ---
-                # Bypasses Numpy/Scipy GIL overhead. Takes ~1 microsecond.
-                z_f = b0*z_cnt + b1*x_hist['Z'][0] + b2*x_hist['Z'][1] - a1*y_hist['Z'][0] - a2*y_hist['Z'][1]
-                x_hist['Z'] = [z_cnt, x_hist['Z'][0]]
-                y_hist['Z'] = [z_f,   y_hist['Z'][0]]
-                
-                x_f = b0*x_cnt + b1*x_hist['X'][0] + b2*x_hist['X'][1] - a1*y_hist['X'][0] - a2*y_hist['X'][1]
-                x_hist['X'] = [x_cnt, x_hist['X'][0]]
-                y_hist['X'] = [x_f,   y_hist['X'][0]]
-                
-                y_f = b0*y_cnt + b1*x_hist['Y'][0] + b2*x_hist['Y'][1] - a1*y_hist['Y'][0] - a2*y_hist['Y'][1]
-                x_hist['Y'] = [y_cnt, x_hist['Y'][0]]
-                y_hist['Y'] = [y_f,   y_hist['Y'][0]]
-                
-                decimate_flag = not decimate_flag
-                
-                # Only process every 2nd sample (÷2 decimation → exactly 100 SPS)
-                if not decimate_flag:
-                    # --- Compute precise sample timestamp from monotonic counter ---
-                    # This is the core of the industrial timing approach: one division,
-                    # one addition. The result is a perfectly regular 100 Hz grid.
-                    with _lock:
-                        t = self._time_anchor + self._sample_counter / DECIMATED_RATE
-                        self._sample_counter += 1
 
-                    # Convert filtered TRUE counts → zero-centred m/s² for analytics, corrected UDP.
-                    # RAW_COUNTS_ZERO is subtracted HERE (not in read_all_raw) so the raw
-                    # UDP path carries the unmodified hardware counts as expected by ObsPy.
+                # ── Anti-Aliasing IIR Filter (pure arithmetic, no GIL) ────────
+                z_f = b0*z_cnt + b1*x_hist['Z'][0] + b2*x_hist['Z'][1] - a1*y_hist['Z'][0] - a2*y_hist['Z'][1]
+                x_hist['Z'] = [z_cnt, x_hist['Z'][0]]; y_hist['Z'] = [z_f,   y_hist['Z'][0]]
+
+                x_f = b0*x_cnt + b1*x_hist['X'][0] + b2*x_hist['X'][1] - a1*y_hist['X'][0] - a2*y_hist['X'][1]
+                x_hist['X'] = [x_cnt, x_hist['X'][0]]; y_hist['X'] = [x_f,   y_hist['X'][0]]
+
+                y_f = b0*y_cnt + b1*x_hist['Y'][0] + b2*x_hist['Y'][1] - a1*y_hist['Y'][0] - a2*y_hist['Y'][1]
+                x_hist['Y'] = [y_cnt, x_hist['Y'][0]]; y_hist['Y'] = [y_f,   y_hist['Y'][0]]
+
+                # ── Decimation: keep every 2nd → 100 SPS output ───────────────
+                decimate_flag = not decimate_flag
+                if not decimate_flag:
+
+                    # ── Sample Timestamp: scheduled UTC time ─────────────────
+                    # t = next_loop_utc — the NTP-disciplined UTC instant this
+                    # ADC conversion was commanded.  No per-sample syscall.
+                    # No synthetic counter math.  chrony provides the PLL steering.
+                    t = next_loop_utc
+
+                    # Convert filtered counts → physical units for analytics/UDP
                     z_ms2 = (z_f - RAW_COUNTS_ZERO[0]) * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
                     x_ms2 = (x_f - RAW_COUNTS_ZERO[1]) * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
                     y_ms2 = (y_f - RAW_COUNTS_ZERO[2]) * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
-                    
-                    record = (t, z_ms2, x_ms2, y_ms2)
-                    
-                    # 1. MiniSEED Writer (permanent archive, raw int32 counts)
+
+                    # 1. miniSEED archive (raw int32 counts — unmodified hardware data)
                     mseed_writer.enqueue(t, int(round(z_f)), int(round(x_f)), int(round(y_f)))
-                    
-                    # 2. Push to analytics thread (non-blocking)
+
+                    # 2. Analytics WebSocket (non-blocking)
+                    record = (t, z_ms2, x_ms2, y_ms2)
                     if not self._analytics_queue.full():
                         self._analytics_queue.put_nowait(record)
-                    
+
                     sample_count += 1
-                    
+
                     # 3. UDP Buffering & Sending
                     if len(udp_buffers[0]) == 0:
-                        timestamp = t
-                    # Corrected path: m/s² floats
+                        timestamp = t        # packet start timestamp (6 decimal places)
                     udp_buffers[0].append(z_ms2)
                     udp_buffers[1].append(x_ms2)
                     udp_buffers[2].append(y_ms2)
-                    # Raw path: genuine IIR-filtered, decimated integer counts
                     raw_buffers[0].append(int(round(z_f)))
                     raw_buffers[1].append(int(round(x_f)))
                     raw_buffers[2].append(int(round(y_f)))
@@ -564,15 +557,11 @@ class SensorManager:
                                 fmt = target.get('format', 'corrected')
                                 for i, name in enumerate(CHANNEL_NAMES):
                                     if fmt == 'raw':
-                                        # Genuine hardware counts: demeaned → IIR LPF → decimated
                                         samples = raw_buffers[i]
                                     else:
-                                        # Physical units rounded to 6 decimal places
                                         samples = [round(v, 6) for v in udp_buffers[i]]
-                                    
-                                    # Raspberry Shake Datacast compatible format (microsecond precision):
-                                    # {'CHANNEL', timestamp, s1, s2, ..., sN}
                                     samples_str = ", ".join(str(s) for s in samples)
+                                    # Raspberry Shake Datacast format (microsecond precision)
                                     packet_str = "{'" + name + "', " + f"{timestamp:.6f}" + ", " + samples_str + "}"
                                     try:
                                         self.sock.sendto(packet_str.encode('utf-8'), (target['ip'], target['port']))
@@ -580,37 +569,40 @@ class SensorManager:
                                         print(f"UDP send error → {target['ip']}:{target['port']}: {e}", file=sys.stderr)
                         udp_buffers = [[], [], []]
                         raw_buffers  = [[], [], []]
-                    
-                    # 4. SPS Tracking (uses monotonic clock — immune to NTP jumps)
+
+                    # 4. SPS Tracking (monotonic — immune to chrony slewing)
                     if sample_count >= SAMPLES_PER_PACKET:
-                        now_mono = time.monotonic()
-                        elapsed = now_mono - packet_start_monotonic
-                        sps = SAMPLES_PER_PACKET / elapsed if elapsed > 0 else 0
-
+                        now_m   = time.monotonic()
+                        elapsed = now_m - sps_mono_ref
+                        sps     = SAMPLES_PER_PACKET / elapsed if elapsed > 0 else 0
                         total_samples += SAMPLES_PER_PACKET
-                        total_time += elapsed
-                        overall_sps = total_samples / total_time if total_time > 0 else 0
-
+                        total_time    += elapsed
                         self.hardware_sps = round(sps, 2)
-                        self.avg_sps = round(overall_sps, 2)
-                        
-                        packet_start_monotonic = now_mono
-                        sample_count = 0
+                        self.avg_sps     = round(total_samples / total_time, 2)
+                        sps_mono_ref     = now_m
+                        sample_count     = 0
 
-                # Precise, drift-free rate limiting using absolute monotonic time
-                now = time.monotonic()
-                remaining = next_loop_time - now
+                # ── Rate Limiting ──────────────────────────────────────────────
+                # Sleep uses time.monotonic() (fast VDSO, no syscall overhead).
+                # We convert the UTC target to its equivalent monotonic time via
+                # the short-lived (_utc_ref, _mono_ref) pair updated above.
+                target_mono = _mono_ref + (next_loop_utc - _utc_ref)
+                remaining   = target_mono - time.monotonic()
                 if remaining > 0.0005:
                     time.sleep(remaining - 0.0002)
-                while time.monotonic() < next_loop_time:
+                while time.monotonic() < target_mono:
                     pass
 
             except Exception as e:
                 print(f"HW loop error: {e}", file=sys.stderr)
                 time.sleep(1)
-                next_loop_time = time.monotonic()  # Reset absolute timer after an error
-        
-        # Flush on shutdown
+                # Re-anchor to current UTC after any error to avoid stale timing
+                _init = sorted(time.time() for _ in range(5))
+                next_loop_utc = _init[2]
+                _utc_ref  = next_loop_utc
+                _mono_ref = time.monotonic()
+
+        # Final flush on shutdown
         mseed_writer.flush()
 
     def _safe_put(self, q, msg):
