@@ -243,12 +243,11 @@ class MiniSEEDWriter:
         if not samples:
             return
 
-        # Convert to numpy arrays
-        arr = np.array(samples, dtype=object)
-        timestamps = arr[:, 0].astype(np.float64)
-        z_counts   = arr[:, 1].astype(np.int32)
-        x_counts   = arr[:, 2].astype(np.int32)
-        y_counts   = arr[:, 3].astype(np.int32)
+        # Convert efficiently using list comprehensions to avoid object boxing
+        timestamps = np.array([s[0] for s in samples], dtype=np.float64)
+        z_counts   = np.array([s[1] for s in samples], dtype=np.int32)
+        x_counts   = np.array([s[2] for s in samples], dtype=np.int32)
+        y_counts   = np.array([s[3] for s in samples], dtype=np.int32)
 
         # Split at UTC midnight boundaries so each chunk maps to one daily file
         segments = self._split_at_day_boundaries(timestamps, z_counts, x_counts, y_counts)
@@ -329,7 +328,13 @@ class MiniSEEDWriter:
         # Serialize to in-memory miniSEED bytes
         import io
         buf = io.BytesIO()
-        tr.write(buf, format='MSEED', encoding='INT32', reclen=MSEED_RECLEN)
+        try:
+            tr.write(buf, format='MSEED', encoding='INT32', reclen=MSEED_RECLEN)
+        except Exception as e:
+            # Catch backwards time jumps from NTP clock corrections
+            print(f"mseed_writer: ObsPy write error (dropped chunk) for {filepath}: {e}", file=sys.stderr)
+            return
+        
         mseed_bytes = buf.getvalue()
 
         # Atomic append to daily file

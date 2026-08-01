@@ -479,41 +479,40 @@ class SensorManager:
                     
                     sample_count += 1
                     
-                    # 3. UDP Sending (using cached targets from analytics thread)
-                    if self._cached_targets:
-                        if len(udp_buffers[0]) == 0:
-                            timestamp = t
-                        # Corrected path: m/s² floats
-                        udp_buffers[0].append(z_ms2)
-                        udp_buffers[1].append(x_ms2)
-                        udp_buffers[2].append(y_ms2)
-                        # Raw path: genuine IIR-filtered, decimated integer counts
-                        raw_buffers[0].append(int(round(z_f)))
-                        raw_buffers[1].append(int(round(x_f)))
-                        raw_buffers[2].append(int(round(y_f)))
+                    # 3. UDP Buffering & Sending
+                    if len(udp_buffers[0]) == 0:
+                        timestamp = t
+                    # Corrected path: m/s² floats
+                    udp_buffers[0].append(z_ms2)
+                    udp_buffers[1].append(x_ms2)
+                    udp_buffers[2].append(y_ms2)
+                    # Raw path: genuine IIR-filtered, decimated integer counts
+                    raw_buffers[0].append(int(round(z_f)))
+                    raw_buffers[1].append(int(round(x_f)))
+                    raw_buffers[2].append(int(round(y_f)))
 
-                        if len(udp_buffers[0]) >= SAMPLES_PER_PACKET:
-                            if self._cached_data_forwarding:
-                                for target in self._cached_targets:
-                                    fmt = target.get('format', 'corrected')
-                                    for i, name in enumerate(CHANNEL_NAMES):
-                                        if fmt == 'raw':
-                                            # Genuine hardware counts: demeaned → IIR LPF → decimated
-                                            samples = raw_buffers[i]
-                                        else:
-                                            # Physical units rounded to 6 decimal places
-                                            samples = [round(v, 6) for v in udp_buffers[i]]
-                                        
-                                        # Raspberry Shake Datacast compatible format:
-                                        # {'CHANNEL', timestamp, s1, s2, ..., sN}
-                                        samples_str = ", ".join(str(s) for s in samples)
-                                        packet_str = "{'" + name + "', " + f"{timestamp:.3f}" + ", " + samples_str + "}"
-                                        try:
-                                            self.sock.sendto(packet_str.encode('utf-8'), (target['ip'], target['port']))
-                                        except OSError as e:
-                                            print(f"UDP send error → {target['ip']}:{target['port']}: {e}", file=sys.stderr)
-                            udp_buffers = [[], [], []]
-                            raw_buffers  = [[], [], []]
+                    if len(udp_buffers[0]) >= SAMPLES_PER_PACKET:
+                        if self._cached_targets and self._cached_data_forwarding:
+                            for target in self._cached_targets:
+                                fmt = target.get('format', 'corrected')
+                                for i, name in enumerate(CHANNEL_NAMES):
+                                    if fmt == 'raw':
+                                        # Genuine hardware counts: demeaned → IIR LPF → decimated
+                                        samples = raw_buffers[i]
+                                    else:
+                                        # Physical units rounded to 6 decimal places
+                                        samples = [round(v, 6) for v in udp_buffers[i]]
+                                    
+                                    # Raspberry Shake Datacast compatible format:
+                                    # {'CHANNEL', timestamp, s1, s2, ..., sN}
+                                    samples_str = ", ".join(str(s) for s in samples)
+                                    packet_str = "{'" + name + "', " + f"{timestamp:.3f}" + ", " + samples_str + "}"
+                                    try:
+                                        self.sock.sendto(packet_str.encode('utf-8'), (target['ip'], target['port']))
+                                    except OSError as e:
+                                        print(f"UDP send error → {target['ip']}:{target['port']}: {e}", file=sys.stderr)
+                        udp_buffers = [[], [], []]
+                        raw_buffers  = [[], [], []]
                     
                     # 4. SPS Tracking
                     if sample_count >= SAMPLES_PER_PACKET:
@@ -534,8 +533,8 @@ class SensorManager:
                 # Precise, drift-free rate limiting using absolute time
                 now = time.monotonic()
                 remaining = next_loop_time - now
-                if remaining > 0.003:
-                    time.sleep(remaining - 0.002)
+                if remaining > 0.0005:
+                    time.sleep(remaining - 0.0002)
                 while time.monotonic() < next_loop_time:
                     pass
 
