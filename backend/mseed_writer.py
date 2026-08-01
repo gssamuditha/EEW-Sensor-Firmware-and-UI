@@ -316,6 +316,9 @@ class MiniSEEDWriter:
             print(f"mseed_writer: cannot create directory for {filepath}: {e}", file=sys.stderr)
             return
 
+        # Auto-repair partial blocks from previous crashes before appending
+        repair_mseed_file(filepath)
+
         # Build ObsPy Trace
         tr = Trace(data=data.astype(np.int32))
         tr.stats.network       = net
@@ -417,6 +420,24 @@ class MiniSEEDWriter:
 # Module-level read helper (called from ProcessPoolExecutor subprocesses)
 # ---------------------------------------------------------------------------
 
+def repair_mseed_file(filepath: str):
+    """
+    Truncate partial miniSEED blocks caused by sudden power loss or SIGKILL.
+    MiniSEED files must be an exact multiple of the record length (512 bytes).
+    """
+    try:
+        if not os.path.isfile(filepath):
+            return
+        fsize = os.path.getsize(filepath)
+        remainder = fsize % MSEED_RECLEN
+        if remainder != 0:
+            with open(filepath, 'r+b') as f:
+                f.truncate(fsize - remainder)
+            print(f"mseed_writer: Repaired corrupt trailing bytes ({remainder} bytes truncated) in {filepath}", file=sys.stderr)
+    except OSError:
+        pass
+
+
 def read_waveform_range(t_start, t_end, settings: dict = None) -> object:
     """
     Read a time-windowed waveform slice from the SDS archive using ObsPy.
@@ -469,6 +490,7 @@ def read_waveform_range(t_start, t_end, settings: dict = None) -> object:
         for ch in CHANNEL_NAMES:
             fpath = sds_filepath(root, net, sta, loc, ch, current)
             if os.path.isfile(fpath):
+                repair_mseed_file(fpath)
                 try:
                     st = obspy_read(fpath, starttime=t_start, endtime=t_end)
                     streams += st
