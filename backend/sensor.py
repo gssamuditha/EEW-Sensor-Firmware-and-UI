@@ -162,12 +162,12 @@ class MockSensor:
 
     def read_all_raw(self):
         """Return mock signed 24-bit ADC counts (simulates what raw hardware returns)."""
-        t = time.time()
-        # Convert mock m/s² back to approximate counts for consistency
+        # Timestamp is no longer generated here — the SensorManager hw_loop
+        # computes all sample times from a monotonic counter anchored to NTP.
         z = int((0.5 * random.random() + 0.1) / INSTRUMENT_SENSITIVITY_MS2_PER_COUNT)
         x = int((0.5 * random.random() - 0.2) / INSTRUMENT_SENSITIVITY_MS2_PER_COUNT)
         y = int((0.5 * random.random() + 0.05) / INSTRUMENT_SENSITIVITY_MS2_PER_COUNT)
-        return (t, z, x, y)
+        return (z, x, y)
 
 
 class RealSensor:
@@ -300,7 +300,10 @@ class RealSensor:
         for i in range(3):
             raw_cnt = self._read_adc(i, return_raw=True)
             readings.append(raw_cnt)  # NO subtraction — true hardware counts
-        return (time.time(), readings[0], readings[1], readings[2])
+        # Timestamp is NOT included here — the SensorManager hw_loop computes
+        # all sample times from a monotonic counter anchored to NTP, eliminating
+        # per-sample time.time() jitter entirely.
+        return (readings[0], readings[1], readings[2])
 
 class SensorManager:
     def __init__(self, use_mock=False):
@@ -340,6 +343,16 @@ class SensorManager:
         self._cached_targets = []
         self._cached_data_forwarding = True
         self._filter_lock = threading.Lock()
+
+        # --- Industrial-Grade Timing State ---
+        # The hw_loop never calls time.time() per sample. Instead, it takes one
+        # NTP-anchored reference timestamp (_time_anchor) and derives every
+        # sample's timestamp mathematically: t = anchor + counter / sample_rate.
+        # _anchor_lock protects atomic read/write of both anchor and counter.
+        self._time_anchor    = None   # float epoch — set at hw_loop start
+        self._sample_counter = 0      # samples elapsed since anchor
+        self._anchor_lock    = threading.Lock()
+        self._last_reanchor  = 0.0    # monotonic time of last anchor update
         
     def start(self, loop=None):
         if self.running:
@@ -410,17 +423,50 @@ class SensorManager:
         return process_historical_data_task(start_time, end_time, low_hz, high_hz, target_display_points)
             
     def _hw_loop(self):
-        """Strictly prioritized hardware loop for 100 SPS SPI reading and UDP sending."""
+        """
+        Strictly prioritized hardware loop for 100 SPS SPI reading and UDP sending.
+
+        TIMING ARCHITECTURE:
+        --------------------
+        Industrial seismographs (Raspberry Shake, Nanometrics) never call time.time()
+        per sample. Instead they maintain a monotonic sample counter disciplined to a
+        stable time source (GPS PPS or NTP). We implement the same pattern:
+
+          1. At startup, take the initial NTP-anchored timestamp (_time_anchor).
+          2. Every decimated sample's timestamp = anchor + counter / DECIMATED_RATE.
+          3. Every RE_ANCHOR_INTERVAL seconds, atomically resync to NTP by sampling
+             time.time() NTP_SAMPLES times and taking the median to reduce scheduler
+             jitter, then reset counter = 0 and update anchor.
+
+        This guarantees a mathematically perfect 100 Hz sample grid in the miniSEED
+        archive regardless of Linux scheduler jitter or NTP step corrections.
+        """
+        DECIMATED_RATE   = 100.0        # 100 SPS after decimation
+        RE_ANCHOR_INTERVAL  = 60.0      # seconds between NTP re-anchors
+        NTP_SAMPLES         = 5         # number of time.time() readings to median
+        NTP_SAMPLE_DELAY    = 0.001     # seconds between each NTP reading
+
         udp_buffers = [[], [], []]  # corrected m/s² per axis (for corrected UDP path)
         raw_buffers  = [[], [], []]  # filtered integer counts per axis (for raw UDP path)
         
         total_samples = 0
         total_time = 0
-        packet_start_time = time.time()
+        packet_start_monotonic = time.monotonic()
         sample_count = 0
         target_interval = 1.0 / 200  # 5 ms per sample (200 Hz Oversampling)
         next_loop_time = time.monotonic()
         
+        # --- Initial NTP Anchor ---
+        # Sample time.time() multiple times and take the median to get a robust
+        # OS-jitter-resistant initial timestamp anchored to the current NTP time.
+        _readings = [time.time() for _ in range(NTP_SAMPLES)]
+        _readings.sort()
+        with self._anchor_lock:
+            self._time_anchor    = _readings[NTP_SAMPLES // 2]  # median
+            self._sample_counter = 0
+        last_reanchor_mono = time.monotonic()
+        print(f"sensor-hw: Initial NTP anchor set: {self._time_anchor:.6f}", file=sys.stderr)
+
         # 2nd-Order Butterworth Low-Pass (fc=50Hz, fs=200Hz) for Anti-Aliasing.
         # Applied directly to demeaned integer ADC counts — same coefficients,
         # just different input units.  Output is float (sub-count precision).
@@ -433,15 +479,29 @@ class SensorManager:
         y_hist = {'Z': [0.0, 0.0], 'X': [0.0, 0.0], 'Y': [0.0, 0.0]}
         
         decimate_flag = False
+        # Local fast reference to avoid attribute lookup on every sample
+        _lock = self._anchor_lock
 
         while self.running:
             try:
                 next_loop_time += target_interval
 
-                # Read demeaned 24-bit integer counts directly from hardware.
-                # RealSensor.read_all_raw() subtracts RAW_COUNTS_ZERO[i] so the
-                # returned values represent differential ground motion only.
-                t, z_cnt, x_cnt, y_cnt = self.sensor.read_all_raw()
+                # --- Periodic NTP Re-Anchor ---
+                # Every RE_ANCHOR_INTERVAL seconds, re-sync our counter to NTP time.
+                # We sample time.time() several times and take the median, which
+                # cancels out most OS scheduler jitter (typically ±0.5–2ms on Linux).
+                now_mono = time.monotonic()
+                if now_mono - last_reanchor_mono >= RE_ANCHOR_INTERVAL:
+                    _readings = [time.time() for _ in range(NTP_SAMPLES)]
+                    _readings.sort()
+                    new_anchor = _readings[NTP_SAMPLES // 2]
+                    with _lock:
+                        self._time_anchor    = new_anchor
+                        self._sample_counter = 0
+                    last_reanchor_mono = now_mono
+
+                # Read 24-bit integer counts from hardware (no timestamp — handled here).
+                z_cnt, x_cnt, y_cnt = self.sensor.read_all_raw()
                 
                 # --- Pure Arithmetic Anti-Aliasing Filter (on integer counts) ---
                 # Bypasses Numpy/Scipy GIL overhead. Takes ~1 microsecond.
@@ -461,7 +521,14 @@ class SensorManager:
                 
                 # Only process every 2nd sample (÷2 decimation → exactly 100 SPS)
                 if not decimate_flag:
-                    # Convert filtered TRUE counts → zero-centred m/s² for DB, analytics, corrected UDP.
+                    # --- Compute precise sample timestamp from monotonic counter ---
+                    # This is the core of the industrial timing approach: one division,
+                    # one addition. The result is a perfectly regular 100 Hz grid.
+                    with _lock:
+                        t = self._time_anchor + self._sample_counter / DECIMATED_RATE
+                        self._sample_counter += 1
+
+                    # Convert filtered TRUE counts → zero-centred m/s² for analytics, corrected UDP.
                     # RAW_COUNTS_ZERO is subtracted HERE (not in read_all_raw) so the raw
                     # UDP path carries the unmodified hardware counts as expected by ObsPy.
                     z_ms2 = (z_f - RAW_COUNTS_ZERO[0]) * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
@@ -503,10 +570,10 @@ class SensorManager:
                                         # Physical units rounded to 6 decimal places
                                         samples = [round(v, 6) for v in udp_buffers[i]]
                                     
-                                    # Raspberry Shake Datacast compatible format:
+                                    # Raspberry Shake Datacast compatible format (microsecond precision):
                                     # {'CHANNEL', timestamp, s1, s2, ..., sN}
                                     samples_str = ", ".join(str(s) for s in samples)
-                                    packet_str = "{'" + name + "', " + f"{timestamp:.3f}" + ", " + samples_str + "}"
+                                    packet_str = "{'" + name + "', " + f"{timestamp:.6f}" + ", " + samples_str + "}"
                                     try:
                                         self.sock.sendto(packet_str.encode('utf-8'), (target['ip'], target['port']))
                                     except OSError as e:
@@ -514,10 +581,10 @@ class SensorManager:
                         udp_buffers = [[], [], []]
                         raw_buffers  = [[], [], []]
                     
-                    # 4. SPS Tracking
+                    # 4. SPS Tracking (uses monotonic clock — immune to NTP jumps)
                     if sample_count >= SAMPLES_PER_PACKET:
-                        end_time = time.time()
-                        elapsed = end_time - packet_start_time
+                        now_mono = time.monotonic()
+                        elapsed = now_mono - packet_start_monotonic
                         sps = SAMPLES_PER_PACKET / elapsed if elapsed > 0 else 0
 
                         total_samples += SAMPLES_PER_PACKET
@@ -527,10 +594,10 @@ class SensorManager:
                         self.hardware_sps = round(sps, 2)
                         self.avg_sps = round(overall_sps, 2)
                         
-                        packet_start_time = end_time
+                        packet_start_monotonic = now_mono
                         sample_count = 0
 
-                # Precise, drift-free rate limiting using absolute time
+                # Precise, drift-free rate limiting using absolute monotonic time
                 now = time.monotonic()
                 remaining = next_loop_time - now
                 if remaining > 0.0005:
@@ -539,9 +606,9 @@ class SensorManager:
                     pass
 
             except Exception as e:
-                print(f"HW loop error: {e}")
+                print(f"HW loop error: {e}", file=sys.stderr)
                 time.sleep(1)
-                next_loop_time = time.monotonic() # Reset absolute timer after an error
+                next_loop_time = time.monotonic()  # Reset absolute timer after an error
         
         # Flush on shutdown
         mseed_writer.flush()

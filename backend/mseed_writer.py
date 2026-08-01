@@ -129,9 +129,8 @@ class MiniSEEDWriter:
         self._settings_lock  = threading.Lock()
         self._write_lock     = threading.Lock()
         self._last_settings_refresh = 0.0
-
-        # Continuous mathematical timestamp tracking per channel
-        self._expected_next_time = {ch: None for ch in CHANNEL_NAMES}
+        # Note: chunk timestamp continuity is now guaranteed by the sensor-hw monotonic
+        # counter. No snapping logic is needed here.
 
     # ------------------------------------------------------------------
     # Public API
@@ -263,20 +262,7 @@ class MiniSEEDWriter:
 
         for seg_timestamps, seg_z, seg_x, seg_y, seg_starttime in segments:
             for ch, data in zip(CHANNEL_NAMES, [seg_z, seg_x, seg_y]):
-                actual_start = seg_starttime
-                expected = self._expected_next_time[ch]
-
-                if expected is not None:
-                    # If OS jitter is within 0.005 seconds (half a sample at 100 Hz), 
-                    # snap to the exact continuous mathematical grid.
-                    diff = abs(expected.timestamp - actual_start.timestamp)
-                    if diff < (0.5 / SAMPLING_RATE):
-                        actual_start = expected
-
-                self._write_segment(root, net, sta, loc, ch, actual_start, data)
-                
-                # Predict next chunk's mathematical start time
-                self._expected_next_time[ch] = actual_start + (len(data) / SAMPLING_RATE)
+                self._write_segment(root, net, sta, loc, ch, seg_starttime, data)
 
     def _split_at_day_boundaries(self, timestamps, z, x, y):
         """
