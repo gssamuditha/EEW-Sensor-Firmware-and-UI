@@ -33,36 +33,25 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
             "window_seconds": window_seconds,
         }
 
-    raw = {}
-    timestamps = None
+    raw = {ch: [] for ch in CHANNEL_NAMES}
+    timestamps_dict = {ch: [] for ch in CHANNEL_NAMES}
     
     # For each expected channel, extract data, detrend, and scale
     for ch in CHANNEL_NAMES:
-        # channel codes in miniSEED are usually 3 chars (e.g. ENZ)
         tr = st.select(channel=ch)
         if len(tr) > 0:
-            # Merge in case there are gaps
-            tr.merge(method=1, fill_value='interpolate')
-            t_obj = tr[0]
-            
-            # Extract raw counts and timestamps
-            counts = t_obj.data.astype(np.float64)
-            # Ensure timestamps aligns with the longest trace
-            if timestamps is None or len(t_obj.times('timestamp')) > len(timestamps):
-                timestamps = t_obj.times('timestamp')
-                
-            # Detrend (remove mean) to bypass need for exact RAW_COUNTS_ZERO at boot
-            if len(counts) > 0:
-                counts = counts - np.mean(counts)
-                
-            # Scale to m/s²
-            ms2 = counts * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
-            raw[ch] = ms2
-        else:
-            raw[ch] = np.array([])
+            tr.sort()
+            for t_obj in tr:
+                counts = t_obj.data.astype(np.float64)
+                if len(counts) > 0:
+                    counts = counts - np.mean(counts)
+                    ms2 = counts * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
+                    raw[ch].append(ms2)
+                    timestamps_dict[ch].append(t_obj.times('timestamp'))
             
     # If no data found, return empty
-    if timestamps is None or len(timestamps) == 0:
+    has_data = any(len(raw[ch]) > 0 for ch in CHANNEL_NAMES)
+    if not has_data:
         return {
             "timestamps": [],
             "samples": {ch: [] for ch in CHANNEL_NAMES},
@@ -70,26 +59,48 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
             "window_seconds": window_seconds,
         }
 
-    filtered = {}
+    filtered = {ch: [] for ch in CHANNEL_NAMES}
     for ch in CHANNEL_NAMES:
-        if len(raw[ch]) < 13:
-            filtered[ch] = raw[ch]
-        else:
-            filt = BandpassFilter(low_hz=low_hz, high_hz=high_hz, fs=100.0, order=4)
-            filtered[ch] = filt.apply_zerophase(raw[ch])
+        for ms2_array in raw[ch]:
+            if len(ms2_array) < 13:
+                filtered[ch].append(ms2_array)
+            else:
+                filt = BandpassFilter(low_hz=low_hz, high_hz=high_hz, fs=100.0, order=4)
+                filtered[ch].append(filt.apply_zerophase(ms2_array))
 
-    result_samples = {}
+    result_samples = {ch: [] for ch in CHANNEL_NAMES}
     out_t = []
-    for ch in CHANNEL_NAMES:
-        if len(filtered[ch]) > 0:
-            # slice arrays to match shortest length just in case they differ by 1 sample
-            min_len = min(len(timestamps), len(filtered[ch]))
-            ds_t, ds_v = minmax_downsample(timestamps[:min_len], filtered[ch][:min_len], target_display_points)
-            result_samples[ch] = ds_v.tolist()
-            if len(out_t) == 0:
-                out_t = ds_t.tolist()
-        else:
-            result_samples[ch] = []
+    
+    master_ch = CHANNEL_NAMES[0]
+    num_chunks = len(filtered[master_ch])
+    
+    for i in range(num_chunks):
+        chunk_len = len(timestamps_dict[master_ch][i])
+        total_len = max(1, sum(len(t) for t in timestamps_dict[master_ch]))
+        chunk_pts = max(10, int(target_display_points * (chunk_len / total_len)))
+        
+        ds_t = None
+        for ch in CHANNEL_NAMES:
+            if i < len(filtered[ch]):
+                t_arr = timestamps_dict[ch][i]
+                v_arr = filtered[ch][i]
+                
+                min_l = min(len(t_arr), len(v_arr))
+                ct, cv = minmax_downsample(t_arr[:min_l], v_arr[:min_l], chunk_pts)
+                
+                if ch == master_ch:
+                    ds_t = ct.tolist()
+                    
+                result_samples[ch].extend(cv.tolist())
+                
+        # Insert gap if not the last chunk
+        if ds_t is not None and len(ds_t) > 0:
+            out_t.extend(ds_t)
+            if i < num_chunks - 1:
+                # Insert a None value for the frontend to render a native gap
+                out_t.append(ds_t[-1] + 0.01)
+                for ch in CHANNEL_NAMES:
+                    result_samples[ch].append(None)
 
     return {
         "timestamps": out_t,
@@ -398,16 +409,12 @@ class SensorManager:
         with self._filter_lock:
             return self._filters[CHANNEL_NAMES[0]].params
 
-    def get_historical_filtered(self, start_time: float, end_time: float,
-                                target_display_points: int = 4000) -> dict:
-        """
-        Backward compatible call. For true non-blocking, use ProcessPoolExecutor 
-        with process_historical_data_task directly.
-        """
+    def get_historical_data(self, start_time: float, end_time: float, target_display_points: int = 4000):
         with self._filter_lock:
             high_hz = self._filters[CHANNEL_NAMES[0]].high_hz
             low_hz = self._filters[CHANNEL_NAMES[0]].low_hz
-        return process_historical_data_task(start_time, end_time, low_hz, high_hz, target_display_points)
+        settings = mseed_writer.get_settings_snapshot()
+        return process_historical_data_task(start_time, end_time, low_hz, high_hz, target_display_points, settings_snapshot=settings)
             
     def _hw_loop(self):
         """Strictly prioritized hardware loop for 100 SPS SPI reading and UDP sending."""
