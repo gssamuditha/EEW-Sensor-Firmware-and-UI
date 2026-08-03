@@ -307,12 +307,12 @@ export default function Analysis() {
           {/* Bottom Box: Frequency Sliders + Apply Button */}
           <div className="flex flex-row items-end gap-2 w-full justify-between flex-wrap mt-1">
             {Object.keys(presets).length > 0 && (
-              <div className="flex flex-col">
+              <div className="flex flex-col flex-1 min-w-[120px] mr-2">
                 <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Preset</label>
                 <select
                   value={activePreset || ''}
                   onChange={(e) => applyPreset(e.target.value)}
-                  className="h-7 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-2 text-[10px] font-bold text-slate-600 dark:text-slate-200 shadow-sm focus:ring-1 focus:ring-slate-300 cursor-pointer min-w-[90px]"
+                  className="h-7 w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-2 text-[10px] font-bold text-slate-600 dark:text-slate-200 shadow-sm focus:ring-1 focus:ring-slate-300 cursor-pointer"
                 >
                   <option value="" disabled>Custom</option>
                   {Object.entries(presets).map(([key, preset]) => (

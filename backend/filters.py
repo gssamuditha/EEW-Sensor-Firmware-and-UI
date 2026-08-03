@@ -21,11 +21,11 @@ except ImportError:
 # Filter presets — standard seismological frequency bands
 # ---------------------------------------------------------------------------
 FILTER_PRESETS = {
-    "global":      {"label": "Global (Teleseismic)",  "low_hz": 0.1,  "high_hz": 0.8},
+    "global":      {"label": "Global",  "low_hz": 0.1,  "high_hz": 0.8},
     "regional":    {"label": "Regional",              "low_hz": 0.7,  "high_hz": 2.0},
     "local":       {"label": "Local",                 "low_hz": 3.0,  "high_hz": 8.0},
     "hyper_local": {"label": "Hyper-Local",           "low_hz": 3.0,  "high_hz": 20.0},
-    "default":     {"label": "Full Earthquake Band",  "low_hz": 0.1,  "high_hz": 20.0},
+    "default":     {"label": "Default",  "low_hz": 0.1,  "high_hz": 20.0},
 }
 
 
