@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import FilteredChart from '../components/FilteredChart';
 import { useTimeZone } from '../TimeZoneContext';
-import { format, fromZonedTime } from 'date-fns-tz';
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 
 // Quick-select durations (minutes)
 const QUICK_OPTIONS = [
@@ -14,7 +14,7 @@ const QUICK_OPTIONS = [
 
 // Convert epoch seconds to local datetime-local string (minute precision)
 function epochToLocal(epoch, tz) {
-  return format(new Date(epoch * 1000), "yyyy-MM-dd'T'HH:mm", { timeZone: tz });
+  return formatInTimeZone(new Date(epoch * 1000), tz, "yyyy-MM-dd'T'HH:mm");
 }
 
 // Convert local datetime-local string to epoch seconds
