@@ -48,7 +48,7 @@ export default function Analysis() {
 
   // --- Time range state ---
   const nowEpoch = () => Math.floor(Date.now() / 1000);
-  const [startEpoch, setStartEpoch] = useState(() => floorMinute(nowEpoch() - 300));
+  const [startEpoch, setStartEpoch] = useState(() => floorMinute(nowEpoch() - 3600));
   const [endEpoch, setEndEpoch] = useState(() => floorMinute(nowEpoch()));
   const [isLive, setIsLive] = useState(true); // true = end time tracks "now"
 
@@ -163,13 +163,16 @@ export default function Analysis() {
       });
   }, [presets]);
 
-  // Quick select: set start = now - minutes, end = now, go live
+  // Quick select: behavior depends on isLive
   const quickSelect = useCallback((minutes) => {
-    const now = nowEpoch();
-    setStartEpoch(now - minutes * 60);
-    setEndEpoch(now);
-    setIsLive(true);
-  }, []);
+    if (isLive) {
+      const now = nowEpoch();
+      setStartEpoch(now - minutes * 60);
+      setEndEpoch(now);
+    } else {
+      setEndEpoch(startEpoch + minutes * 60);
+    }
+  }, [isLive, startEpoch]);
 
   // Handle start time change
   const handleStartChange = (e) => {
@@ -281,6 +284,13 @@ export default function Analysis() {
         <div className="flex flex-col items-end gap-2">
           {/* Top Box: Time Settings */}
           <div className="flex flex-row items-end gap-2 flex-wrap">
+            <button
+              onClick={toggleLive}
+              className={`h-7 px-2.5 rounded-md text-[9px] font-bold tracking-wider shadow-sm border ${isLive ? 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:text-emerald-600'
+                }`}
+            >
+              {isLive ? '● LIVE' : 'NOW'}
+            </button>
             <div className="flex flex-col">
               <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">
                 Start <span className="ml-0.5 text-slate-400 font-normal">({timeZone})</span>
@@ -289,9 +299,10 @@ export default function Analysis() {
                 type="datetime-local"
                 value={epochToLocal(startEpoch, timeZone)}
                 onChange={handleStartChange}
+                onClick={() => isLive && setIsLive(false)}
                 min={minDatetime}
                 max={maxDatetime}
-                className="h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300"
+                className={`h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300 ${isLive ? 'opacity-50 cursor-pointer' : ''}`}
               />
             </div>
             <span className="text-slate-300 font-bold text-[10px] pb-1.5">→</span>
@@ -303,19 +314,13 @@ export default function Analysis() {
                 type="datetime-local"
                 value={epochToLocal(endEpoch, timeZone)}
                 onChange={handleEndChange}
+                onClick={() => isLive && setIsLive(false)}
                 min={minDatetime}
                 max={maxDatetime}
-                disabled={isLive}
-                className={`h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300 ${isLive ? 'opacity-50 cursor-not-allowed' : ''}`}
+                readOnly={isLive}
+                className={`h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300 ${isLive ? 'opacity-50 cursor-pointer' : ''}`}
               />
             </div>
-            <button
-              onClick={toggleLive}
-              className={`h-7 px-2.5 rounded-md text-[9px] font-bold tracking-wider shadow-sm border ${isLive ? 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:text-emerald-600'
-                }`}
-            >
-              {isLive ? '● LIVE' : 'NOW'}
-            </button>
             <div className={`h-7 flex items-center px-2 rounded-md text-[9px] font-bold font-mono border ${durationError ? 'bg-red-50 text-red-500 border-red-200' : 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700/50'
               }`}>
               {durationStr}
