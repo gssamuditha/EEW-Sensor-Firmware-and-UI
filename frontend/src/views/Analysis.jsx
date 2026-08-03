@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import FilteredChart from '../components/FilteredChart';
 import { useTimeZone } from '../TimeZoneContext';
+import { format, fromZonedTime } from 'date-fns-tz';
 
 // Quick-select durations (minutes)
 const QUICK_OPTIONS = [
@@ -13,21 +14,14 @@ const QUICK_OPTIONS = [
 
 // Convert epoch seconds to local datetime-local string (minute precision)
 function epochToLocal(epoch, tz) {
-  const d = new Date(epoch * 1000);
-  // Format as YYYY-MM-DDTHH:mm in the target timezone
-  const parts = new Intl.DateTimeFormat('sv-SE', {
-    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hour12: false,
-  }).formatToParts(d);
-  const get = (type) => (parts.find(p => p.type === type) || {}).value || '';
-  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+  return format(new Date(epoch * 1000), "yyyy-MM-dd'T'HH:mm", { timeZone: tz });
 }
 
 // Convert local datetime-local string to epoch seconds
 function localToEpoch(dtStr, tz) {
   // datetime-local gives "YYYY-MM-DDTHH:mm"
   // We need to interpret this in the user's timezone
-  const d = new Date(dtStr);
+  const d = fromZonedTime(dtStr, tz);
   return d.getTime() / 1000;
 }
 
@@ -288,7 +282,9 @@ export default function Analysis() {
           {/* Top Box: Time Settings */}
           <div className="flex flex-row items-end gap-2 flex-wrap">
             <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Start</label>
+              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">
+                Start <span className="ml-0.5 text-slate-400 font-normal">({timeZone})</span>
+              </label>
               <input
                 type="datetime-local"
                 value={epochToLocal(startEpoch, timeZone)}
@@ -300,7 +296,9 @@ export default function Analysis() {
             </div>
             <span className="text-slate-300 font-bold text-[10px] pb-1.5">→</span>
             <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">End</label>
+              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">
+                End <span className="ml-0.5 text-slate-400 font-normal">({timeZone})</span>
+              </label>
               <input
                 type="datetime-local"
                 value={epochToLocal(endEpoch, timeZone)}
@@ -388,6 +386,7 @@ export default function Analysis() {
               endEpoch={endEpoch}
               isLive={isLive}
               filterVersion={filterVersion}
+              onError={setErrorMsg}
             />
           )}
         </div>

@@ -32,6 +32,9 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
             "sps": 100,
             "window_seconds": window_seconds,
         }
+        
+    from obspy import UTCDateTime
+    st.trim(starttime=UTCDateTime(start_time), endtime=UTCDateTime(end_time), pad=True, fill_value=0)
 
     raw = {}
     timestamps = None

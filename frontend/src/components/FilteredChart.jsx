@@ -174,7 +174,7 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
 // ---------------------------------------------------------------------------
 // FilteredChart — manages data fetching, WS connection, data ingestion
 // ---------------------------------------------------------------------------
-export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive = false, filterVersion = 0 }) {
+export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive = false, filterVersion = 0, onError }) {
   const timeWindowMs = (endEpoch - startEpoch) * 1000;
 
   // Max points to keep in live mode: based on window.
@@ -236,9 +236,17 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
     fetch(`${protocol}//${host}/api/analysis/window?start=${startEpoch}&end=${endEpoch}`, {
       signal: controller.signal
     })
-      .then(r => r.json())
+      .then(async r => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          if (onError && data.detail) onError(data.detail);
+          return null;
+        }
+        if (onError) onError('');
+        return data;
+      })
       .then(data => {
-        if (!data.timestamps || data.timestamps.length === 0) {
+        if (!data || !data.timestamps || data.timestamps.length === 0) {
           // Clear existing data
           CHANNELS.forEach(ch => {
             dataRefs.current[ch].length = 0;
