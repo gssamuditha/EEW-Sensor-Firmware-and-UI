@@ -103,6 +103,12 @@ export default function Analysis() {
     return null;
   }, [durationMinutes]);
 
+  // Check if current filter settings differ from active filter
+  const isFilterDirty = useMemo(() => {
+    if (!activeFilter) return false;
+    return Math.abs(lowHz - activeFilter.low_hz) > 0.001 || Math.abs(highHz - activeFilter.high_hz) > 0.001;
+  }, [lowHz, highHz, activeFilter]);
+
   // Apply filter
   const applyFilter = useCallback(() => {
     setErrorMsg('');
@@ -299,7 +305,7 @@ export default function Analysis() {
           </div>
 
           {/* Bottom Box: Frequency Sliders + Apply Button */}
-          <div className="flex flex-row items-end gap-2 w-full justify-end flex-wrap mt-1">
+          <div className="flex flex-row items-end gap-2 w-full justify-between flex-wrap mt-1">
             {Object.keys(presets).length > 0 && (
               <div className="flex flex-col">
                 <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Preset</label>
@@ -315,26 +321,33 @@ export default function Analysis() {
                 </select>
               </div>
             )}
-            <div className="flex flex-col w-[130px]">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Low (Hz)</label>
-              <div className="flex items-center space-x-1.5 w-full">
-                <input type="range" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
-                <input type="number" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
+            
+            {/* Frequency Controls & Apply Button */}
+            <div className="flex flex-row items-end gap-2 flex-wrap ml-auto">
+              <div className="flex flex-col w-[130px]">
+                <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Low (Hz)</label>
+                <div className="flex items-center space-x-1.5 w-full">
+                  <input type="range" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
+                  <input type="number" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
+                </div>
               </div>
-            </div>
-            <div className="flex flex-col w-[130px]">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">High (Hz)</label>
-              <div className="flex items-center space-x-1.5 w-full">
-                <input type="range" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
-                <input type="number" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value) || 0.5); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
+              <div className="flex flex-col w-[130px]">
+                <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">High (Hz)</label>
+                <div className="flex items-center space-x-1.5 w-full">
+                  <input type="range" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
+                  <input type="number" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value) || 0.5); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
+                </div>
               </div>
+              <button
+                onClick={applyFilter}
+                className={isFilterDirty 
+                  ? "h-7 bg-amber-500 hover:bg-amber-600 text-white rounded-md font-bold transition-all shadow-md px-4 text-[9px] tracking-wider shrink-0 animate-pulse border border-amber-400"
+                  : "h-7 bg-primary dark:bg-sky-600 hover:bg-opacity-90 text-white rounded-md font-bold transition-all shadow-md px-4 text-[9px] tracking-wider shrink-0"
+                }
+              >
+                APPLY FILTER
+              </button>
             </div>
-            <button
-              onClick={applyFilter}
-              className="h-7 bg-primary dark:bg-sky-600 hover:bg-opacity-90 text-white rounded-md font-bold transition-all shadow-md px-4 text-[9px] tracking-wider shrink-0"
-            >
-              APPLY FILTER
-            </button>
           </div>
 
           {(errorMsg || durationError) && (
