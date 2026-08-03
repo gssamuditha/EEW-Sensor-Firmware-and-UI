@@ -239,24 +239,7 @@ export default function Analysis() {
             )}
           </div>
 
-          {/* Bottom: Presets */}
-          {Object.keys(presets).length > 0 && (
-            <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-0.5">Presets</label>
-              <div className="flex flex-row items-center gap-1.5">
-                {Object.entries(presets).map(([key, preset]) => (
-                  <button
-                    key={key}
-                    onClick={() => applyPreset(key)}
-                    className={`h-7 px-3 rounded-md text-[9px] font-bold shadow-sm border transition-all ${activePreset === key ? 'bg-primary dark:bg-sky-600 text-white border-primary dark:border-slate-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
-                      }`}
-                  >
-                    {preset.label.split(' ')[0]}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+
         </div>
 
         {/* Right Column (Stacked Boxes) */}
@@ -281,7 +264,7 @@ export default function Analysis() {
                 onClick={() => isLive && setIsLive(false)}
                 min={minDatetime}
                 max={maxDatetime}
-                className={`h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300 ${isLive ? 'opacity-50 cursor-pointer' : ''}`}
+                className={`h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300 dark:[color-scheme:dark] ${isLive ? 'opacity-50 cursor-pointer' : ''}`}
               />
             </div>
             <span className="text-slate-300 font-bold text-[10px] pb-1.5">→</span>
@@ -297,7 +280,7 @@ export default function Analysis() {
                 min={minDatetime}
                 max={maxDatetime}
                 readOnly={isLive}
-                className={`h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300 ${isLive ? 'opacity-50 cursor-pointer' : ''}`}
+                className={`h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300 dark:[color-scheme:dark] ${isLive ? 'opacity-50 cursor-pointer' : ''}`}
               />
             </div>
             <div className={`h-7 flex items-center px-2 rounded-md text-[9px] font-bold font-mono border ${durationError ? 'bg-red-50 text-red-500 border-red-200' : 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700/50'
@@ -316,15 +299,30 @@ export default function Analysis() {
           </div>
 
           {/* Bottom Box: Frequency Sliders + Apply Button */}
-          <div className="flex flex-row items-end gap-3 w-full xl:justify-between flex-wrap">
-            <div className="flex flex-col flex-1">
+          <div className="flex flex-row items-end gap-2 w-full justify-end flex-wrap mt-1">
+            {Object.keys(presets).length > 0 && (
+              <div className="flex flex-col">
+                <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Preset</label>
+                <select
+                  value={activePreset || ''}
+                  onChange={(e) => applyPreset(e.target.value)}
+                  className="h-7 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-2 text-[10px] font-bold text-slate-600 dark:text-slate-200 shadow-sm focus:ring-1 focus:ring-slate-300 cursor-pointer min-w-[90px]"
+                >
+                  <option value="" disabled>Custom</option>
+                  {Object.entries(presets).map(([key, preset]) => (
+                    <option key={key} value={key}>{preset.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="flex flex-col w-[130px]">
               <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Low (Hz)</label>
               <div className="flex items-center space-x-1.5 w-full">
                 <input type="range" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
                 <input type="number" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
               </div>
             </div>
-            <div className="flex flex-col flex-1">
+            <div className="flex flex-col w-[130px]">
               <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">High (Hz)</label>
               <div className="flex items-center space-x-1.5 w-full">
                 <input type="range" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
