@@ -228,9 +228,6 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
 
     setLoading(true);
     isFetchingRef.current = true;
-    
-    // Clear the WS buffer at the start of a new fetch
-    CHANNELS.forEach(ch => { wsBufferRef.current[ch].length = 0; });
 
     fetch(`${protocol}//${host}/api/analysis/window?start=${startEpoch}&end=${endEpoch}`, {
       signal: controller.signal

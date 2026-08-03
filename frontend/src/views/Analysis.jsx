@@ -116,6 +116,19 @@ export default function Analysis() {
       setErrorMsg('Low frequency must be less than high frequency');
       return;
     }
+
+    // If live, snap the time window to 'now' so the historical fetch doesn't
+    // request an old time window, which would create a gap between the fetch
+    // end time and the new WebSocket data.
+    if (isLive) {
+      const now = nowEpoch();
+      const delta = now - endEpoch;
+      if (delta > 0) {
+        setStartEpoch(s => s + delta);
+        setEndEpoch(now);
+      }
+    }
+
     const base = `${window.location.protocol}//${window.location.host}`;
     setFilterStatus('updating');
     fetch(`${base}/api/analysis/filter`, {
@@ -136,7 +149,7 @@ export default function Analysis() {
         setErrorMsg(e.message);
         setFilterStatus('error');
       });
-  }, [lowHz, highHz]);
+  }, [lowHz, highHz, isLive, endEpoch]);
 
   // Apply preset
   const applyPreset = useCallback((key) => {
