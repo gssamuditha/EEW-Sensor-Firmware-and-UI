@@ -48,7 +48,7 @@ export default function Analysis() {
 
   // --- Time range state ---
   const nowEpoch = () => Math.floor(Date.now() / 1000);
-  const [startEpoch, setStartEpoch] = useState(() => floorMinute(nowEpoch() - 3600));
+  const [startEpoch, setStartEpoch] = useState(() => floorMinute(nowEpoch() - 1800));
   const [endEpoch, setEndEpoch] = useState(() => floorMinute(nowEpoch()));
   const [isLive, setIsLive] = useState(true); // true = end time tracks "now"
 
@@ -139,28 +139,7 @@ export default function Analysis() {
     setLowHz(preset.low_hz);
     setHighHz(preset.high_hz);
     setActivePreset(key);
-    // Also apply immediately
-    setErrorMsg('');
-    const base = `${window.location.protocol}//${window.location.host}`;
-    setFilterStatus('updating');
-    fetch(`${base}/api/analysis/filter`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ low_hz: preset.low_hz, high_hz: preset.high_hz }),
-    })
-      .then(r => {
-        if (!r.ok) return r.json().then(d => { throw new Error(d.detail || 'Failed'); });
-        return r.json();
-      })
-      .then(data => {
-        setActiveFilter(data);
-        setFilterStatus('active');
-        setFilterVersion(v => v + 1);
-      })
-      .catch(e => {
-        setErrorMsg(e.message);
-        setFilterStatus('error');
-      });
+    // User must explicitly click "APPLY FILTER" to apply these changes
   }, [presets]);
 
   // Quick select: behavior depends on isLive
