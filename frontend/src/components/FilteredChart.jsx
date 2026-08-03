@@ -155,7 +155,6 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
       <div className="flex items-center justify-between mb-0 px-1">
         <div className="flex items-center space-x-2">
           <span className="font-bold text-gray-500 dark:text-slate-300 text-[10px] tracking-widest leading-none">{channelName}</span>
-          <span className="text-[9px] text-gray-400 dark:text-slate-400 leading-none font-mono">FILTERED · m/s²</span>
         </div>
         <div className="flex items-center space-x-1.5">
           <span className={`text-sm font-mono font-bold leading-none ${labelColor(channelName)}`}>

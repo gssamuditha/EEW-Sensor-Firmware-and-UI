@@ -231,7 +231,7 @@ export default function Analysis() {
         <div className="flex flex-col gap-2">
           {/* Top: Title & Badge */}
           <div className="flex flex-row items-center gap-3">
-            <h1 className="text-2xl font-bold text-primary dark:text-sky-400 tracking-wide">Signal Analysis</h1>
+            <h1 className="text-3xl font-bold text-primary dark:text-sky-400 tracking-wide">Signal Analysis</h1>
             {activeFilter && filterStatus === 'active' && (
               <div className="px-2 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 text-[10px] font-bold rounded-md border border-slate-100 dark:border-slate-700 shadow-sm flex items-center space-x-1.5">
                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
@@ -363,7 +363,7 @@ export default function Analysis() {
         {/* Filtered Waveform Charts */}
         <div className="flex-1 min-h-0 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-4 shadow-md flex flex-col overflow-hidden">
           <div className="flex items-center justify-between mb-2 flex-shrink-0">
-            <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 tracking-widest">Data Visualization</span>
+            <div />
             {availability?.earliest && (
               <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">
                 Archive from {new Date(availability.earliest * 1000).toLocaleDateString()}
