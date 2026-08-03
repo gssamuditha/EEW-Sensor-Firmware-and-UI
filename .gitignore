@@ -44,10 +44,25 @@ htmlcov/
 venv/
 ENV/
 
-# Database
+# ---------------------------------------------------------------
+# DATA PROTECTION — NEVER COMMIT THESE FILES
+# Committing any of these to git would cause `git reset --hard`
+# during an OTA update to OVERWRITE or DELETE live sensor data.
+# ---------------------------------------------------------------
+
+# SQLite databases (ring-buffer, settings, event log)
 eew_sensor.db
 *.db
 *.sqlite3
+
+# miniSEED / SeisComP archive (managed by mseed_writer.py + retention.py)
+# The archive_root is typically outside the repo (e.g. /home/crisislab/data/archive)
+# but guard any *.mseed files that might land here during testing.
+*.mseed
+
+# Auto-update version marker and log
+.current_version
+eew_auto_update.log
 
 # OS generated files
 .DS_Store

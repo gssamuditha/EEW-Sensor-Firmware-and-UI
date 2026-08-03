@@ -4,10 +4,6 @@ database.py — SQLite persistence layer for EEW Sensor
 
 Tables
 ------
-sensor_data   Rolling 2-hour ring buffer of m/s² samples.
-              Used exclusively by /api/analysis/window for fast DSP queries.
-              NOT the permanent archive — that lives in miniSEED files.
-
 settings      Key-value store for all user/device configuration.
 
 event_log     Anomaly event metadata (timestamps, max amplitude).
@@ -15,74 +11,32 @@ event_log     Anomaly event metadata (timestamps, max amplitude).
 
 Design decisions
 ----------------
-* All disk writes are non-blocking: the hardware thread enqueues to
-  _db_write_queue; a dedicated writer thread drains it.
-* sensor_data retention is enforced every hour (2-hour cutoff).
-* The permanent miniSEED archive is managed by mseed_writer.py and retention.py.
+* Waveform data is NOT stored here — that lives in the miniSEED SDS archive
+  managed by mseed_writer.py and retention.py.
+* SQLite is config/events only: fast reads, tiny file, no retention issues.
 """
 
 import sqlite3
 import time
-import queue
-import threading
-import sys
 from threading import Lock
 
-DB_PATH  = "eew_sensor.db"
-db_lock  = Lock()
+DB_PATH = "eew_sensor.db"
+db_lock = Lock()
 
 # Default settings inserted on first run
 _SETTINGS_DEFAULTS = {
-    'targets':        '[{"name": "Main Server", "ip": "127.0.0.1", "port": 2098, "format": "corrected"}]',
-    'latitude':       '0.0',
-    'longitude':      '0.0',
-    'device_name':    'CRISIS-NODE-01',
-    'device_id':      'T0021',          # 5-char SEED station code
-    'network_code':   'CL',             # 2-char SEED network code
-    'location_code':  '00',
-    'archive_root':   '/home/crisislab/data/archive',
-    'retention_days': '7',
+    'targets':          '[{"name": "Main Server", "ip": "127.0.0.1", "port": 2098, "format": "corrected"}]',
+    'latitude':         '0.0',
+    'longitude':        '0.0',
+    'device_name':      'CRISIS-NODE-01',
+    'device_id':        'T0021',          # 5-char SEED station code
+    'network_code':     'CL',             # 2-char SEED network code
+    'location_code':    '00',
+    'archive_root':     '/home/crisislab/data/archive',
+    'retention_days':   '7',
     'calibration_time': '60',
-    'data_forwarding': 'true',
+    'data_forwarding':  'true',
 }
-
-# ---------------------------------------------------------------------------
-# Background DB writer
-# ---------------------------------------------------------------------------
-
-_db_write_queue: queue.Queue = queue.Queue()
-_writer_running = False
-
-
-def _db_writer_loop():
-    """Drain _db_write_queue and write batches to SQLite in the background."""
-    while _writer_running:
-        try:
-            batch = _db_write_queue.get(timeout=1.0)
-        except queue.Empty:
-            continue
-        try:
-            with db_lock:
-                with sqlite3.connect(DB_PATH) as conn:
-                    conn.cursor().executemany(
-                        'INSERT INTO sensor_data (timestamp, z, x, y) VALUES (?, ?, ?, ?)',
-                        batch
-                    )
-                    conn.commit()
-        except Exception as e:
-            print(f"DB write error: {e}", file=sys.stderr)
-
-
-def start_db_writer():
-    global _writer_running
-    _writer_running = True
-    t = threading.Thread(target=_db_writer_loop, daemon=True, name="db-writer")
-    t.start()
-
-
-def stop_db_writer():
-    global _writer_running
-    _writer_running = False
 
 
 # ---------------------------------------------------------------------------
@@ -93,24 +47,6 @@ def init_db():
     with db_lock:
         with sqlite3.connect(DB_PATH) as conn:
             c = conn.cursor()
-
-            # ----------------------------------------------------------------
-            # sensor_data — 2-hour rolling ring buffer (m/s²)
-            # Used by the Analysis dashboard for fast bandpass queries.
-            # NOT the permanent archive.
-            # ----------------------------------------------------------------
-            c.execute('''
-                CREATE TABLE IF NOT EXISTS sensor_data (
-                    id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp REAL NOT NULL,
-                    z         REAL NOT NULL,
-                    x         REAL NOT NULL,
-                    y         REAL NOT NULL
-                )
-            ''')
-            c.execute(
-                'CREATE INDEX IF NOT EXISTS idx_sd_timestamp ON sensor_data(timestamp)'
-            )
 
             # ----------------------------------------------------------------
             # settings — key/value configuration store
@@ -126,10 +62,8 @@ def init_db():
                     'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)',
                     (key, value)
                 )
-            
-            # Force update archive_root to ensure it matches the new path,
-            # as the old /opt/data path may still be cached in the DB from previous runs.
-            c.execute("UPDATE settings SET value = ? WHERE key = 'archive_root'", (_SETTINGS_DEFAULTS['archive_root'],))
+            # NOTE: INSERT OR IGNORE preserves any user-configured values
+            # (e.g. archive_root, device_id) across service restarts and OTA updates.
 
             # ----------------------------------------------------------------
             # event_log — anomaly event metadata
@@ -150,83 +84,12 @@ def init_db():
                 'CREATE INDEX IF NOT EXISTS idx_el_detected ON event_log(detected_at)'
             )
 
+            # Migration: drop the legacy sensor_data ring buffer table if it
+            # still exists from an older deployment. All waveform data now lives
+            # exclusively in the miniSEED SDS archive.
+            c.execute('DROP TABLE IF EXISTS sensor_data')
+
             conn.commit()
-
-    start_db_writer()
-
-
-# ---------------------------------------------------------------------------
-# 2-hour ring buffer writes
-# ---------------------------------------------------------------------------
-
-def insert_batch(records):
-    """
-    Queue a batch of m/s² samples for async DB write. Non-blocking.
-
-    Parameters
-    ----------
-    records : list of (timestamp_float, z_ms2, x_ms2, y_ms2)
-    """
-    safe = [(float(t), z, x, y) for t, z, x, y in records]
-    _db_write_queue.put(safe)
-
-
-def cleanup_old_data():
-    """
-    Prune the sensor_data ring buffer to the last 2 hours.
-    Called by the FastAPI lifespan background task every hour.
-    """
-    cutoff = time.time() - 7200   # 2 hours
-    with db_lock:
-        with sqlite3.connect(DB_PATH) as conn:
-            c = conn.cursor()
-            c.execute('DELETE FROM sensor_data WHERE timestamp < ?', (cutoff,))
-            deleted = c.rowcount
-            conn.commit()
-    return deleted
-
-
-# ---------------------------------------------------------------------------
-# Analysis dashboard read (fast, from ring buffer)
-# ---------------------------------------------------------------------------
-
-def get_data_for_range(start_time: float, end_time: float):
-    """
-    Return all 100-SPS m/s² samples between start_time and end_time from the
-    2-hour ring buffer.
-
-    Max window: 2 hours = 720,000 rows.
-    Caller must cap the window before calling.
-
-    Returns list of (timestamp, z, x, y) tuples.
-    """
-    with db_lock:
-        with sqlite3.connect(DB_PATH) as conn:
-            c = conn.cursor()
-            c.execute(
-                'SELECT timestamp, z, x, y FROM sensor_data '
-                'WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp ASC',
-                (start_time, end_time)
-            )
-            return c.fetchall()
-
-
-def get_data_availability():
-    """
-    Return earliest/latest timestamps in the 2-hour ring buffer.
-    Used by the analysis dashboard time-range indicator.
-    """
-    with db_lock:
-        with sqlite3.connect(DB_PATH) as conn:
-            c = conn.cursor()
-            c.execute('SELECT MIN(timestamp), MAX(timestamp), COUNT(*) FROM sensor_data')
-            row = c.fetchone()
-            return {
-                'earliest': row[0],
-                'latest':   row[1],
-                'count':    row[2] or 0,
-                'source':   'ring_buffer_2h',
-            }
 
 
 # ---------------------------------------------------------------------------

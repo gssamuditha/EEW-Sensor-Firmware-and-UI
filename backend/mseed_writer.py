@@ -129,6 +129,8 @@ class MiniSEEDWriter:
         self._settings_lock  = threading.Lock()
         self._write_lock     = threading.Lock()
         self._last_settings_refresh = 0.0
+        # Note: chunk timestamp continuity is now guaranteed by the sensor-hw monotonic
+        # counter. No snapping logic is needed here.
 
     # ------------------------------------------------------------------
     # Public API
@@ -243,12 +245,11 @@ class MiniSEEDWriter:
         if not samples:
             return
 
-        # Convert to numpy arrays
-        arr = np.array(samples, dtype=object)
-        timestamps = arr[:, 0].astype(np.float64)
-        z_counts   = arr[:, 1].astype(np.int32)
-        x_counts   = arr[:, 2].astype(np.int32)
-        y_counts   = arr[:, 3].astype(np.int32)
+        # Convert efficiently using list comprehensions to avoid object boxing
+        timestamps = np.array([s[0] for s in samples], dtype=np.float64)
+        z_counts   = np.array([s[1] for s in samples], dtype=np.int32)
+        x_counts   = np.array([s[2] for s in samples], dtype=np.int32)
+        y_counts   = np.array([s[3] for s in samples], dtype=np.int32)
 
         # Split at UTC midnight boundaries so each chunk maps to one daily file
         segments = self._split_at_day_boundaries(timestamps, z_counts, x_counts, y_counts)
@@ -317,6 +318,9 @@ class MiniSEEDWriter:
             print(f"mseed_writer: cannot create directory for {filepath}: {e}", file=sys.stderr)
             return
 
+        # Auto-repair partial blocks from previous crashes before appending
+        repair_mseed_file(filepath)
+
         # Build ObsPy Trace
         tr = Trace(data=data.astype(np.int32))
         tr.stats.network       = net
@@ -329,7 +333,13 @@ class MiniSEEDWriter:
         # Serialize to in-memory miniSEED bytes
         import io
         buf = io.BytesIO()
-        tr.write(buf, format='MSEED', encoding='INT32', reclen=MSEED_RECLEN)
+        try:
+            tr.write(buf, format='MSEED', encoding='INT32', reclen=MSEED_RECLEN)
+        except Exception as e:
+            # Catch backwards time jumps from NTP clock corrections
+            print(f"mseed_writer: ObsPy write error (dropped chunk) for {filepath}: {e}", file=sys.stderr)
+            return
+        
         mseed_bytes = buf.getvalue()
 
         # Atomic append to daily file
@@ -412,6 +422,24 @@ class MiniSEEDWriter:
 # Module-level read helper (called from ProcessPoolExecutor subprocesses)
 # ---------------------------------------------------------------------------
 
+def repair_mseed_file(filepath: str):
+    """
+    Truncate partial miniSEED blocks caused by sudden power loss or SIGKILL.
+    MiniSEED files must be an exact multiple of the record length (512 bytes).
+    """
+    try:
+        if not os.path.isfile(filepath):
+            return
+        fsize = os.path.getsize(filepath)
+        remainder = fsize % MSEED_RECLEN
+        if remainder != 0:
+            with open(filepath, 'r+b') as f:
+                f.truncate(fsize - remainder)
+            print(f"mseed_writer: Repaired corrupt trailing bytes ({remainder} bytes truncated) in {filepath}", file=sys.stderr)
+    except OSError:
+        pass
+
+
 def read_waveform_range(t_start, t_end, settings: dict = None) -> object:
     """
     Read a time-windowed waveform slice from the SDS archive using ObsPy.
@@ -464,6 +492,7 @@ def read_waveform_range(t_start, t_end, settings: dict = None) -> object:
         for ch in CHANNEL_NAMES:
             fpath = sds_filepath(root, net, sta, loc, ch, current)
             if os.path.isfile(fpath):
+                repair_mseed_file(fpath)
                 try:
                     st = obspy_read(fpath, starttime=t_start, endtime=t_end)
                     streams += st

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import FilteredChart from '../components/FilteredChart';
 import { useTimeZone } from '../TimeZoneContext';
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 
 // Quick-select durations (minutes)
 const QUICK_OPTIONS = [
@@ -13,21 +14,14 @@ const QUICK_OPTIONS = [
 
 // Convert epoch seconds to local datetime-local string (minute precision)
 function epochToLocal(epoch, tz) {
-  const d = new Date(epoch * 1000);
-  // Format as YYYY-MM-DDTHH:mm in the target timezone
-  const parts = new Intl.DateTimeFormat('sv-SE', {
-    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hour12: false,
-  }).formatToParts(d);
-  const get = (type) => (parts.find(p => p.type === type) || {}).value || '';
-  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+  return formatInTimeZone(new Date(epoch * 1000), tz, "yyyy-MM-dd'T'HH:mm");
 }
 
 // Convert local datetime-local string to epoch seconds
 function localToEpoch(dtStr, tz) {
   // datetime-local gives "YYYY-MM-DDTHH:mm"
   // We need to interpret this in the user's timezone
-  const d = new Date(dtStr);
+  const d = fromZonedTime(dtStr, tz);
   return d.getTime() / 1000;
 }
 
@@ -54,7 +48,7 @@ export default function Analysis() {
 
   // --- Time range state ---
   const nowEpoch = () => Math.floor(Date.now() / 1000);
-  const [startEpoch, setStartEpoch] = useState(() => floorMinute(nowEpoch() - 300));
+  const [startEpoch, setStartEpoch] = useState(() => floorMinute(nowEpoch() - 1800));
   const [endEpoch, setEndEpoch] = useState(() => floorMinute(nowEpoch()));
   const [isLive, setIsLive] = useState(true); // true = end time tracks "now"
 
@@ -109,6 +103,12 @@ export default function Analysis() {
     return null;
   }, [durationMinutes]);
 
+  // Check if current filter settings differ from active filter
+  const isFilterDirty = useMemo(() => {
+    if (!activeFilter) return false;
+    return Math.abs(lowHz - activeFilter.low_hz) > 0.001 || Math.abs(highHz - activeFilter.high_hz) > 0.001;
+  }, [lowHz, highHz, activeFilter]);
+
   // Apply filter
   const applyFilter = useCallback(() => {
     setErrorMsg('');
@@ -116,6 +116,19 @@ export default function Analysis() {
       setErrorMsg('Low frequency must be less than high frequency');
       return;
     }
+
+    // If live, snap the time window to 'now' so the historical fetch doesn't
+    // request an old time window, which would create a gap between the fetch
+    // end time and the new WebSocket data.
+    if (isLive) {
+      const now = nowEpoch();
+      const delta = now - endEpoch;
+      if (delta > 0) {
+        setStartEpoch(s => s + delta);
+        setEndEpoch(now);
+      }
+    }
+
     const base = `${window.location.protocol}//${window.location.host}`;
     setFilterStatus('updating');
     fetch(`${base}/api/analysis/filter`, {
@@ -136,7 +149,7 @@ export default function Analysis() {
         setErrorMsg(e.message);
         setFilterStatus('error');
       });
-  }, [lowHz, highHz]);
+  }, [lowHz, highHz, isLive, endEpoch]);
 
   // Apply preset
   const applyPreset = useCallback((key) => {
@@ -145,37 +158,19 @@ export default function Analysis() {
     setLowHz(preset.low_hz);
     setHighHz(preset.high_hz);
     setActivePreset(key);
-    // Also apply immediately
-    setErrorMsg('');
-    const base = `${window.location.protocol}//${window.location.host}`;
-    setFilterStatus('updating');
-    fetch(`${base}/api/analysis/filter`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ low_hz: preset.low_hz, high_hz: preset.high_hz }),
-    })
-      .then(r => {
-        if (!r.ok) return r.json().then(d => { throw new Error(d.detail || 'Failed'); });
-        return r.json();
-      })
-      .then(data => {
-        setActiveFilter(data);
-        setFilterStatus('active');
-        setFilterVersion(v => v + 1);
-      })
-      .catch(e => {
-        setErrorMsg(e.message);
-        setFilterStatus('error');
-      });
+    // User must explicitly click "APPLY FILTER" to apply these changes
   }, [presets]);
 
-  // Quick select: set start = now - minutes, end = now, go live
+  // Quick select: behavior depends on isLive
   const quickSelect = useCallback((minutes) => {
-    const now = nowEpoch();
-    setStartEpoch(now - minutes * 60);
-    setEndEpoch(now);
-    setIsLive(true);
-  }, []);
+    if (isLive) {
+      const now = nowEpoch();
+      setStartEpoch(now - minutes * 60);
+      setEndEpoch(now);
+    } else {
+      setEndEpoch(startEpoch + minutes * 60);
+    }
+  }, [isLive, startEpoch]);
 
   // Handle start time change
   const handleStartChange = (e) => {
@@ -208,11 +203,12 @@ export default function Analysis() {
     setIsLive(!isLive);
   };
 
-  // Min datetime for the picker (24 hours ago or earliest data)
+  // Min datetime for the picker — use the archive's actual earliest timestamp.
+  // Falls back to 7 days ago if archive availability is not yet loaded.
   const minDatetime = useMemo(() => {
-    const twentyFourHoursAgo = nowEpoch() - 86400;
-    const earliest = availability?.earliest || twentyFourHoursAgo;
-    return epochToLocal(Math.max(earliest, twentyFourHoursAgo), timeZone);
+    const sevenDaysAgo = nowEpoch() - 7 * 86400;
+    const earliest = availability?.earliest || sevenDaysAgo;
+    return epochToLocal(earliest, timeZone);
   }, [availability, timeZone]);
 
   const maxDatetime = useMemo(() => {
@@ -248,7 +244,7 @@ export default function Analysis() {
         <div className="flex flex-col gap-2">
           {/* Top: Title & Badge */}
           <div className="flex flex-row items-center gap-3">
-            <h2 className="text-2xl font-bold text-primary dark:text-sky-400 tracking-wide">Signal Analysis</h2>
+            <h1 className="text-3xl font-bold text-primary dark:text-sky-400 tracking-wide">Signal Analysis</h1>
             {activeFilter && filterStatus === 'active' && (
               <div className="px-2 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 text-[10px] font-bold rounded-md border border-slate-100 dark:border-slate-700 shadow-sm flex items-center space-x-1.5">
                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
@@ -262,54 +258,13 @@ export default function Analysis() {
             )}
           </div>
 
-          {/* Bottom: Presets */}
-          {Object.keys(presets).length > 0 && (
-            <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-0.5">Presets</label>
-              <div className="flex flex-row items-center gap-1.5">
-                {Object.entries(presets).map(([key, preset]) => (
-                  <button
-                    key={key}
-                    onClick={() => applyPreset(key)}
-                    className={`h-7 px-3 rounded-md text-[9px] font-bold shadow-sm border transition-all ${activePreset === key ? 'bg-primary dark:bg-sky-600 text-white border-primary dark:border-slate-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
-                      }`}
-                  >
-                    {preset.label.split(' ')[0]}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+
         </div>
 
         {/* Right Column (Stacked Boxes) */}
         <div className="flex flex-col items-end gap-2">
           {/* Top Box: Time Settings */}
           <div className="flex flex-row items-end gap-2 flex-wrap">
-            <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Start</label>
-              <input
-                type="datetime-local"
-                value={epochToLocal(startEpoch, timeZone)}
-                onChange={handleStartChange}
-                min={minDatetime}
-                max={maxDatetime}
-                className="h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300"
-              />
-            </div>
-            <span className="text-slate-300 font-bold text-[10px] pb-1.5">→</span>
-            <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">End</label>
-              <input
-                type="datetime-local"
-                value={epochToLocal(endEpoch, timeZone)}
-                onChange={handleEndChange}
-                min={minDatetime}
-                max={maxDatetime}
-                disabled={isLive}
-                className={`h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300 ${isLive ? 'opacity-50 cursor-not-allowed' : ''}`}
-              />
-            </div>
             <button
               onClick={toggleLive}
               className={`h-7 px-2.5 rounded-md text-[9px] font-bold tracking-wider shadow-sm border ${isLive ? 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:text-emerald-600'
@@ -317,6 +272,36 @@ export default function Analysis() {
             >
               {isLive ? '● LIVE' : 'NOW'}
             </button>
+            <div className="flex flex-col">
+              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">
+                Start <span className="ml-0.5 text-slate-400 font-normal">({timeZone})</span>
+              </label>
+              <input
+                type="datetime-local"
+                value={epochToLocal(startEpoch, timeZone)}
+                onChange={handleStartChange}
+                onClick={() => isLive && setIsLive(false)}
+                min={minDatetime}
+                max={maxDatetime}
+                className={`h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300 dark:[color-scheme:dark] ${isLive ? 'opacity-50 cursor-pointer' : ''}`}
+              />
+            </div>
+            <span className="text-slate-300 font-bold text-[10px] pb-1.5">→</span>
+            <div className="flex flex-col">
+              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">
+                End <span className="ml-0.5 text-slate-400 font-normal">({timeZone})</span>
+              </label>
+              <input
+                type="datetime-local"
+                value={epochToLocal(endEpoch, timeZone)}
+                onChange={handleEndChange}
+                onClick={() => isLive && setIsLive(false)}
+                min={minDatetime}
+                max={maxDatetime}
+                readOnly={isLive}
+                className={`h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300 dark:[color-scheme:dark] ${isLive ? 'opacity-50 cursor-pointer' : ''}`}
+              />
+            </div>
             <div className={`h-7 flex items-center px-2 rounded-md text-[9px] font-bold font-mono border ${durationError ? 'bg-red-50 text-red-500 border-red-200' : 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700/50'
               }`}>
               {durationStr}
@@ -333,27 +318,49 @@ export default function Analysis() {
           </div>
 
           {/* Bottom Box: Frequency Sliders + Apply Button */}
-          <div className="flex flex-row items-end gap-3 w-full xl:justify-between flex-wrap">
-            <div className="flex flex-col flex-1">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Low (Hz)</label>
-              <div className="flex items-center space-x-1.5 w-full">
-                <input type="range" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
-                <input type="number" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
+          <div className="flex flex-row items-end gap-2 w-full justify-between flex-wrap mt-1">
+            {Object.keys(presets).length > 0 && (
+              <div className="flex flex-col flex-1 min-w-[120px] mr-2">
+                <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Preset</label>
+                <select
+                  value={activePreset || ''}
+                  onChange={(e) => applyPreset(e.target.value)}
+                  className="h-7 w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-2 text-[10px] font-bold text-slate-600 dark:text-slate-200 shadow-sm focus:ring-1 focus:ring-slate-300 cursor-pointer"
+                >
+                  <option value="" disabled>Custom</option>
+                  {Object.entries(presets).map(([key, preset]) => (
+                    <option key={key} value={key}>{preset.label}</option>
+                  ))}
+                </select>
               </div>
-            </div>
-            <div className="flex flex-col flex-1">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">High (Hz)</label>
-              <div className="flex items-center space-x-1.5 w-full">
-                <input type="range" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
-                <input type="number" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value) || 0.5); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
+            )}
+
+            {/* Frequency Controls & Apply Button */}
+            <div className="flex flex-row items-end gap-2 flex-wrap ml-auto">
+              <div className="flex flex-col w-[130px]">
+                <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Low (Hz)</label>
+                <div className="flex items-center space-x-1.5 w-full">
+                  <input type="range" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
+                  <input type="number" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
+                </div>
               </div>
+              <div className="flex flex-col w-[130px]">
+                <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">High (Hz)</label>
+                <div className="flex items-center space-x-1.5 w-full">
+                  <input type="range" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
+                  <input type="number" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value) || 0.5); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
+                </div>
+              </div>
+              <button
+                onClick={applyFilter}
+                className={isFilterDirty
+                  ? "h-7 bg-amber-500 hover:bg-amber-600 text-white rounded-md font-bold transition-all shadow-md px-4 text-[9px] tracking-wider shrink-0 animate-pulse border border-amber-400"
+                  : "h-7 bg-primary dark:bg-sky-600 hover:bg-opacity-90 text-white rounded-md font-bold transition-all shadow-md px-4 text-[9px] tracking-wider shrink-0"
+                }
+              >
+                Apply Filter
+              </button>
             </div>
-            <button
-              onClick={applyFilter}
-              className="h-7 bg-primary dark:bg-sky-600 hover:bg-opacity-90 text-white rounded-md font-bold transition-all shadow-md px-4 text-[9px] tracking-wider shrink-0"
-            >
-              APPLY FILTER
-            </button>
           </div>
 
           {(errorMsg || durationError) && (
@@ -368,6 +375,14 @@ export default function Analysis() {
 
         {/* Filtered Waveform Charts */}
         <div className="flex-1 min-h-0 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-4 shadow-md flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between mb-2 flex-shrink-0">
+            <div />
+            {availability?.earliest && (
+              <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">
+                Archive from {new Date(availability.earliest * 1000).toLocaleDateString()}
+              </span>
+            )}
+          </div>
           {durationError ? (
             <div className="flex-1 flex items-center justify-center text-slate-400 dark:text-slate-400 text-sm">
               {durationError}. Adjust the time range above.
@@ -379,6 +394,7 @@ export default function Analysis() {
               endEpoch={endEpoch}
               isLive={isLive}
               filterVersion={filterVersion}
+              onError={setErrorMsg}
             />
           )}
         </div>

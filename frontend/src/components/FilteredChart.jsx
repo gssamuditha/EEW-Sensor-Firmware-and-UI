@@ -103,7 +103,12 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
             }).format(new Date(x));
           } catch { return ''; }
         }),
-        valueAxisPlugin((v) => v.toFixed(4)),
+        valueAxisPlugin((v) => {
+          const abs = Math.abs(v);
+          if (abs === 0) return '0';
+          if (abs >= 0.001) return v.toFixed(4);
+          return v.toExponential(2);
+        }),
         pointerCrosshairPlugin(),
         highlightNearestPointPlugin(),
         analysisCursorSync.plugin(),
@@ -150,11 +155,12 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
       <div className="flex items-center justify-between mb-0 px-1">
         <div className="flex items-center space-x-2">
           <span className="font-bold text-gray-500 dark:text-slate-300 text-[10px] tracking-widest leading-none">{channelName}</span>
-          <span className="text-[9px] text-gray-400 dark:text-slate-400 leading-none font-mono">FILTERED</span>
         </div>
         <div className="flex items-center space-x-1.5">
           <span className={`text-sm font-mono font-bold leading-none ${labelColor(channelName)}`}>
-            {latestValue !== null ? latestValue.toFixed(4) : '0.0000'}
+            {latestValue !== null && latestValue !== 0
+              ? (Math.abs(latestValue) >= 0.001 ? latestValue.toFixed(4) : latestValue.toExponential(3))
+              : '0.000'}
           </span>
           <span className="text-[10px] text-gray-400 dark:text-slate-400 leading-none">m/s²</span>
         </div>
@@ -167,7 +173,7 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
 // ---------------------------------------------------------------------------
 // FilteredChart — manages data fetching, WS connection, data ingestion
 // ---------------------------------------------------------------------------
-export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive = false, filterVersion = 0 }) {
+export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive = false, filterVersion = 0, onError }) {
   const timeWindowMs = (endEpoch - startEpoch) * 1000;
 
   // Max points to keep in live mode: based on window.
@@ -222,16 +228,21 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
 
     setLoading(true);
     isFetchingRef.current = true;
-    
-    // Clear the WS buffer at the start of a new fetch
-    CHANNELS.forEach(ch => { wsBufferRef.current[ch].length = 0; });
 
     fetch(`${protocol}//${host}/api/analysis/window?start=${startEpoch}&end=${endEpoch}`, {
       signal: controller.signal
     })
-      .then(r => r.json())
+      .then(async r => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          if (onError && data.detail) onError(data.detail);
+          return null;
+        }
+        if (onError) onError('');
+        return data;
+      })
       .then(data => {
-        if (!data.timestamps || data.timestamps.length === 0) {
+        if (!data || !data.timestamps || data.timestamps.length === 0) {
           // Clear existing data
           CHANNELS.forEach(ch => {
             dataRefs.current[ch].length = 0;

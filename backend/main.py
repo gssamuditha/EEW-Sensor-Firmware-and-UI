@@ -15,14 +15,15 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
-from database import init_db, cleanup_old_data, get_settings, update_settings, stop_db_writer
+from database import init_db, get_settings, update_settings
 from mseed_writer import mseed_writer
 from filters import FILTER_PRESETS
 from sensor import sensor_manager, process_historical_data_task, CHANNEL_NAMES
+from https_publisher import https_publisher
 from concurrent.futures import ProcessPoolExecutor
 
 # Use a ProcessPool to run heavy numpy/scipy operations entirely out-of-process, bypassing the GIL.
-process_pool = ProcessPoolExecutor(max_workers=2)
+process_pool = ProcessPoolExecutor(max_workers=2, max_tasks_per_child=50)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -34,13 +35,8 @@ async def lifespan(app: FastAPI):
     loop = asyncio.get_running_loop()
     await asyncio.to_thread(sensor_manager.start, loop)
     
-    # Background task for cleanup
-    async def cleanup_task():
-        while True:
-            await asyncio.sleep(3600)  # Every hour
-            cleanup_old_data()
-            
-    task = asyncio.create_task(cleanup_task())
+    # Start HTTPS telemetry / metadata publisher (non-blocking daemon thread)
+    https_publisher.start(sensor_manager)
     
     # Background task for miniSEED retention
     from retention import run_retention_task
@@ -48,9 +44,8 @@ async def lifespan(app: FastAPI):
     
     yield
     sensor_manager.stop()
-    stop_db_writer()
     mseed_writer.stop()
-    task.cancel()
+    https_publisher.stop()
     retention_task.cancel()
     process_pool.shutdown(wait=False)
 
@@ -339,6 +334,25 @@ def api_set_settings(settings: SettingsModel):
         settings_dict["retention_days"] = settings.retention_days
         
     update_settings(settings_dict)
+
+    # Refresh device_id cache and push updated metadata to the central server
+    https_publisher.refresh_settings()
+    
+    # Fetch the definitively saved settings from the database
+    updated_s = get_settings()
+    https_publisher.send_metadata({
+        "device_id":    updated_s.get("device_id", "T0021"),
+        "ts":           time.time(),
+        "device_name":  updated_s.get("device_name", "CRISIS-NODE-01"),
+        "owner_name":   updated_s.get("owner_name", ""),
+        "owner_email":  updated_s.get("owner_email", ""),
+        "latitude":     float(updated_s.get("latitude", 0.0)),
+        "longitude":    float(updated_s.get("longitude", 0.0)),
+        "elevation_m":  float(updated_s.get("elevation", 0.0)),
+        "floor":        int(updated_s.get("floor_unit", 0)),
+        "total_floors": int(updated_s.get("total_floors", 1)),
+    })
+
     return {"status": "ok"}
 
 # ---------------------------------------------------------------------------

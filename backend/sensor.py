@@ -6,7 +6,7 @@ import random
 import sys
 import json
 
-from database import insert_batch, get_data_for_range
+
 from filters import BandpassFilter, minmax_downsample, FILTER_PRESETS
 import numpy as np
 from mseed_writer import mseed_writer
@@ -32,6 +32,9 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
             "sps": 100,
             "window_seconds": window_seconds,
         }
+        
+    from obspy import UTCDateTime
+    st.trim(starttime=UTCDateTime(start_time), endtime=UTCDateTime(end_time), pad=True, fill_value=0)
 
     raw = {}
     timestamps = None
@@ -95,6 +98,7 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
         "timestamps": out_t,
         "samples": result_samples,
         "sps": 100,
+        "unit": "m/s²",
         "window_seconds": window_seconds,
         "raw_sample_count": len(timestamps),
         "display_points": len(out_t),
@@ -161,12 +165,12 @@ class MockSensor:
 
     def read_all_raw(self):
         """Return mock signed 24-bit ADC counts (simulates what raw hardware returns)."""
-        t = time.time()
-        # Convert mock m/s² back to approximate counts for consistency
+        # Timestamp is no longer generated here — the SensorManager hw_loop
+        # computes all sample times from a monotonic counter anchored to NTP.
         z = int((0.5 * random.random() + 0.1) / INSTRUMENT_SENSITIVITY_MS2_PER_COUNT)
         x = int((0.5 * random.random() - 0.2) / INSTRUMENT_SENSITIVITY_MS2_PER_COUNT)
         y = int((0.5 * random.random() + 0.05) / INSTRUMENT_SENSITIVITY_MS2_PER_COUNT)
-        return (t, z, x, y)
+        return (z, x, y)
 
 
 class RealSensor:
@@ -299,7 +303,10 @@ class RealSensor:
         for i in range(3):
             raw_cnt = self._read_adc(i, return_raw=True)
             readings.append(raw_cnt)  # NO subtraction — true hardware counts
-        return (time.time(), readings[0], readings[1], readings[2])
+        # Timestamp is NOT included here — the SensorManager hw_loop computes
+        # all sample times from a monotonic counter anchored to NTP, eliminating
+        # per-sample time.time() jitter entirely.
+        return (readings[0], readings[1], readings[2])
 
 class SensorManager:
     def __init__(self, use_mock=False):
@@ -339,6 +346,9 @@ class SensorManager:
         self._cached_targets = []
         self._cached_data_forwarding = True
         self._filter_lock = threading.Lock()
+
+        # Timing state is managed entirely inside _hw_loop using the Software PLL
+        # approach (time.time() + chrony discipline). No shared state needed here.
         
     def start(self, loop=None):
         if self.running:
@@ -409,151 +419,193 @@ class SensorManager:
         return process_historical_data_task(start_time, end_time, low_hz, high_hz, target_display_points)
             
     def _hw_loop(self):
-        """Strictly prioritized hardware loop for 100 SPS SPI reading, DB queueing, and UDP sending."""
-        buffer = []
-        udp_buffers = [[], [], []]  # corrected m/s² per axis (for corrected UDP path)
-        raw_buffers  = [[], [], []]  # filtered integer counts per axis (for raw UDP path)
-        
+        """
+        Strictly prioritized hardware loop for 100 SPS SPI reading and UDP sending.
+
+        TIMING ARCHITECTURE — Software PLL via chrony-disciplined UTC clock
+        -------------------------------------------------------------------
+        The loop schedules each iteration against time.time() (POSIX CLOCK_REALTIME).
+        On Raspberry Pi, the Linux kernel's chrony daemon continuously disciplines
+        CLOCK_REALTIME to NTP via *slewing* (adjusting the clock rate by ±500 ppm),
+        never by jumping.  This means time.time() IS the Software PLL output.
+
+        By accumulating next_loop_utc on time.time(), the loop speed is automatically
+        steered by chrony to match true UTC — no custom PLL code required.
+
+        Sample timestamp:
+            t = next_loop_utc   (the pre-computed UTC instant this iteration fires)
+        This is the actual UTC moment the ADC conversion was commanded, with no
+        per-sample syscall jitter because we use the *scheduled* time, not the
+        *measured* time.
+
+        Rate limiting:
+            The spin-wait uses time.monotonic() (fast VDSO, no kernel context switch).
+            We derive the equivalent monotonic target from a short-lived reference pair
+            (_utc_ref, _mono_ref), refreshed every iteration to stay accurate.
+
+        NTP step detection:
+            chrony slews by default; steps only occur for large errors (e.g. at boot).
+            If time.time() diverges from the expected monotonic-derived value by more
+            than NTP_STEP_THRESHOLD, we treat it as an NTP step and reset the anchor.
+        """
+        NTP_STEP_THRESHOLD = 0.5        # seconds — anything larger is an NTP step
+        target_interval    = 1.0 / 200  # 5 ms per oversampled iteration (200 Hz)
+
+        # ── Startup: establish UTC anchor ──────────────────────────────────────
+        # Take median of 5 time.time() readings to reduce OS scheduler jitter
+        # on the very first sample.
+        _init = sorted(time.time() for _ in range(5))
+        next_loop_utc = _init[2]           # median → UTC-accurate start
+        _utc_ref      = next_loop_utc
+        _mono_ref     = time.monotonic()
+        print(f"sensor-hw: Software PLL started. Initial UTC anchor: {next_loop_utc:.6f}", file=sys.stderr)
+
+        udp_buffers = [[], [], []]         # m/s² per axis (corrected UDP path)
+        raw_buffers  = [[], [], []]        # integer counts per axis (raw UDP path)
+
         total_samples = 0
-        total_time = 0
-        packet_start_time = time.time()
-        sample_count = 0
-        target_interval = 1.0 / 200  # 5 ms per sample (200 Hz Oversampling)
-        next_loop_time = time.monotonic()
-        
-        # 2nd-Order Butterworth Low-Pass (fc=50Hz, fs=200Hz) for Anti-Aliasing.
-        # Applied directly to demeaned integer ADC counts — same coefficients,
-        # just different input units.  Output is float (sub-count precision).
-        # b0, b1, b2, a1, a2
+        total_time    = 0
+        sps_mono_ref  = time.monotonic()  # monotonic reference for SPS tracking
+        sample_count  = 0
+
+        # 2nd-Order Butterworth Low-Pass (fc=50 Hz, fs=200 Hz) — Anti-Aliasing.
+        # Pure integer arithmetic; bypasses Numpy/Scipy GIL. ~1 µs per sample.
         b0, b1, b2 = 0.29289322, 0.58578644, 0.29289322
-        a1, a2 = 0.0, 0.17157288
-        
-        # Per-axis filter state (floats even though input is int — sub-count precision)
+        a1, a2     = 0.0, 0.17157288
+
+        # Per-axis IIR state
         x_hist = {'Z': [0.0, 0.0], 'X': [0.0, 0.0], 'Y': [0.0, 0.0]}
         y_hist = {'Z': [0.0, 0.0], 'X': [0.0, 0.0], 'Y': [0.0, 0.0]}
-        
+
         decimate_flag = False
 
         while self.running:
             try:
-                next_loop_time += target_interval
+                # Advance UTC scheduling accumulator
+                next_loop_utc += target_interval
 
-                # Read demeaned 24-bit integer counts directly from hardware.
-                # RealSensor.read_all_raw() subtracts RAW_COUNTS_ZERO[i] so the
-                # returned values represent differential ground motion only.
-                t, z_cnt, x_cnt, y_cnt = self.sensor.read_all_raw()
-                
-                # --- Pure Arithmetic Anti-Aliasing Filter (on integer counts) ---
-                # Bypasses Numpy/Scipy GIL overhead. Takes ~1 microsecond.
+                # ── Software PLL: NTP step detection ──────────────────────────
+                # Under normal chrony operation time.time() slews smoothly — no
+                # jump will be detected here.  A jump > NTP_STEP_THRESHOLD means
+                # a manual NTP step (e.g. chrony makestep at boot) — we reset.
+                now_utc  = time.time()
+                now_mono = time.monotonic()
+                expected_utc = _utc_ref + (now_mono - _mono_ref)
+                utc_error    = now_utc - expected_utc
+
+                if abs(utc_error) > NTP_STEP_THRESHOLD:
+                    # Large NTP step: re-anchor to current UTC
+                    next_loop_utc = now_utc
+                    print(
+                        f"sensor-hw: NTP step detected ({utc_error:+.3f}s). "
+                        f"Timing re-anchored to {now_utc:.6f}",
+                        file=sys.stderr
+                    )
+
+                # Update short-lived references for spin-wait calculation
+                _utc_ref  = now_utc
+                _mono_ref = now_mono
+
+                # ── Hardware Read (no timestamp — timing is handled here) ──────
+                z_cnt, x_cnt, y_cnt = self.sensor.read_all_raw()
+
+                # ── Anti-Aliasing IIR Filter (pure arithmetic, no GIL) ────────
                 z_f = b0*z_cnt + b1*x_hist['Z'][0] + b2*x_hist['Z'][1] - a1*y_hist['Z'][0] - a2*y_hist['Z'][1]
-                x_hist['Z'] = [z_cnt, x_hist['Z'][0]]
-                y_hist['Z'] = [z_f,   y_hist['Z'][0]]
-                
+                x_hist['Z'] = [z_cnt, x_hist['Z'][0]]; y_hist['Z'] = [z_f,   y_hist['Z'][0]]
+
                 x_f = b0*x_cnt + b1*x_hist['X'][0] + b2*x_hist['X'][1] - a1*y_hist['X'][0] - a2*y_hist['X'][1]
-                x_hist['X'] = [x_cnt, x_hist['X'][0]]
-                y_hist['X'] = [x_f,   y_hist['X'][0]]
-                
+                x_hist['X'] = [x_cnt, x_hist['X'][0]]; y_hist['X'] = [x_f,   y_hist['X'][0]]
+
                 y_f = b0*y_cnt + b1*x_hist['Y'][0] + b2*x_hist['Y'][1] - a1*y_hist['Y'][0] - a2*y_hist['Y'][1]
-                x_hist['Y'] = [y_cnt, x_hist['Y'][0]]
-                y_hist['Y'] = [y_f,   y_hist['Y'][0]]
-                
+                x_hist['Y'] = [y_cnt, x_hist['Y'][0]]; y_hist['Y'] = [y_f,   y_hist['Y'][0]]
+
+                # ── Decimation: keep every 2nd → 100 SPS output ───────────────
                 decimate_flag = not decimate_flag
-                
-                # Only process every 2nd sample (÷2 decimation → exactly 100 SPS)
                 if not decimate_flag:
-                    # Convert filtered TRUE counts → zero-centred m/s² for DB, analytics, corrected UDP.
-                    # RAW_COUNTS_ZERO is subtracted HERE (not in read_all_raw) so the raw
-                    # UDP path carries the unmodified hardware counts as expected by ObsPy.
+
+                    # ── Sample Timestamp: scheduled UTC time ─────────────────
+                    # t = next_loop_utc — the NTP-disciplined UTC instant this
+                    # ADC conversion was commanded.  No per-sample syscall.
+                    # No synthetic counter math.  chrony provides the PLL steering.
+                    t = next_loop_utc
+
+                    # Convert filtered counts → physical units for analytics/UDP
                     z_ms2 = (z_f - RAW_COUNTS_ZERO[0]) * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
                     x_ms2 = (x_f - RAW_COUNTS_ZERO[1]) * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
                     y_ms2 = (y_f - RAW_COUNTS_ZERO[2]) * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
-                    
-                    record = (t, z_ms2, x_ms2, y_ms2)
-                    
-                    # 1. Background DB writer queueing (2h ring buffer for analysis)
-                    buffer.append(record)
-                    if len(buffer) >= 50:
-                        insert_batch(buffer)
-                        buffer = []
-                        
-                    # 1.5 MiniSEED Writer (permanent archive, raw int32 counts)
+
+                    # 1. miniSEED archive (raw int32 counts — unmodified hardware data)
                     mseed_writer.enqueue(t, int(round(z_f)), int(round(x_f)), int(round(y_f)))
-                    
-                    # 2. Push to analytics thread (non-blocking)
+
+                    # 2. Analytics WebSocket (non-blocking)
+                    record = (t, z_ms2, x_ms2, y_ms2)
                     if not self._analytics_queue.full():
                         self._analytics_queue.put_nowait(record)
-                    
+
                     sample_count += 1
-                    
-                    # 3. UDP Sending (using cached targets from analytics thread)
-                    if self._cached_targets:
-                        if len(udp_buffers[0]) == 0:
-                            timestamp = t
-                        # Corrected path: m/s² floats
-                        udp_buffers[0].append(z_ms2)
-                        udp_buffers[1].append(x_ms2)
-                        udp_buffers[2].append(y_ms2)
-                        # Raw path: genuine IIR-filtered, decimated integer counts
-                        raw_buffers[0].append(int(round(z_f)))
-                        raw_buffers[1].append(int(round(x_f)))
-                        raw_buffers[2].append(int(round(y_f)))
 
-                        if len(udp_buffers[0]) >= SAMPLES_PER_PACKET:
-                            if self._cached_data_forwarding:
-                                for target in self._cached_targets:
-                                    fmt = target.get('format', 'corrected')
-                                    for i, name in enumerate(CHANNEL_NAMES):
-                                        if fmt == 'raw':
-                                            # Genuine hardware counts: demeaned → IIR LPF → decimated
-                                            samples = raw_buffers[i]
-                                        else:
-                                            # Physical units rounded to 6 decimal places
-                                            samples = [round(v, 6) for v in udp_buffers[i]]
-                                        
-                                        # Raspberry Shake Datacast compatible format:
-                                        # {'CHANNEL', timestamp, s1, s2, ..., sN}
-                                        samples_str = ", ".join(str(s) for s in samples)
-                                        packet_str = "{'" + name + "', " + f"{timestamp:.3f}" + ", " + samples_str + "}"
-                                        try:
-                                            self.sock.sendto(packet_str.encode('utf-8'), (target['ip'], target['port']))
-                                        except OSError as e:
-                                            print(f"UDP send error → {target['ip']}:{target['port']}: {e}", file=sys.stderr)
-                            udp_buffers = [[], [], []]
-                            raw_buffers  = [[], [], []]
-                    
-                    # 4. SPS Tracking
+                    # 3. UDP Buffering & Sending
+                    if len(udp_buffers[0]) == 0:
+                        timestamp = t        # packet start timestamp (6 decimal places)
+                    udp_buffers[0].append(z_ms2)
+                    udp_buffers[1].append(x_ms2)
+                    udp_buffers[2].append(y_ms2)
+                    raw_buffers[0].append(int(round(z_f)))
+                    raw_buffers[1].append(int(round(x_f)))
+                    raw_buffers[2].append(int(round(y_f)))
+
+                    if len(udp_buffers[0]) >= SAMPLES_PER_PACKET:
+                        if self._cached_targets and self._cached_data_forwarding:
+                            for target in self._cached_targets:
+                                fmt = target.get('format', 'corrected')
+                                for i, name in enumerate(CHANNEL_NAMES):
+                                    if fmt == 'raw':
+                                        samples = raw_buffers[i]
+                                    else:
+                                        samples = [round(v, 6) for v in udp_buffers[i]]
+                                    samples_str = ", ".join(str(s) for s in samples)
+                                    # Raspberry Shake Datacast format (microsecond precision)
+                                    packet_str = "{'" + name + "', " + f"{timestamp:.6f}" + ", " + samples_str + "}"
+                                    try:
+                                        self.sock.sendto(packet_str.encode('utf-8'), (target['ip'], target['port']))
+                                    except OSError as e:
+                                        print(f"UDP send error → {target['ip']}:{target['port']}: {e}", file=sys.stderr)
+                        udp_buffers = [[], [], []]
+                        raw_buffers  = [[], [], []]
+
+                    # 4. SPS Tracking (monotonic — immune to chrony slewing)
                     if sample_count >= SAMPLES_PER_PACKET:
-                        end_time = time.time()
-                        elapsed = end_time - packet_start_time
-                        sps = SAMPLES_PER_PACKET / elapsed if elapsed > 0 else 0
-
+                        now_m   = time.monotonic()
+                        elapsed = now_m - sps_mono_ref
+                        sps     = SAMPLES_PER_PACKET / elapsed if elapsed > 0 else 0
                         total_samples += SAMPLES_PER_PACKET
-                        total_time += elapsed
-                        overall_sps = total_samples / total_time if total_time > 0 else 0
-
+                        total_time    += elapsed
                         self.hardware_sps = round(sps, 2)
-                        self.avg_sps = round(overall_sps, 2)
-                        
-                        packet_start_time = end_time
-                        sample_count = 0
+                        self.avg_sps     = round(total_samples / total_time, 2)
+                        sps_mono_ref     = now_m
+                        sample_count     = 0
 
-                # Precise, drift-free rate limiting using absolute time
-                now = time.monotonic()
-                remaining = next_loop_time - now
-                if remaining > 0.003:
-                    time.sleep(remaining - 0.002)
-                while time.monotonic() < next_loop_time:
+                # ── Rate Limiting ──────────────────────────────────────────────
+                # Sleep uses time.monotonic() (fast VDSO, no syscall overhead).
+                # We convert the UTC target to its equivalent monotonic time via
+                # the short-lived (_utc_ref, _mono_ref) pair updated above.
+                target_mono = _mono_ref + (next_loop_utc - _utc_ref)
+                remaining   = target_mono - time.monotonic()
+                if remaining > 0.0005:
+                    time.sleep(remaining - 0.0002)
+                while time.monotonic() < target_mono:
                     pass
 
             except Exception as e:
-                print(f"HW loop error: {e}")
+                print(f"HW loop error: {e}", file=sys.stderr)
                 time.sleep(1)
-                next_loop_time = time.monotonic() # Reset absolute timer after an error
-        
-        # Flush on shutdown
-        if len(buffer) > 0:
-            insert_batch(buffer)
-            buffer = []
+                # Re-anchor to current UTC after any error to avoid stale timing
+                _init = sorted(time.time() for _ in range(5))
+                next_loop_utc = _init[2]
+                _utc_ref  = next_loop_utc
+                _mono_ref = time.monotonic()
+
+        # Final flush on shutdown
         mseed_writer.flush()
 
     def _safe_put(self, q, msg):

@@ -9,3 +9,4 @@ scipy
 numpy
 obspy
 pamela
+httpx
