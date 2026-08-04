@@ -25,7 +25,7 @@ db_lock = Lock()
 
 # Default settings inserted on first run
 _SETTINGS_DEFAULTS = {
-    'targets':          '[{"name": "Main Server", "ip": "127.0.0.1", "port": 2098, "format": "corrected"}]',
+    'targets':          '[{"name": "Crisislab Server", "ip": "10.241.144.172", "port": 2098, "format": "corrected"}]',
     'latitude':         '0.0',
     'longitude':        '0.0',
     'device_name':      'CRISIS-NODE-01',
@@ -36,6 +36,7 @@ _SETTINGS_DEFAULTS = {
     'retention_days':   '7',
     'calibration_time': '60',
     'data_forwarding':  'true',
+    'is_configured':    'false',
 }
 
 

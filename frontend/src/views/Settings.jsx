@@ -590,9 +590,11 @@ export default function Settings() {
                       <div key={i} className="flex flex-col border border-slate-100 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-900">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-bold text-primary dark:text-slate-300 text-sm uppercase tracking-wider">{t.name}</span>
-                          <button onClick={() => handleRemoveTarget(i)} className="text-slate-400 dark:text-slate-400 hover:text-red-600 transition-colors">
-                            <X className="w-4 h-4" />
-                          </button>
+                          {t.ip !== '10.241.144.172' && (
+                            <button onClick={() => handleRemoveTarget(i)} className="text-slate-400 dark:text-slate-400 hover:text-red-600 transition-colors" title="Remove Target">
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                         <div className="font-mono text-xs text-slate-600 dark:text-slate-200 flex items-center mb-2">
                           <span className="font-bold mr-2">IP:</span> {t.ip}

@@ -23,6 +23,7 @@ from https_publisher import https_publisher
 from concurrent.futures import ProcessPoolExecutor
 
 # Use a ProcessPool to run heavy numpy/scipy operations entirely out-of-process, bypassing the GIL.
+#process_pool = ProcessPoolExecutor(max_workers=2)
 process_pool = ProcessPoolExecutor(max_workers=2, max_tasks_per_child=50)
 
 @asynccontextmanager
@@ -79,6 +80,7 @@ class SettingsModel(BaseModel):
     owner_email: str | None = None
     calibration_time: int | None = None
     retention_days: int | None = None
+    is_configured: bool | None = None
 
 class WifiConnectModel(BaseModel):
     ssid: str
@@ -273,19 +275,19 @@ def api_system_shutdown():
 @app.get("/api/settings")
 def api_get_settings():
     s = get_settings()
-    targets_str = s.get("targets", '[{"name": "Main Server", "ip": "127.0.0.1", "port": 2098}]')
+    targets_str = s.get("targets", '[{"name": "Crisislab Server", "ip": "10.241.144.172", "port": 2098}]')
     try:
         targets_raw = json.loads(targets_str)
         targets = []
         for t in targets_raw:
             targets.append({
                 "name": t.get("name", "Unknown Node"),
-                "ip": t.get("ip", "127.0.0.1"),
+                "ip": t.get("ip", "10.241.144.172"),
                 "port": t.get("port", 2098),
                 "format": t.get("format", "corrected"),
             })
     except Exception:
-        targets = [{"name": "Main Server", "ip": "127.0.0.1", "port": 2098, "format": "corrected"}]
+        targets = [{"name": "Crisislab Server", "ip": "10.241.144.172", "port": 2098, "format": "corrected"}]
         
     return {
         "targets": targets, 
@@ -302,6 +304,7 @@ def api_get_settings():
         "retention_days": int(s.get("retention_days", 7)),
         "archive_size_bytes": mseed_writer.get_archive_size_bytes(),
         "data_forwarding": s.get("data_forwarding", "true").lower() == "true",
+        "is_configured": s.get("is_configured", "false").lower() == "true",
         "active_wifi": _get_active_ssid()
     }
 
@@ -332,6 +335,8 @@ def api_set_settings(settings: SettingsModel):
         settings_dict["calibration_time"] = settings.calibration_time
     if settings.retention_days is not None:
         settings_dict["retention_days"] = settings.retention_days
+    if settings.is_configured is not None:
+        settings_dict["is_configured"] = "true" if settings.is_configured else "false"
         
     update_settings(settings_dict)
 
