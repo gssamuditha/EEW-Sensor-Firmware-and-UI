@@ -1,36 +1,65 @@
 import React, { useState, useEffect } from 'react';
-import { Joyride, STATUS } from 'react-joyride';
+import { Joyride, STATUS, ACTIONS, EVENTS } from 'react-joyride';
+import { useNavigate } from 'react-router-dom';
 
 const TOUR_STEPS = [
   {
-    target: '.tour-sidebar',
-    content: 'Here is your main navigation. You can jump between the Dashboard, Data Analysis, and Settings from here.',
+    target: '.tour-nav-dashboard',
+    content: 'Welcome to your Dashboard! This is your central hub for all realtime information.',
+    disableBeacon: true,
+    placement: 'right',
+  },
+  {
+    target: '.tour-device-details',
+    content: 'This panel shows your hardware identity, network IPs, and sensor coordinates.',
     disableBeacon: true,
     placement: 'right',
   },
   {
     target: '.tour-live-chart',
-    content: 'This is the Live Telemetry Chart. It streams real-time seismic data directly from your device.',
-    placement: 'bottom',
-  },
-  {
-    target: '.tour-device-details',
-    content: 'Here you can check the specific hardware and location details configured for this sensor node.',
-    placement: 'right',
+    content: 'Here is your Live Telemetry Chart. It streams real-time seismic data directly from your device.',
+    disableBeacon: true,
+    placement: 'auto', 
   },
   {
     target: '.tour-system-status',
-    content: 'Keep an eye on system health, network connections, and CPU/Disk usage to ensure continuous operation.',
+    content: 'Keep an eye on system health, network connections, and CPU/Disk usage here.',
+    disableBeacon: true,
     placement: 'left',
+  },
+  {
+    target: '.tour-timezone',
+    content: 'You can toggle all times between UTC and Local time using this dropdown.',
+    disableBeacon: true,
+    placement: 'left',
+  },
+  {
+    target: '.tour-nav-export',
+    content: 'Data Export: Head over here to download custom MiniSEED or CSV data archives.',
+    disableBeacon: true,
+    placement: 'right',
+  },
+  {
+    target: '.tour-nav-analysis',
+    content: 'Analysis: Here you can filter data on a maximum 1-hour window for a selected time, filter out desired frequencies, remove noise, and visualize seismic data clearly.',
+    disableBeacon: true,
+    placement: 'right',
+  },
+  {
+    target: '.tour-nav-settings',
+    content: 'Settings: Configure your hardware device, network IPs, and system parameters here.',
+    disableBeacon: true,
+    placement: 'right',
   }
 ];
 
 export default function TourGuide() {
   const [run, setRun] = useState(false);
+  const [tourKey, setTourKey] = useState(0);
   const [showModal, setShowModal] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if the user has already seen or skipped the tour
     const hasSeenTour = localStorage.getItem('has_seen_tour');
     if (!hasSeenTour) {
       setShowModal(true);
@@ -39,8 +68,12 @@ export default function TourGuide() {
 
   const handleStartTour = () => {
     setShowModal(false);
-    setRun(true);
     localStorage.setItem('has_seen_tour', 'true');
+    navigate('/dashboard');
+    setTourKey(prev => prev + 1); // Reset internal Joyride state
+    setTimeout(() => {
+      setRun(true);
+    }, 800);
   };
 
   const handleSkipTour = () => {
@@ -49,9 +82,16 @@ export default function TourGuide() {
   };
 
   const handleJoyrideCallback = (data) => {
-    const { status } = data;
+    const { status, type } = data;
+
     if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) {
       setRun(false);
+      return;
+    }
+
+    if (type === EVENTS.TARGET_NOT_FOUND) {
+      console.warn('Tour target not found. Pausing tour to prevent infinite loop.', data);
+      return;
     }
   };
 
@@ -83,16 +123,33 @@ export default function TourGuide() {
       )}
 
       <Joyride
+        key={tourKey}
         steps={TOUR_STEPS}
         run={run}
         continuous={true}
         showProgress={true}
         showSkipButton={true}
+        disableBeacon={true}
         callback={handleJoyrideCallback}
         styles={{
           options: {
-            primaryColor: '#f59e0b', // amber-500
+            primaryColor: '#f59e0b', // This sets the default color for the "Open the dialog" beacon and the Next button
             zIndex: 10000,
+            arrowColor: '#334155', // slate-700
+            backgroundColor: '#334155', // slate-700
+            textColor: '#f8fafc', // slate-50
+            overlayColor: 'rgba(176, 181, 203, 0.6)',
+          },
+          // MANUALLY ADJUST THE BEACON ("Open the dialog" button) COLOR HERE:
+          beacon: {
+            // backgroundColor: 'transparent'
+          },
+          beaconInner: {
+            backgroundColor: '#f59e0b', // Inner circle color (default orange)
+          },
+          beaconOuter: {
+            borderColor: '#f59e0b', // Outer pulsing circle color (default orange)
+            backgroundColor: 'rgba(245, 158, 11, 0.2)' // Outer background tint
           },
           tooltipContainer: {
             textAlign: 'left'

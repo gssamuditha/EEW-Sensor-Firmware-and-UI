@@ -237,7 +237,7 @@ export default function Analysis() {
   }, [lowHz, highHz, presets]);
 
   return (
-    <div className="p-3 md:p-6 h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-y-auto lg:overflow-hidden">
+    <div className="tour-analysis-panel p-3 md:p-6 h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-y-auto lg:overflow-hidden">
       {/* Header & Controls */}
       <div className="flex flex-col xl:flex-row xl:justify-between items-start w-full gap-4 mb-4 flex-shrink-0">
         {/* Left Column (Title + Filter Presets) */}

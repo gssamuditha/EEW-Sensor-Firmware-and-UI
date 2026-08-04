@@ -60,7 +60,7 @@ export default function Sidebar() {
               key={link.name}
               to={link.path}
               title={isCollapsed ? link.name : undefined}
-              className={`flex flex-col md:flex-row items-center justify-center md:justify-start rounded-xl transition-all duration-300 ${isActive ? 'bg-white/10 text-white dark:bg-amber-500/10 dark:text-amber-500' : 'text-white/70 hover:bg-white/5 hover:text-white hover:dark:text-amber-400'} 
+              className={`tour-nav-${link.path.substring(1)} flex flex-col md:flex-row items-center justify-center md:justify-start rounded-xl transition-all duration-300 ${isActive ? 'bg-white/10 text-white dark:bg-amber-500/10 dark:text-amber-500' : 'text-white/70 hover:bg-white/5 hover:text-white hover:dark:text-amber-400'} 
               p-2 md:p-3 ${isCollapsed ? 'md:justify-center' : 'md:px-4 md:space-x-4'} gap-1 md:gap-0 h-14 md:h-auto min-w-[64px]`}
             >
               <div className="shrink-0">{link.icon}</div>

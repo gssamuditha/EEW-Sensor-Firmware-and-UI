@@ -93,7 +93,7 @@ export default function Dashboard() {
             <span>Client {clientSps} sps</span>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-sm">
+        <div className="tour-timezone flex flex-wrap items-center gap-3 text-sm">
           <div className="font-mono font-semibold text-slate-500 dark:text-slate-400 mr-4">
             {new Intl.DateTimeFormat('en-US', {
               timeZone: timeZone,
