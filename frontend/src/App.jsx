@@ -10,6 +10,8 @@ import Setup from './views/Setup';
 import { TimeZoneProvider } from './TimeZoneContext';
 import { ThemeProvider } from './ThemeContext';
 
+import TourGuide from './components/TourGuide';
+
 function App() {
   const [isConfigured, setIsConfigured] = useState(null);
 
@@ -38,6 +40,7 @@ function App() {
     <ThemeProvider>
       <TimeZoneProvider>
         <Router>
+          <TourGuide />
           <Routes>
             <Route path="/expanded" element={<Expanded />} />
             <Route path="/*" element={

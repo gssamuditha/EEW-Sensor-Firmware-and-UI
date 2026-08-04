@@ -52,7 +52,7 @@ export default function Sidebar() {
           <ListBulletIcon className="w-6 h-6" />
         </button>
       </div>
-      <nav className="flex-1 flex flex-row md:flex-col justify-around md:justify-start items-center md:items-stretch px-2 md:px-3 py-0 md:py-2 space-x-0 md:space-x-0 md:space-y-2 overflow-x-auto md:overflow-x-hidden">
+      <nav className="tour-sidebar flex-1 flex flex-row md:flex-col justify-around md:justify-start items-center md:items-stretch px-2 md:px-3 py-0 md:py-2 space-x-0 md:space-x-0 md:space-y-2 overflow-x-auto md:overflow-x-hidden">
         {links.map((link) => {
           const isActive = location.pathname.startsWith(link.path);
           return (

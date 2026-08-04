@@ -104,6 +104,7 @@ export default function Setup({ onComplete }) {
       });
 
       if (res.ok) {
+        localStorage.removeItem('has_seen_tour');
         onComplete();
       } else {
         alert('Failed to save configuration. Please try again.');

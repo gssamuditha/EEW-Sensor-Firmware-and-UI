@@ -115,7 +115,7 @@ export default function Dashboard() {
       <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 overflow-y-auto pb-4">
 
         {/* Left Column: Widget 1 */}
-        <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md flex flex-col justify-between">
+        <div className="tour-device-details bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md flex flex-col justify-between">
           <div>
             <div className="text-[13px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">Device Details</div>
             <div className="space-y-3 font-mono text-sm">
@@ -160,7 +160,7 @@ export default function Dashboard() {
         </div>
 
         {/* Middle Column: Widget 3 */}
-        <div className="md:col-span-2 xl:col-span-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-4 shadow-md flex flex-col min-h-0 overflow-hidden min-h-[250px] md:min-h-[300px]">
+        <div className="tour-live-chart md:col-span-2 xl:col-span-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-4 shadow-md flex flex-col min-h-0 overflow-hidden min-h-[250px] md:min-h-[300px]">
           <LiveChart timeZone={timeZone} updateSps={updateSps} onClientSps={handleClientSps} onChannelsFound={handleChannelsFound} />
         </div>
 
@@ -193,7 +193,7 @@ export default function Dashboard() {
           </div>
 
           {/* Widget 4: System Status */}
-          <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md shrink-0">
+          <div className="tour-system-status bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md shrink-0">
             <div className="text-[13px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">System Status</div>
             <div className="space-y-4">
               <div>
