@@ -696,5 +696,26 @@ class SensorManager:
                 print(f"Analytics loop error: {e}")
                 time.sleep(1)
 
+# ── Hardware detection ─────────────────────────────────────────────────────
+# Use the mock sensor if:
+#   a) Running on Windows (development)
+#   b) EEW_MOCK=1 environment variable is set (CI / build environment)
+#   c) /proc/device-tree/model does not exist or does not contain 'Raspberry Pi'
+#      (catches any Linux host that is NOT actually a Pi — including the ARM64
+#      Docker container used by the Nuitka CI build step)
+import os as _os
+
+def _is_raspberry_pi() -> bool:
+    """Return True only when running on actual Raspberry Pi hardware."""
+    if sys.platform == 'win32':
+        return False
+    if _os.environ.get('EEW_MOCK', '').strip() == '1':
+        return False
+    try:
+        with open('/proc/device-tree/model', 'r') as _f:
+            return 'Raspberry Pi' in _f.read()
+    except (FileNotFoundError, PermissionError, OSError):
+        return False
+
 # Global manager instance
-sensor_manager = SensorManager(use_mock=sys.platform == 'win32')
+sensor_manager = SensorManager(use_mock=not _is_raspberry_pi())
