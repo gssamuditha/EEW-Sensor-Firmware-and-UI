@@ -89,6 +89,9 @@ class WifiConnectModel(BaseModel):
 class WifiActionModel(BaseModel):
     ssid: str
 
+class WifiToggleModel(BaseModel):
+    enabled: bool
+
 class FilterModel(BaseModel):
     low_hz: float
     high_hz: float
@@ -114,6 +117,19 @@ class FilterModel(BaseModel):
 
 _cached_ssid = None
 _last_ssid_check = 0
+
+def _get_wifi_radio_status():
+    """Check if the Wi-Fi radio is currently enabled."""
+    if sys.platform == 'win32':
+        return True
+    try:
+        result = subprocess.run(
+            ['sudo', '/usr/bin/nmcli', 'radio', 'wifi'],
+            capture_output=True, text=True, timeout=2
+        )
+        return 'enabled' in result.stdout.lower()
+    except Exception:
+        return True
 
 def _get_active_ssid():
     """Return the SSID of the currently active Wi-Fi connection, or None. Cached for 10 seconds."""
@@ -206,8 +222,24 @@ def _delayed_wifi_switch(ssid, password=None):
 @app.get("/api/wifi/networks")
 def api_wifi_networks():
     """Return all saved Wi-Fi profiles and flag which one is currently active."""
+    wifi_enabled = _get_wifi_radio_status()
     networks, active_ssid = _get_saved_networks()
-    return {"networks": networks, "active_ssid": active_ssid}
+    return {"networks": networks, "active_ssid": active_ssid, "wifi_enabled": wifi_enabled}
+
+@app.post("/api/wifi/toggle")
+def api_wifi_toggle(toggle: WifiToggleModel):
+    """Enable or disable the Wi-Fi radio."""
+    if sys.platform == 'win32':
+        return {"status": "ok", "message": f"Wi-Fi {'enabled' if toggle.enabled else 'disabled'}"}
+    
+    try:
+        subprocess.run(
+            ["sudo", "/usr/bin/nmcli", "radio", "wifi", "on" if toggle.enabled else "off"],
+            capture_output=True, text=True, timeout=10
+        )
+        return {"status": "ok", "message": f"Wi-Fi {'enabled' if toggle.enabled else 'disabled'}"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.post("/api/wifi/connect")
 def api_wifi_connect(wifi: WifiConnectModel):

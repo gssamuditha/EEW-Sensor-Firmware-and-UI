@@ -51,6 +51,7 @@ export default function Settings() {
   const [showPassword, setShowPassword] = useState(false);
 
   const [dataForwarding, setDataForwarding] = useState(true);
+  const [wifiEnabled, setWifiEnabled] = useState(true);
   const [activeWifi, setActiveWifi] = useState(null);
   const [savedNetworks, setSavedNetworks] = useState([]);
   const [wifiLoading, setWifiLoading] = useState(false);
@@ -98,6 +99,7 @@ export default function Settings() {
       .then(data => {
         if (data.networks) setSavedNetworks(data.networks);
         if (data.active_ssid) setActiveWifi(data.active_ssid);
+        if (data.wifi_enabled !== undefined) setWifiEnabled(data.wifi_enabled);
       })
       .catch(console.error);
   }, []);
@@ -210,6 +212,33 @@ export default function Settings() {
       showWifiStatus('Network error during Wi-Fi connect.', true);
     } finally {
       setWifiLoading(false);
+    }
+  };
+
+  const handleWifiToggle = async (enabled) => {
+    if (!enabled) {
+      const confirm = window.confirm("Warning: Disabling Wi-Fi will disconnect you immediately if you are currently accessing the dashboard over Wi-Fi. Continue?");
+      if (!confirm) return;
+    }
+    
+    setWifiEnabled(enabled);
+    if (!enabled) setWifiStatus('');
+    
+    try {
+      const res = await fetch('/api/wifi/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled })
+      });
+      const data = await res.json();
+      if (data.status !== 'ok') {
+        setWifiEnabled(!enabled);
+        showWifiStatus('Failed to toggle Wi-Fi: ' + data.message, true);
+      }
+    } catch (e) {
+      console.error(e);
+      setWifiEnabled(!enabled);
+      showWifiStatus('Error toggling Wi-Fi', true);
     }
   };
 
@@ -446,9 +475,24 @@ export default function Settings() {
 
             {/* Widget 1: Wi-Fi Manager */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
-              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                Wi-Fi Configuration
-              </h3>
+              <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider">
+                  Wi-Fi Configuration
+                </h3>
+                <button
+                  onClick={() => handleWifiToggle(!wifiEnabled)}
+                  className={`w-12 h-6 rounded-full p-1 transition-colors flex items-center ${wifiEnabled ? 'bg-[#10B981]' : 'bg-gray-300'}`}
+                >
+                  <div className={`bg-white dark:bg-slate-800 w-4 h-4 rounded-full shadow-md transform transition-transform ${wifiEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                </button>
+              </div>
+              
+              {!wifiEnabled && (
+                <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-700">
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Wi-Fi is currently disabled.</p>
+                </div>
+              )}
+              {wifiEnabled && (
               <div className="space-y-4">
 
                 {/* Active Connection Indicator */}
@@ -555,6 +599,7 @@ export default function Settings() {
                   </div>
                 )}
               </div>
+              )}
             </div>
 
             {/* Widget 2: Data Sharing (UDP Targets) */}
