@@ -23,8 +23,8 @@ from https_publisher import https_publisher
 from concurrent.futures import ProcessPoolExecutor
 
 # Use a ProcessPool to run heavy numpy/scipy operations entirely out-of-process, bypassing the GIL.
-process_pool = ProcessPoolExecutor(max_workers=2)
-# process_pool = ProcessPoolExecutor(max_workers=2, max_tasks_per_child=50)
+# process_pool = ProcessPoolExecutor(max_workers=2)
+process_pool = ProcessPoolExecutor(max_workers=2, max_tasks_per_child=50)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
