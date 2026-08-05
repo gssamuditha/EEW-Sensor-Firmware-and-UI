@@ -11,6 +11,8 @@ import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { useTheme } from '../ThemeContext';
+import { useTimeZone, TIMEZONES } from '../TimeZoneContext';
+import { GlobeAltIcon } from '@heroicons/react/24/outline';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -34,6 +36,7 @@ function LocationMarker({ position, setPosition }) {
 export default function Setup({ onComplete }) {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const { timeZone, setTimeZone } = useTimeZone();
 
   // Data model
   const [formData, setFormData] = useState({
@@ -260,31 +263,49 @@ export default function Setup({ onComplete }) {
           </div>
         );
 
-      case 2: // Storage Limit
+      case 2: // Storage Limit & Timezone
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Keep Data For</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Display Timezone</h2>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
-                Storage is now user configurable and can be longer than 7 days, which is the default. We recommend a maximum of 14 days.
+                Select your preferred timezone for displaying dates and times across the dashboard.
               </p>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 p-8 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm flex flex-col items-center">
-              <CircleStackIcon className="w-16 h-16 text-amber-500 mb-4" />
-              <div className="flex items-center justify-center space-x-4 mb-6">
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
+              <select
+                value={timeZone}
+                onChange={(e) => setTimeZone(e.target.value)}
+                className="w-full md:w-1/2 bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-amber-500 focus:border-amber-500 block p-2.5 font-medium"
+              >
+                {TIMEZONES.map(tz => (
+                  <option key={tz} value={tz}>{tz}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="pt-4 border-t border-gray-200 dark:border-slate-700 mt-6">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Storage Limit</h2>
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                Storage is now user configurable and can be longer than 7 days, which is the default. We recommend a maximum of 21 days.
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
+              <div className="flex items-center space-x-3 mb-5">
                 <input
                   type="number" min="1" max="68" name="retention_days" value={formData.retention_days} onChange={handleChange}
-                  className="w-32 bg-gray-50 dark:bg-slate-900 border-2 border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white text-2xl text-center rounded-xl focus:ring-amber-500 focus:border-amber-500 block p-4 font-bold"
+                  className="w-24 bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-amber-500 focus:border-amber-500 block p-2.5 font-medium"
                 />
-                <span className="text-xl text-gray-500 dark:text-gray-400 font-medium">Days</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">Days</span>
               </div>
 
-              <div className="w-full max-w-lg text-center mt-2">
+              <div className="w-full">
                 <p className="text-sm text-gray-700 dark:text-gray-300 font-bold mb-1">
                   Be careful when configuring this parameter!
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed max-w-3xl">
                   You risk filling up the disk space. By default we ship with a 16 GB micro SD card. We estimate free space for data storage is at 8-10 GB. At ~120 MB/day, the maximum storage limit is around<strong> 70 days</strong>.
                 </p>
               </div>
@@ -314,13 +335,14 @@ export default function Setup({ onComplete }) {
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Additional Data Cast</h2>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
                 Your sensor is already configured to transmit to the CrisisLab server. You may optionally forward data to a secondary IP.
+                <span className="block mt-1 font-medium text-amber-600 dark:text-amber-400">Note: You can always edit or add more targets later from the Settings page.</span>
               </p>
             </div>
 
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
-              <div className="flex items-center space-x-3 mb-6 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-100 dark:border-green-800">
-                <CheckCircleIcon className="w-6 h-6 text-green-500 shrink-0" />
-                <p className="text-sm text-green-800 dark:text-green-300 font-medium">
+              <div className="flex items-center space-x-2 mb-6">
+                <CheckCircleIcon className="w-5 h-5 text-green-500 shrink-0" />
+                <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
                   CrisisLab Network Server (10.241.144.172:2098) is active and securely embedded.
                 </p>
               </div>
@@ -331,28 +353,28 @@ export default function Setup({ onComplete }) {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Target Name</label>
+                    <label className="block text-xs font-medium text-gray-500 tracking-wider mb-1">Target Name</label>
                     <input
-                      type="text" name="name" value={newTarget.name} onChange={handleTargetChange} placeholder="e.g. Local Analytics"
+                      type="text" name="name" value={newTarget.name} onChange={handleTargetChange} placeholder="e.g. Local Server"
                       className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-amber-500 focus:border-amber-500 block p-2.5"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">IP Address</label>
+                    <label className="block text-xs font-medium text-gray-500 tracking-wider mb-1">IP Address</label>
                     <input
                       type="text" name="ip" value={newTarget.ip} onChange={handleTargetChange} placeholder="192.168.1.100"
                       className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-amber-500 focus:border-amber-500 block p-2.5"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Port</label>
+                    <label className="block text-xs font-medium text-gray-500 tracking-wider mb-1">Port</label>
                     <input
                       type="number" name="port" value={newTarget.port} onChange={handleTargetChange}
                       className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-amber-500 focus:border-amber-500 block p-2.5"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Data Format</label>
+                    <label className="block text-xs font-medium text-gray-500 tracking-wider mb-1">Data Format</label>
                     <select
                       name="format" value={newTarget.format} onChange={handleTargetChange}
                       className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-amber-500 focus:border-amber-500 block p-2.5"
@@ -408,7 +430,7 @@ export default function Setup({ onComplete }) {
                     {step > i ? <CheckCircleIcon className="w-5 h-5 text-white" /> : i}
                   </div>
                   <span className={`text-xs mt-2 font-medium ${step >= i ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500'}`}>
-                    {i === 1 ? 'General' : i === 2 ? 'Storage' : 'Target'}
+                    {i === 1 ? 'General' : i === 2 ? 'Time & Storage' : 'Target'}
                   </span>
                 </div>
               ))}

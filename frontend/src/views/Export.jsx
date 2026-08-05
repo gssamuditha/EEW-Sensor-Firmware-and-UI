@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowDownTrayIcon as Download, DocumentTextIcon as FileText, ChartBarIcon as Activity, CircleStackIcon as Database, ArrowDownOnSquareIcon as Save } from '@heroicons/react/24/solid';
+import { ArrowDownTrayIcon as Download, ArrowDownOnSquareIcon as Save } from '@heroicons/react/24/solid';
 import { useTimeZone } from '../TimeZoneContext';
 import { format, fromZonedTime } from 'date-fns-tz';
 
@@ -52,7 +52,7 @@ export default function Export() {
           {/* Custom Range Export Widget */}
           <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
             <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-5 flex items-center shrink-0">
-              <FileText fill="currentColor" className="w-4 h-4 mr-2" /> Custom Range Export
+              Custom Range Export
             </h3>
 
             <div className="space-y-5 flex-1">
@@ -114,7 +114,7 @@ export default function Export() {
             {/* Full Archive Backup Widget */}
             <div className="tour-export-archive bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
               <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 flex items-center shrink-0">
-                <Database fill="currentColor" className="w-4 h-4 mr-2" /> Full Archive Backup
+                Full Archive Backup
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-300 font-mono mb-5 leading-relaxed">
                 Download a complete backup of the SDS miniSEED archive. This includes all historical data currently saved on the device.
@@ -131,7 +131,7 @@ export default function Export() {
             {/* Device Response File Widget */}
             <div className="tour-export-response bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
               <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 flex items-center shrink-0">
-                <Activity fill="currentColor" className="w-4 h-4 mr-2" /> Device Response File
+                Device Response File
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-300 font-mono mb-5 leading-relaxed">
                 Download the <strong>StationXML</strong> instrument response file for this sensor.

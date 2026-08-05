@@ -296,8 +296,8 @@ export default function Settings() {
 
               {/* Widget 1: Station & Operator Details */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  <Monitor className="w-4 h-4 mr-2" /> Station Details
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
+                  Station Details
                 </h3>
                 <div className="flex-1 flex flex-col space-y-4">
                   <div>
@@ -361,7 +361,7 @@ export default function Settings() {
             {/* Widget 3: Device Location — right column full height */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full min-h-0">
               <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                <MapPin className="w-4 h-4 mr-2" /> Device Location
+                Device Location
               </h3>
               <div className="flex-1 flex flex-col min-h-0">
                 <div className="flex-1 min-h-0 mb-4 border border-slate-100 dark:border-slate-700 z-0 relative">
@@ -447,7 +447,7 @@ export default function Settings() {
             {/* Widget 1: Wi-Fi Manager */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
               <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                <Wifi className="w-4 h-4 mr-2" /> Wi-Fi Configuration
+                Wi-Fi Configuration
               </h3>
               <div className="space-y-4">
 
@@ -560,8 +560,8 @@ export default function Settings() {
             {/* Widget 2: Data Sharing (UDP Targets) */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full min-h-0">
               <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider flex items-center">
-                  <Activity className="w-4 h-4 mr-2" /> Data Sharing
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider">
+                  Data Sharing
                 </h3>
 
                 {/* Master Toggle */}
@@ -698,7 +698,7 @@ export default function Settings() {
               {/* Data Storage Settings */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  <Database className="w-4 h-4 mr-2" /> Data Storage
+                  Data Storage
                 </h3>
                 <div className="space-y-6">
                   <div>
@@ -734,7 +734,7 @@ export default function Settings() {
               {/* UI Settings */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  <Palette className="w-4 h-4 mr-2" /> UI Settings
+                  UI Settings
                 </h3>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3 text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider">
@@ -756,7 +756,7 @@ export default function Settings() {
               {/* Calibration Settings */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  <SettingsIcon className="w-4 h-4 mr-2" /> Calibration Settings
+                  Calibration Settings
                 </h3>
                 <div className="space-y-6">
                   <div>
@@ -785,7 +785,7 @@ export default function Settings() {
               {/* System Actions */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  <Power className="w-4 h-4 mr-2" /> System Actions
+                  System Actions
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
                   <button
