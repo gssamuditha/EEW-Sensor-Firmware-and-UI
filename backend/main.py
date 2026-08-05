@@ -23,6 +23,7 @@ from https_publisher import https_publisher
 from concurrent.futures import ProcessPoolExecutor
 
 # Use a ProcessPool to run heavy numpy/scipy operations entirely out-of-process, bypassing the GIL.
+# process_pool = ProcessPoolExecutor(max_workers=2)
 process_pool = ProcessPoolExecutor(max_workers=2, max_tasks_per_child=50)
 
 @asynccontextmanager
@@ -79,6 +80,7 @@ class SettingsModel(BaseModel):
     owner_email: str | None = None
     calibration_time: int | None = None
     retention_days: int | None = None
+    is_configured: bool | None = None
 
 class WifiConnectModel(BaseModel):
     ssid: str
@@ -86,6 +88,9 @@ class WifiConnectModel(BaseModel):
 
 class WifiActionModel(BaseModel):
     ssid: str
+
+class WifiToggleModel(BaseModel):
+    enabled: bool
 
 class FilterModel(BaseModel):
     low_hz: float
@@ -112,6 +117,19 @@ class FilterModel(BaseModel):
 
 _cached_ssid = None
 _last_ssid_check = 0
+
+def _get_wifi_radio_status():
+    """Check if the Wi-Fi radio is currently enabled."""
+    if sys.platform == 'win32':
+        return True
+    try:
+        result = subprocess.run(
+            ['sudo', '/usr/bin/nmcli', 'radio', 'wifi'],
+            capture_output=True, text=True, timeout=2
+        )
+        return 'enabled' in result.stdout.lower()
+    except Exception:
+        return True
 
 def _get_active_ssid():
     """Return the SSID of the currently active Wi-Fi connection, or None. Cached for 10 seconds."""
@@ -204,8 +222,24 @@ def _delayed_wifi_switch(ssid, password=None):
 @app.get("/api/wifi/networks")
 def api_wifi_networks():
     """Return all saved Wi-Fi profiles and flag which one is currently active."""
+    wifi_enabled = _get_wifi_radio_status()
     networks, active_ssid = _get_saved_networks()
-    return {"networks": networks, "active_ssid": active_ssid}
+    return {"networks": networks, "active_ssid": active_ssid, "wifi_enabled": wifi_enabled}
+
+@app.post("/api/wifi/toggle")
+def api_wifi_toggle(toggle: WifiToggleModel):
+    """Enable or disable the Wi-Fi radio."""
+    if sys.platform == 'win32':
+        return {"status": "ok", "message": f"Wi-Fi {'enabled' if toggle.enabled else 'disabled'}"}
+    
+    try:
+        subprocess.run(
+            ["sudo", "/usr/bin/nmcli", "radio", "wifi", "on" if toggle.enabled else "off"],
+            capture_output=True, text=True, timeout=10
+        )
+        return {"status": "ok", "message": f"Wi-Fi {'enabled' if toggle.enabled else 'disabled'}"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.post("/api/wifi/connect")
 def api_wifi_connect(wifi: WifiConnectModel):
@@ -273,19 +307,19 @@ def api_system_shutdown():
 @app.get("/api/settings")
 def api_get_settings():
     s = get_settings()
-    targets_str = s.get("targets", '[{"name": "Main Server", "ip": "127.0.0.1", "port": 2098}]')
+    targets_str = s.get("targets", '[{"name": "Crisislab Server", "ip": "10.241.144.172", "port": 2098}]')
     try:
         targets_raw = json.loads(targets_str)
         targets = []
         for t in targets_raw:
             targets.append({
                 "name": t.get("name", "Unknown Node"),
-                "ip": t.get("ip", "127.0.0.1"),
+                "ip": t.get("ip", "10.241.144.172"),
                 "port": t.get("port", 2098),
                 "format": t.get("format", "corrected"),
             })
     except Exception:
-        targets = [{"name": "Main Server", "ip": "127.0.0.1", "port": 2098, "format": "corrected"}]
+        targets = [{"name": "Crisislab Server", "ip": "10.241.144.172", "port": 2098, "format": "corrected"}]
         
     return {
         "targets": targets, 
@@ -302,6 +336,7 @@ def api_get_settings():
         "retention_days": int(s.get("retention_days", 7)),
         "archive_size_bytes": mseed_writer.get_archive_size_bytes(),
         "data_forwarding": s.get("data_forwarding", "true").lower() == "true",
+        "is_configured": s.get("is_configured", "false").lower() == "true",
         "active_wifi": _get_active_ssid()
     }
 
@@ -332,6 +367,8 @@ def api_set_settings(settings: SettingsModel):
         settings_dict["calibration_time"] = settings.calibration_time
     if settings.retention_days is not None:
         settings_dict["retention_days"] = settings.retention_days
+    if settings.is_configured is not None:
+        settings_dict["is_configured"] = "true" if settings.is_configured else "false"
         
     update_settings(settings_dict)
 
@@ -378,11 +415,12 @@ def api_metadata_stationxml():
     """
     s           = get_settings()
     device_name = s.get("device_name", "CRISIS-NODE-01")
+    device_id   = s.get("device_id", "UNKNOWN-ID")
     latitude    = float(s.get("latitude",   0.0))
     longitude   = float(s.get("longitude",  0.0))
     elevation   = float(s.get("elevation",  0.0))
 
-    xml_content = build_stationxml(device_name, latitude, longitude, elevation)
+    xml_content = build_stationxml(device_name, device_id, latitude, longitude, elevation)
     filename    = f"{device_name}_response.xml"
 
     return StreamingResponse(

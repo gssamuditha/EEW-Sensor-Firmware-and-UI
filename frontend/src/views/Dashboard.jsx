@@ -10,7 +10,7 @@ export default function Dashboard() {
   const [clientSps, setClientSps] = useState(0);
   const [activeChannels, setActiveChannels] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [sensorSettings, setSensorSettings] = useState({ latitude: 0.0, longitude: 0.0, elevation: 0.0, device_name: 'Loading...' });
+  const [sensorSettings, setSensorSettings] = useState({ latitude: 0.0, longitude: 0.0, elevation: 0.0, device_name: 'Loading...', device_id: 'Loading...' });
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -55,7 +55,8 @@ export default function Dashboard() {
           latitude: data.latitude || 0.0,
           longitude: data.longitude || 0.0,
           elevation: data.elevation || 0.0,
-          device_name: data.device_name || 'CRISIS-NODE-01'
+          device_name: data.device_name || 'CRISIS-NODE-01',
+          device_id: data.device_id || 'UNKNOWN-ID'
         });
       })
       .catch(console.error);
@@ -93,7 +94,7 @@ export default function Dashboard() {
             <span>Client {clientSps} sps</span>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-sm">
+        <div className="tour-timezone flex flex-wrap items-center gap-3 text-sm">
           <div className="font-mono font-semibold text-slate-500 dark:text-slate-400 mr-4">
             {new Intl.DateTimeFormat('en-US', {
               timeZone: timeZone,
@@ -115,10 +116,14 @@ export default function Dashboard() {
       <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 overflow-y-auto pb-4">
 
         {/* Left Column: Widget 1 */}
-        <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md flex flex-col justify-between">
+        <div className="tour-device-details bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md flex flex-col justify-between">
           <div>
             <div className="text-[13px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">Device Details</div>
             <div className="space-y-3 font-mono text-sm">
+              <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
+                <span className="font-bold text-slate-400">Device ID</span>
+                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{sensorSettings.device_id}</span>
+              </div>
               <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">Name</span>
                 <span className="text-primary dark:text-slate-100 font-bold col-span-2">{sensorSettings.device_name}</span>
@@ -160,7 +165,7 @@ export default function Dashboard() {
         </div>
 
         {/* Middle Column: Widget 3 */}
-        <div className="md:col-span-2 xl:col-span-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-4 shadow-md flex flex-col min-h-0 overflow-hidden min-h-[250px] md:min-h-[300px]">
+        <div className="tour-live-chart md:col-span-2 xl:col-span-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-4 shadow-md flex flex-col min-h-0 overflow-hidden min-h-[250px] md:min-h-[300px]">
           <LiveChart timeZone={timeZone} updateSps={updateSps} onClientSps={handleClientSps} onChannelsFound={handleChannelsFound} />
         </div>
 
@@ -193,7 +198,7 @@ export default function Dashboard() {
           </div>
 
           {/* Widget 4: System Status */}
-          <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md shrink-0">
+          <div className="tour-system-status bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md shrink-0">
             <div className="text-[13px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">System Status</div>
             <div className="space-y-4">
               <div>

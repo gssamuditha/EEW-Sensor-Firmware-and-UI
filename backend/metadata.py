@@ -369,6 +369,7 @@ def _build_channel_xml(
 
 def build_stationxml(
     device_name: str,
+    device_id: str,
     latitude: float,
     longitude: float,
     elevation: float = 0.0,
@@ -399,7 +400,7 @@ def build_stationxml(
         start_date = _EPOCH_START
 
     now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    station_code = device_name[:5].upper()
+    station_code = device_id.upper()
 
     channel_blocks = "\n".join(
         _build_channel_xml(code, az, dip, latitude, longitude, elevation, start_date)

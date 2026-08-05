@@ -51,6 +51,7 @@ export default function Settings() {
   const [showPassword, setShowPassword] = useState(false);
 
   const [dataForwarding, setDataForwarding] = useState(true);
+  const [wifiEnabled, setWifiEnabled] = useState(true);
   const [activeWifi, setActiveWifi] = useState(null);
   const [savedNetworks, setSavedNetworks] = useState([]);
   const [wifiLoading, setWifiLoading] = useState(false);
@@ -98,6 +99,7 @@ export default function Settings() {
       .then(data => {
         if (data.networks) setSavedNetworks(data.networks);
         if (data.active_ssid) setActiveWifi(data.active_ssid);
+        if (data.wifi_enabled !== undefined) setWifiEnabled(data.wifi_enabled);
       })
       .catch(console.error);
   }, []);
@@ -213,6 +215,33 @@ export default function Settings() {
     }
   };
 
+  const handleWifiToggle = async (enabled) => {
+    if (!enabled) {
+      const confirm = window.confirm("Warning: Disabling Wi-Fi will disconnect you immediately if you are currently accessing the dashboard over Wi-Fi. Continue?");
+      if (!confirm) return;
+    }
+    
+    setWifiEnabled(enabled);
+    if (!enabled) setWifiStatus('');
+    
+    try {
+      const res = await fetch('/api/wifi/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled })
+      });
+      const data = await res.json();
+      if (data.status !== 'ok') {
+        setWifiEnabled(!enabled);
+        showWifiStatus('Failed to toggle Wi-Fi: ' + data.message, true);
+      }
+    } catch (e) {
+      console.error(e);
+      setWifiEnabled(!enabled);
+      showWifiStatus('Error toggling Wi-Fi', true);
+    }
+  };
+
   const handleForgetNetwork = async (targetSsid) => {
     try {
       const res = await fetch('/api/wifi/forget', {
@@ -296,8 +325,8 @@ export default function Settings() {
 
               {/* Widget 1: Station & Operator Details */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  <Monitor className="w-4 h-4 mr-2" /> Station Details
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
+                  Station Details
                 </h3>
                 <div className="flex-1 flex flex-col space-y-4">
                   <div>
@@ -310,18 +339,7 @@ export default function Settings() {
                       className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm mb-3"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Device ID</label>
-                    <input
-                      type="text"
-                      value={deviceId}
-                      onChange={e => setDeviceId(e.target.value)}
-                      maxLength={5}
-                      placeholder="T0021"
-                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
-                    />
-                    <p className="text-xs text-slate-400 dark:text-slate-400 font-mono mt-1 mb-2">Used for SEED station code (e.g. T0021)</p>
-                  </div>
+
                   <div className="border-t border-slate-100 dark:border-slate-700/50 pt-3">
                     <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Device Owner's Name</label>
                     <input
@@ -361,7 +379,7 @@ export default function Settings() {
             {/* Widget 3: Device Location — right column full height */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full min-h-0">
               <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                <MapPin className="w-4 h-4 mr-2" /> Device Location
+                Device Location
               </h3>
               <div className="flex-1 flex flex-col min-h-0">
                 <div className="flex-1 min-h-0 mb-4 border border-slate-100 dark:border-slate-700 z-0 relative">
@@ -446,9 +464,24 @@ export default function Settings() {
 
             {/* Widget 1: Wi-Fi Manager */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
-              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                <Wifi className="w-4 h-4 mr-2" /> Wi-Fi Configuration
-              </h3>
+              <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider">
+                  Wi-Fi Configuration
+                </h3>
+                <button
+                  onClick={() => handleWifiToggle(!wifiEnabled)}
+                  className={`w-12 h-6 rounded-full p-1 transition-colors flex items-center ${wifiEnabled ? 'bg-[#10B981]' : 'bg-gray-300'}`}
+                >
+                  <div className={`bg-white dark:bg-slate-800 w-4 h-4 rounded-full shadow-md transform transition-transform ${wifiEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                </button>
+              </div>
+              
+              {!wifiEnabled && (
+                <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-700">
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Wi-Fi is currently disabled.</p>
+                </div>
+              )}
+              {wifiEnabled && (
               <div className="space-y-4">
 
                 {/* Active Connection Indicator */}
@@ -555,13 +588,14 @@ export default function Settings() {
                   </div>
                 )}
               </div>
+              )}
             </div>
 
             {/* Widget 2: Data Sharing (UDP Targets) */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full min-h-0">
               <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider flex items-center">
-                  <Activity className="w-4 h-4 mr-2" /> Data Sharing
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider">
+                  Data Sharing
                 </h3>
 
                 {/* Master Toggle */}
@@ -590,9 +624,11 @@ export default function Settings() {
                       <div key={i} className="flex flex-col border border-slate-100 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-900">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-bold text-primary dark:text-slate-300 text-sm uppercase tracking-wider">{t.name}</span>
-                          <button onClick={() => handleRemoveTarget(i)} className="text-slate-400 dark:text-slate-400 hover:text-red-600 transition-colors">
-                            <X className="w-4 h-4" />
-                          </button>
+                          {t.ip !== '10.241.144.172' && (
+                            <button onClick={() => handleRemoveTarget(i)} className="text-slate-400 dark:text-slate-400 hover:text-red-600 transition-colors" title="Remove Target">
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                         <div className="font-mono text-xs text-slate-600 dark:text-slate-200 flex items-center mb-2">
                           <span className="font-bold mr-2">IP:</span> {t.ip}
@@ -696,7 +732,7 @@ export default function Settings() {
               {/* Data Storage Settings */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  <Database className="w-4 h-4 mr-2" /> Data Storage
+                  Data Storage
                 </h3>
                 <div className="space-y-6">
                   <div>
@@ -732,7 +768,7 @@ export default function Settings() {
               {/* UI Settings */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  <Palette className="w-4 h-4 mr-2" /> UI Settings
+                  UI Settings
                 </h3>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3 text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider">
@@ -754,7 +790,7 @@ export default function Settings() {
               {/* Calibration Settings */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  <SettingsIcon className="w-4 h-4 mr-2" /> Calibration Settings
+                  Calibration Settings
                 </h3>
                 <div className="space-y-6">
                   <div>
@@ -783,7 +819,7 @@ export default function Settings() {
               {/* System Actions */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  <Power className="w-4 h-4 mr-2" /> System Actions
+                  System Actions
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
                   <button
