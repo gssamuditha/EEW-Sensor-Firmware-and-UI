@@ -54,7 +54,6 @@ python -m nuitka \
     --include-package=pydantic \
     --include-package=pydantic_core \
     --include-package=anyio \
-    --include-package=sniffio \
     --include-package=scipy \
     --include-package=numpy \
     --include-package=obspy \
@@ -62,7 +61,6 @@ python -m nuitka \
     --include-package=httpcore \
     --include-package=psutil \
     --include-package=pamela \
-    --include-package=multipart \
     \
     --noinclude-pytest-mode=nofollow \
     --noinclude-unittest-mode=nofollow \
