@@ -1,0 +1,35 @@
+#!/bin/bash
+# DEBIAN/postinst — runs after the package files are installed
+# Called by dpkg with argument "configure" on a fresh install or upgrade.
+set -e
+
+INSTALL_DIR="/opt/eew-sensor"
+DATA_DIR="${INSTALL_DIR}/backend"
+SERVICE="eew-sensor.service"
+SUDOERS_FILE="/etc/sudoers.d/eew-sensor-permissions"
+
+# ── Permissions ──────────────────────────────────────────────
+# The binary needs CAP_NET_BIND_SERVICE to bind port 80.
+# Ensure the backend directory is owned by the service user.
+if id "crisislab" &>/dev/null; then
+    chown -R crisislab:crisislab "${INSTALL_DIR}" || true
+fi
+chmod 755 "${INSTALL_DIR}/backend/run_server" || true
+
+# ── Passwordless sudo for nmcli / reboot / systemctl ────────
+# The web UI's WiFi and reboot endpoints need these.
+if ! grep -q "eew-sensor-permissions" "${SUDOERS_FILE}" 2>/dev/null; then
+    cat > "${SUDOERS_FILE}" <<'EOF'
+crisislab ALL=(ALL) NOPASSWD: /usr/bin/nmcli, /bin/nmcli, /sbin/reboot, /usr/sbin/reboot, /usr/bin/systemctl, /bin/systemctl
+EOF
+    chmod 440 "${SUDOERS_FILE}"
+fi
+
+# ── Systemd ──────────────────────────────────────────────────
+systemctl daemon-reload
+systemctl enable "${SERVICE}"
+systemctl restart "${SERVICE}"
+
+echo "EEW Sensor installed and started."
+echo "  Status: sudo systemctl status ${SERVICE}"
+echo "  Logs:   sudo journalctl -u ${SERVICE} -f"

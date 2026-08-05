@@ -19,7 +19,12 @@ A real-time **Earthquake Early Warning (EEW)** sensor system built for deploymen
 - [Wiring Diagram](#wiring-diagram)
 - [Software Prerequisites](#software-prerequisites)
 - [Development Setup (Windows / Mac / Linux PC)](#development-setup-windows--mac--linux-pc)
-- [Raspberry Pi Setup](#raspberry-pi-setup)
+- [**Professional Deployment (CI/CD Pipeline)**](#professional-deployment-cicd-pipeline)
+  - [How it works](#how-it-works)
+  - [Publishing a release](#publishing-a-release)
+  - [First-time Pi installation](#first-time-pi-installation)
+  - [OTA updates](#ota-updates)
+- [Raspberry Pi Setup (Legacy / Development)](#raspberry-pi-setup)
   - [1. OS Installation](#1-os-installation)
   - [2. Enable SPI Interface](#2-enable-spi-interface)
   - [3. Clone and Install](#3-clone-and-install)
@@ -279,6 +284,86 @@ npm run dev
 ```
 
 Open `http://localhost:5173` in your browser. The mock sensor will generate random acceleration data.
+
+---
+
+## Professional Deployment (CI/CD Pipeline)
+
+> This is the **recommended way to deploy** the EEW Sensor to production units. The Raspberry Pi receives only a compiled binary — no Python source code is ever copied to the device.
+
+### How it works
+
+```
+Your PC  →  git push --tags v1.2.3  →  GitHub (private repo)
+                                             │
+                                   GitHub Actions CI/CD
+                                   ┌─────────────────────┐
+                                   │ 1. npm run build     │
+                                   │    (React → dist/)   │
+                                   │ 2. Nuitka compile    │
+                                   │    (Python → ARM64   │
+                                   │     binary)          │
+                                   │ 3. dpkg-deb package  │
+                                   │ 4. GitHub Release    │
+                                   └─────────────────────┘
+                                             │
+                                   eew-sensor_1.2.3_arm64.deb
+                                             │
+Raspberry Pi 3 (64-bit OS)  ←  auto_update.sh downloads & installs .deb
+├── /opt/eew-sensor/backend/run_server   ← compiled ARM64 binary
+├── /opt/eew-sensor/frontend/            ← built React app
+└── /opt/eew-sensor/backend/eew_sensor.db ← preserved user data
+```
+
+### Publishing a release
+
+On your development PC, tag a commit and push:
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+GitHub Actions will automatically:
+1. Build the React frontend (`npm run build`)
+2. Compile the Python backend to a native ARM64 binary using Nuitka (inside a Docker ARM64 container via QEMU — no cross-compiler needed)
+3. Package everything as `eew-sensor_1.2.3_arm64.deb`
+4. Create a GitHub Release with the `.deb` and a SHA256 checksum file
+
+> **First build time**: 20–40 minutes (Nuitka compiles scipy/numpy/obspy under QEMU emulation). Subsequent builds are faster thanks to ccache.
+
+### First-time Pi installation
+
+Flash **64-bit Raspberry Pi OS Lite** (arm64) and SSH in. Then run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gssamuditha/EEW-Sensor-Firmware-and-UI/main/setup_service.sh | bash
+```
+
+This single command:
+- Downloads the latest `.deb` from GitHub Releases
+- Verifies the SHA256 checksum
+- Installs with `dpkg -i` (systemd hooks start the service automatically)
+- Schedules the OTA auto-updater via cron
+
+**No git, Python, pip, or npm required on the Pi.**
+
+### OTA updates
+
+Sensors check for new releases every 30 minutes automatically (configurable in `auto_update.sh` via `DESIRED_CRON`). The update process:
+1. Queries GitHub Releases API for the latest tag
+2. Downloads the new `.deb` and verifies SHA256
+3. Backs up the database and saves all user settings
+4. Installs with `dpkg -i` (service restarts automatically via postinst)
+5. Restores user settings and runs a database integrity check
+6. Rolls back to the previous installation if anything fails
+
+### Verify no source code on the device
+
+```bash
+ls /opt/eew-sensor/backend/    # should show run_server binary + .so files, no .py files
+ls /opt/eew-sensor/frontend/   # should show index.html + assets/, no .jsx/.tsx files
+```
 
 ---
 

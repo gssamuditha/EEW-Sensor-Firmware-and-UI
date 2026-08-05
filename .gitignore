@@ -10,10 +10,17 @@ lerna-debug.log*
 
 # Node / Frontend
 node_modules/
-# dist/
+dist/
 dist-ssr/
 *.local
 .npm/
+
+# Nuitka build output & Debian packages
+build/
+*.dist/
+*.deb
+*.deb.sha256
+deb_root/
 
 # Python / Backend
 __pycache__/

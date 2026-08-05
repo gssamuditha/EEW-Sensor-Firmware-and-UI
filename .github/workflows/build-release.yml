@@ -1,0 +1,215 @@
+name: Build & Release EEW Sensor
+
+# ─────────────────────────────────────────────────────────────
+#  TRIGGER
+#  Push a semver tag to release:   git tag v1.2.3 && git push --tags
+# ─────────────────────────────────────────────────────────────
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # required to create GitHub Releases
+
+# ─────────────────────────────────────────────────────────────
+#  JOB 1 — Build React frontend on a fast x86 runner
+# ─────────────────────────────────────────────────────────────
+jobs:
+  build-frontend:
+    name: Build React Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build production bundle
+        working-directory: frontend
+        run: npm run build
+
+      - name: Upload frontend dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────
+  #  JOB 2 — Compile Python backend with Nuitka inside an ARM64
+  #           Docker container (via QEMU — works on free runners)
+  # ─────────────────────────────────────────────────────────────
+  build-backend:
+    name: Compile Python Backend (ARM64 via QEMU)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (ARM64 emulation)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      # Cache ccache objects across CI runs to speed up Nuitka C compilation.
+      # On cache hit, only changed Python files are re-compiled.
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/ccache
+          key: ccache-arm64-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ccache-arm64-
+
+      # Run the entire Python build inside an official ARM64 Python image.
+      # QEMU transparently handles the architecture difference.
+      - name: Compile with Nuitka inside ARM64 container
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v "${{ github.workspace }}":/workspace \
+            -v /tmp/ccache:/root/.ccache \
+            -e CCACHE_DIR=/root/.ccache \
+            -w /workspace \
+            python:3.11-slim-bookworm \
+            bash /workspace/.github/scripts/compile_backend.sh
+
+      - name: Upload compiled backend
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-dist
+          # The compile script writes output to workspace/build/run_server.dist/
+          path: build/run_server.dist/
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────
+  #  JOB 3 — Assemble a Debian package and publish a GitHub Release
+  # ─────────────────────────────────────────────────────────────
+  package-and-release:
+    name: Package .deb and Create Release
+    needs: [build-frontend, build-backend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (for deploy/debian scripts)
+        uses: actions/checkout@v4
+
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: artifacts/frontend/
+
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-dist
+          path: artifacts/backend/
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG=$GITHUB_REF_NAME"  >> $GITHUB_OUTPUT
+          echo "PKG=eew-sensor_${VERSION}_arm64" >> $GITHUB_OUTPUT
+
+      - name: Assemble .deb directory tree
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+          PKG: ${{ steps.version.outputs.PKG }}
+        run: |
+          ROOT="deb_root/${PKG}"
+
+          # ── Directory structure ──────────────────────────────
+          mkdir -p "${ROOT}/DEBIAN"
+          mkdir -p "${ROOT}/opt/eew-sensor/backend"
+          mkdir -p "${ROOT}/opt/eew-sensor/frontend"
+          mkdir -p "${ROOT}/etc/systemd/system"
+
+          # ── Backend binary + companion files ─────────────────
+          cp -r artifacts/backend/. "${ROOT}/opt/eew-sensor/backend/"
+          # The main entry-point binary must be executable
+          chmod +x "${ROOT}/opt/eew-sensor/backend/run_server"
+
+          # ── React frontend ───────────────────────────────────
+          cp -r artifacts/frontend/. "${ROOT}/opt/eew-sensor/frontend/"
+
+          # ── DEBIAN/control ───────────────────────────────────
+          cat > "${ROOT}/DEBIAN/control" <<EOF
+          Package: eew-sensor
+          Version: ${VERSION}
+          Architecture: arm64
+          Maintainer: CrisisLab <support@crisislab.org.nz>
+          Depends: libgpiod2, sqlite3
+          Recommends: network-manager
+          Description: EEW Sensor Firmware and UI
+           Early Earthquake Warning sensor appliance firmware.
+           Runs on Raspberry Pi 3/4 with the ADXL354 accelerometer.
+           Provides a real-time web UI and SeisComP3/SeedLink compatible
+           miniSEED data stream.
+          EOF
+
+          # ── systemd unit ─────────────────────────────────────
+          # WorkingDirectory=/opt/eew-sensor/backend means eew_sensor.db
+          # is created there. EEW_FRONTEND_DIST points main.py to the
+          # correct static file location (see main.py line 732).
+          cat > "${ROOT}/etc/systemd/system/eew-sensor.service" <<'EOF'
+          [Unit]
+          Description=EEW Sensor Firmware and UI
+          After=network.target
+
+          [Service]
+          User=crisislab
+          WorkingDirectory=/opt/eew-sensor/backend
+          ExecStart=/opt/eew-sensor/backend/run_server
+          Restart=always
+          RestartSec=5
+          Environment=PYTHONUNBUFFERED=1
+          Environment=EEW_FRONTEND_DIST=/opt/eew-sensor/frontend
+          # Allow non-root binding to port 80
+          AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+
+          # ── DEBIAN/postinst ──────────────────────────────────
+          cp deploy/debian/postinst "${ROOT}/DEBIAN/postinst"
+          chmod 755 "${ROOT}/DEBIAN/postinst"
+
+          # ── DEBIAN/prerm ─────────────────────────────────────
+          cp deploy/debian/prerm "${ROOT}/DEBIAN/prerm"
+          chmod 755 "${ROOT}/DEBIAN/prerm"
+
+      - name: Build .deb package
+        env:
+          PKG: ${{ steps.version.outputs.PKG }}
+        run: |
+          dpkg-deb --build "deb_root/${PKG}" "${PKG}.deb"
+          echo "Built: ${PKG}.deb ($(du -sh ${PKG}.deb | cut -f1))"
+
+      - name: Generate SHA256 checksum
+        env:
+          PKG: ${{ steps.version.outputs.PKG }}
+        run: |
+          sha256sum "${PKG}.deb" > "${PKG}.deb.sha256"
+          cat "${PKG}.deb.sha256"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "EEW Sensor ${{ steps.version.outputs.TAG }}"
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            ${{ steps.version.outputs.PKG }}.deb
+            ${{ steps.version.outputs.PKG }}.deb.sha256
