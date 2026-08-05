@@ -339,18 +339,7 @@ export default function Settings() {
                       className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm mb-3"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Device ID</label>
-                    <input
-                      type="text"
-                      value={deviceId}
-                      onChange={e => setDeviceId(e.target.value)}
-                      maxLength={5}
-                      placeholder="T0021"
-                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
-                    />
-                    <p className="text-xs text-slate-400 dark:text-slate-400 font-mono mt-1 mb-2">Used for SEED station code (e.g. T0021)</p>
-                  </div>
+
                   <div className="border-t border-slate-100 dark:border-slate-700/50 pt-3">
                     <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Device Owner's Name</label>
                     <input

@@ -10,7 +10,7 @@ export default function Dashboard() {
   const [clientSps, setClientSps] = useState(0);
   const [activeChannels, setActiveChannels] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [sensorSettings, setSensorSettings] = useState({ latitude: 0.0, longitude: 0.0, elevation: 0.0, device_name: 'Loading...' });
+  const [sensorSettings, setSensorSettings] = useState({ latitude: 0.0, longitude: 0.0, elevation: 0.0, device_name: 'Loading...', device_id: 'Loading...' });
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -55,7 +55,8 @@ export default function Dashboard() {
           latitude: data.latitude || 0.0,
           longitude: data.longitude || 0.0,
           elevation: data.elevation || 0.0,
-          device_name: data.device_name || 'CRISIS-NODE-01'
+          device_name: data.device_name || 'CRISIS-NODE-01',
+          device_id: data.device_id || 'UNKNOWN-ID'
         });
       })
       .catch(console.error);
@@ -119,6 +120,10 @@ export default function Dashboard() {
           <div>
             <div className="text-[13px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">Device Details</div>
             <div className="space-y-3 font-mono text-sm">
+              <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
+                <span className="font-bold text-slate-400">Device ID</span>
+                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{sensorSettings.device_id}</span>
+              </div>
               <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">Name</span>
                 <span className="text-primary dark:text-slate-100 font-bold col-span-2">{sensorSettings.device_name}</span>

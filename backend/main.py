@@ -415,11 +415,12 @@ def api_metadata_stationxml():
     """
     s           = get_settings()
     device_name = s.get("device_name", "CRISIS-NODE-01")
+    device_id   = s.get("device_id", "UNKNOWN-ID")
     latitude    = float(s.get("latitude",   0.0))
     longitude   = float(s.get("longitude",  0.0))
     elevation   = float(s.get("elevation",  0.0))
 
-    xml_content = build_stationxml(device_name, latitude, longitude, elevation)
+    xml_content = build_stationxml(device_name, device_id, latitude, longitude, elevation)
     filename    = f"{device_name}_response.xml"
 
     return StreamingResponse(
