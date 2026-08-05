@@ -23,10 +23,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -61,14 +61,23 @@ jobs:
         with:
           platforms: arm64
 
-      # Cache ccache objects across CI runs to speed up Nuitka C compilation.
-      # On cache hit, only changed Python files are re-compiled.
-      - name: Cache ccache
+      # Cache pip packages and ccache across CI runs.
+      # Key includes requirements.txt hash so cache is invalidated when deps change.
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: /tmp/pip-cache
+          key: pip-arm64-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            pip-arm64-
+
+      - name: Cache ccache (speeds up Nuitka C recompilation)
         uses: actions/cache@v4
         with:
           path: /tmp/ccache
-          key: ccache-arm64-${{ hashFiles('backend/requirements.txt') }}
+          key: ccache-arm64-${{ hashFiles('backend/requirements.txt') }}-${{ github.sha }}
           restore-keys: |
+            ccache-arm64-${{ hashFiles('backend/requirements.txt') }}-
             ccache-arm64-
 
       # Run the entire Python build inside an official ARM64 Python image.
@@ -78,6 +87,7 @@ jobs:
           docker run --rm --platform linux/arm64 \
             -v "${{ github.workspace }}":/workspace \
             -v /tmp/ccache:/root/.ccache \
+            -v /tmp/pip-cache:/root/.cache/pip \
             -e CCACHE_DIR=/root/.ccache \
             -w /workspace \
             python:3.11-slim-bookworm \
@@ -87,7 +97,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: backend-dist
-          # The compile script writes output to workspace/build/run_server.dist/
+          # compile_backend.sh writes output to workspace/build/run_server.dist/
           path: build/run_server.dist/
           retention-days: 1
 
@@ -119,7 +129,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "TAG=$GITHUB_REF_NAME"  >> $GITHUB_OUTPUT
+          echo "TAG=$GITHUB_REF_NAME" >> $GITHUB_OUTPUT
           echo "PKG=eew-sensor_${VERSION}_arm64" >> $GITHUB_OUTPUT
 
       - name: Assemble .deb directory tree
@@ -137,50 +147,49 @@ jobs:
 
           # ── Backend binary + companion files ─────────────────
           cp -r artifacts/backend/. "${ROOT}/opt/eew-sensor/backend/"
-          # The main entry-point binary must be executable
           chmod +x "${ROOT}/opt/eew-sensor/backend/run_server"
 
           # ── React frontend ───────────────────────────────────
           cp -r artifacts/frontend/. "${ROOT}/opt/eew-sensor/frontend/"
 
           # ── DEBIAN/control ───────────────────────────────────
-          cat > "${ROOT}/DEBIAN/control" <<EOF
-          Package: eew-sensor
-          Version: ${VERSION}
-          Architecture: arm64
-          Maintainer: CrisisLab <support@crisislab.org.nz>
-          Depends: libgpiod2, sqlite3
-          Recommends: network-manager
-          Description: EEW Sensor Firmware and UI
-           Early Earthquake Warning sensor appliance firmware.
-           Runs on Raspberry Pi 3/4 with the ADXL354 accelerometer.
-           Provides a real-time web UI and SeisComP3/SeedLink compatible
-           miniSEED data stream.
-          EOF
+          # IMPORTANT: dpkg requires NO leading whitespace in the control file.
+          # The fields must start at column 0 (except continuation lines with a space).
+          cat > "${ROOT}/DEBIAN/control" << EOF
+Package: eew-sensor
+Version: ${VERSION}
+Architecture: arm64
+Maintainer: CrisisLab <support@crisislab.org.nz>
+Depends: libgpiod2, sqlite3, python3-rpi.gpio, python3-spidev
+Recommends: network-manager
+Description: EEW Sensor Firmware and UI
+ Early Earthquake Warning sensor appliance firmware.
+ Runs on Raspberry Pi 3/4 with the ADXL354 accelerometer.
+ Provides a real-time web UI and SeisComP3/SeedLink compatible
+ miniSEED data stream.
+EOF
 
           # ── systemd unit ─────────────────────────────────────
-          # WorkingDirectory=/opt/eew-sensor/backend means eew_sensor.db
-          # is created there. EEW_FRONTEND_DIST points main.py to the
-          # correct static file location (see main.py line 732).
-          cat > "${ROOT}/etc/systemd/system/eew-sensor.service" <<'EOF'
-          [Unit]
-          Description=EEW Sensor Firmware and UI
-          After=network.target
+          # WorkingDirectory=/opt/eew-sensor/backend → eew_sensor.db created there.
+          # EEW_FRONTEND_DIST → main.py uses this to locate the built React app.
+          cat > "${ROOT}/etc/systemd/system/eew-sensor.service" << 'EOF'
+[Unit]
+Description=EEW Sensor Firmware and UI
+After=network.target
 
-          [Service]
-          User=crisislab
-          WorkingDirectory=/opt/eew-sensor/backend
-          ExecStart=/opt/eew-sensor/backend/run_server
-          Restart=always
-          RestartSec=5
-          Environment=PYTHONUNBUFFERED=1
-          Environment=EEW_FRONTEND_DIST=/opt/eew-sensor/frontend
-          # Allow non-root binding to port 80
-          AmbientCapabilities=CAP_NET_BIND_SERVICE
+[Service]
+User=crisislab
+WorkingDirectory=/opt/eew-sensor/backend
+ExecStart=/opt/eew-sensor/backend/run_server
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+Environment=EEW_FRONTEND_DIST=/opt/eew-sensor/frontend
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 
-          [Install]
-          WantedBy=multi-user.target
-          EOF
+[Install]
+WantedBy=multi-user.target
+EOF
 
           # ── DEBIAN/postinst ──────────────────────────────────
           cp deploy/debian/postinst "${ROOT}/DEBIAN/postinst"
@@ -190,18 +199,22 @@ jobs:
           cp deploy/debian/prerm "${ROOT}/DEBIAN/prerm"
           chmod 755 "${ROOT}/DEBIAN/prerm"
 
+          echo "=== .deb tree ==="
+          find "${ROOT}" -type f | sort
+
       - name: Build .deb package
         env:
           PKG: ${{ steps.version.outputs.PKG }}
         run: |
           dpkg-deb --build "deb_root/${PKG}" "${PKG}.deb"
-          echo "Built: ${PKG}.deb ($(du -sh ${PKG}.deb | cut -f1))"
+          echo "Built: ${PKG}.deb ($(du -sh "${PKG}.deb" | cut -f1))"
 
       - name: Generate SHA256 checksum
         env:
           PKG: ${{ steps.version.outputs.PKG }}
         run: |
           sha256sum "${PKG}.deb" > "${PKG}.deb.sha256"
+          echo "Checksum:"
           cat "${PKG}.deb.sha256"
 
       - name: Create GitHub Release
