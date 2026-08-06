@@ -67,6 +67,8 @@ sudo apt-get install -y --no-install-recommends \
     sqlite3 \
     network-manager \
     curl \
+    python3-dev \
+    build-essential \
     2>&1 | tail -3
 
 # ── Fetch latest release ─────────────────────────────────────
