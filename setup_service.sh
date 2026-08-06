@@ -65,7 +65,6 @@ info "Installing system dependencies..."
 sudo apt-get update -qq
 sudo apt-get install -y --no-install-recommends \
     sqlite3 \
-    libgpiod2 \
     network-manager \
     curl \
     2>&1 | tail -3
