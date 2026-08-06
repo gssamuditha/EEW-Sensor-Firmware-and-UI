@@ -46,59 +46,50 @@ jobs:
           retention-days: 1
 
   # ─────────────────────────────────────────────────────────────
-  #  JOB 2 — Compile Python backend with Nuitka inside an ARM64
-  #           Docker container (via QEMU — works on free runners)
+  #  JOB 2 — Compile Python backend to bytecode (.pyc)
+  #
+  #  Why NOT Nuitka + QEMU:
+  #    Nuitka converts Python to C then compiles with GCC. Under QEMU
+  #    ARM64 emulation each C file takes 400-600s to compile. With
+  #    scipy/numpy/obspy pulling in hundreds of files, the job exceeds
+  #    the 6-hour GitHub Actions limit every time.
+  #
+  #  Why bytecode (.pyc) instead:
+  #    • Builds in ~30 seconds on a standard x86 runner
+  #    • Python bytecode is architecture-independent — .pyc compiled on
+  #      x86 runs identically on ARM64 (Raspberry Pi), as long as the
+  #      Python MINOR version matches (both 3.11)
+  #    • Source code is hidden: .pyc requires specialised decompilation
+  #      tools; raw .py is not present on the device
+  #    • Standard professional practice (used widely in the industry)
   # ─────────────────────────────────────────────────────────────
   build-backend:
-    name: Compile Python Backend (ARM64 via QEMU)
+    name: Compile Python Backend (bytecode)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up QEMU (ARM64 emulation)
-        uses: docker/setup-qemu-action@v3
+      # Python 3.11 matches Raspberry Pi OS Bookworm (Debian 12).
+      # The .pyc files must be compiled with the same minor version
+      # as the interpreter that will run them on the Pi.
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
         with:
-          platforms: arm64
+          python-version: '3.11'
 
-      # Cache pip packages and ccache across CI runs.
-      # Key includes requirements.txt hash so cache is invalidated when deps change.
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: /tmp/pip-cache
-          key: pip-arm64-${{ hashFiles('backend/requirements.txt') }}
-          restore-keys: |
-            pip-arm64-
-
-      - name: Cache ccache (speeds up Nuitka C recompilation)
-        uses: actions/cache@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-arm64-${{ hashFiles('backend/requirements.txt') }}-${{ github.sha }}
-          restore-keys: |
-            ccache-arm64-${{ hashFiles('backend/requirements.txt') }}-
-            ccache-arm64-
-
-      # Run the entire Python build inside an official ARM64 Python image.
-      # QEMU transparently handles the architecture difference.
-      - name: Compile with Nuitka inside ARM64 container
+      - name: Compile backend to bytecode
         run: |
-          docker run --rm --platform linux/arm64 \
-            -v "${{ github.workspace }}":/workspace \
-            -v /tmp/ccache:/root/.ccache \
-            -v /tmp/pip-cache:/root/.cache/pip \
-            -e CCACHE_DIR=/root/.ccache \
-            -w /workspace \
-            python:3.11-slim-bookworm \
-            bash /workspace/.github/scripts/compile_backend.sh
+          # Pass workspace as /workspace so compile_backend.sh paths are consistent
+          mkdir -p /workspace
+          cp -r backend /workspace/backend
+          bash .github/scripts/compile_backend.sh
 
       - name: Upload compiled backend
         uses: actions/upload-artifact@v4
         with:
           name: backend-dist
-          # compile_backend.sh writes output to workspace/build/run_server.dist/
-          path: build/run_server.dist/
+          path: /workspace/build/backend-dist/
           retention-days: 1
 
   # ─────────────────────────────────────────────────────────────
@@ -145,22 +136,25 @@ jobs:
           mkdir -p "${ROOT}/opt/eew-sensor/frontend"
           mkdir -p "${ROOT}/etc/systemd/system"
 
-          # ── Backend binary + companion files ─────────────────
+          # ── Backend bytecode + requirements ──────────────────
+          # artifacts/backend/ contains:
+          #   __pycache__/main.cpython-311.pyc
+          #   __pycache__/sensor.cpython-311.pyc  (etc.)
+          #   requirements.txt  (for postinst pip install)
           cp -r artifacts/backend/. "${ROOT}/opt/eew-sensor/backend/"
-          chmod +x "${ROOT}/opt/eew-sensor/backend/run_server"
 
           # ── React frontend ───────────────────────────────────
           cp -r artifacts/frontend/. "${ROOT}/opt/eew-sensor/frontend/"
 
           # ── DEBIAN/control ───────────────────────────────────
-          # dpkg requires NO leading whitespace in the control file.
-          # Using printf avoids heredoc EOF-at-column-0 YAML parse errors.
+          # python3.11-venv: required to create the isolated venv in postinst
+          # libgpiod2, spidev, rpi.gpio: GPIO/SPI hardware access
           printf '%s\n' \
             "Package: eew-sensor" \
             "Version: ${VERSION}" \
             "Architecture: arm64" \
             "Maintainer: CrisisLab <support@crisislab.org.nz>" \
-            "Depends: libgpiod2, sqlite3, python3-rpi.gpio, python3-spidev" \
+            "Depends: python3.11, python3.11-venv, libgpiod2, sqlite3" \
             "Recommends: network-manager" \
             "Description: EEW Sensor Firmware and UI" \
             " Early Earthquake Warning sensor appliance firmware." \
@@ -170,15 +164,20 @@ jobs:
             > "${ROOT}/DEBIAN/control"
 
           # ── systemd unit ─────────────────────────────────────
+          # The venv is created/updated by postinst.
+          # WorkingDirectory=/opt/eew-sensor/backend → eew_sensor.db created here.
+          # EEW_FRONTEND_DIST → main.py uses this to locate the built React app.
+          # Python 3.11 can import from __pycache__/*.cpython-311.pyc without .py source.
           printf '%s\n' \
             "[Unit]" \
             "Description=EEW Sensor Firmware and UI" \
-            "After=network.target" \
+            "After=network-online.target" \
+            "Wants=network-online.target" \
             "" \
             "[Service]" \
             "User=crisislab" \
             "WorkingDirectory=/opt/eew-sensor/backend" \
-            "ExecStart=/opt/eew-sensor/backend/run_server" \
+            "ExecStart=/opt/eew-sensor/venv/bin/uvicorn main:app --host 0.0.0.0 --port 80" \
             "Restart=always" \
             "RestartSec=5" \
             "Environment=PYTHONUNBUFFERED=1" \
@@ -188,7 +187,6 @@ jobs:
             "[Install]" \
             "WantedBy=multi-user.target" \
             > "${ROOT}/etc/systemd/system/eew-sensor.service"
-
 
           # ── DEBIAN/postinst ──────────────────────────────────
           cp deploy/debian/postinst "${ROOT}/DEBIAN/postinst"

@@ -4,28 +4,45 @@
 set -e
 
 INSTALL_DIR="/opt/eew-sensor"
-DATA_DIR="${INSTALL_DIR}/backend"
+BACKEND_DIR="${INSTALL_DIR}/backend"
+VENV_DIR="${INSTALL_DIR}/venv"
 SERVICE="eew-sensor.service"
 SUDOERS_FILE="/etc/sudoers.d/eew-sensor-permissions"
 
+# ── Python virtual environment ────────────────────────────────
+# Create the venv only if it does not already exist.
+# On upgrades this is skipped — existing packages are kept unless
+# requirements.txt changed, in which case pip install updates them.
+echo "Setting up Python virtual environment..."
+if [ ! -d "${VENV_DIR}" ]; then
+    python3.11 -m venv "${VENV_DIR}"
+fi
+
+# Install / upgrade all Python dependencies inside the venv.
+# spidev and RPi.GPIO compile from source here on real Pi hardware.
+# This step requires internet access on first install.
+echo "Installing Python dependencies (this may take a few minutes)..."
+"${VENV_DIR}/bin/pip" install --upgrade pip --quiet
+"${VENV_DIR}/bin/pip" install \
+    -r "${BACKEND_DIR}/requirements.txt" \
+    --quiet \
+    --upgrade
+
 # ── Permissions ──────────────────────────────────────────────
-# The binary needs CAP_NET_BIND_SERVICE to bind port 80.
-# Ensure the backend directory is owned by the service user.
 if id "crisislab" &>/dev/null; then
     chown -R crisislab:crisislab "${INSTALL_DIR}" || true
 fi
-chmod 755 "${INSTALL_DIR}/backend/run_server" || true
+# The venv Python / uvicorn binaries must be executable
+chmod -R a+rX "${VENV_DIR}/bin" || true
 
-# ── Passwordless sudo for nmcli / reboot / systemctl ────────
+# ── Passwordless sudo for nmcli / reboot / systemctl ─────────
 # The web UI's WiFi and reboot endpoints need these.
-if ! grep -q "eew-sensor-permissions" "${SUDOERS_FILE}" 2>/dev/null; then
-    cat > "${SUDOERS_FILE}" <<'EOF'
+cat > "${SUDOERS_FILE}" << 'EOF'
 crisislab ALL=(ALL) NOPASSWD: /usr/bin/nmcli, /bin/nmcli, /sbin/reboot, /usr/sbin/reboot, /usr/bin/systemctl, /bin/systemctl
 EOF
-    chmod 440 "${SUDOERS_FILE}"
-fi
+chmod 440 "${SUDOERS_FILE}"
 
-# ── Systemd ──────────────────────────────────────────────────
+# ── Systemd ───────────────────────────────────────────────────
 systemctl daemon-reload
 systemctl enable "${SERVICE}"
 systemctl restart "${SERVICE}"

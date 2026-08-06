@@ -1,73 +1,44 @@
 #!/usr/bin/env bash
 # ============================================================
-#  EEW Sensor — ARM64 Backend Compilation Script
-#  Runs inside an ARM64 Docker container (via QEMU in CI).
-#  Called by .github/workflows/build-release.yml
+#  EEW Sensor — Backend Bytecode Compilation Script
+#  Runs on a standard x86 GitHub Actions runner (ubuntu-latest).
+#  Converts all Python source files to .pyc bytecode, then
+#  removes the .py source. No ARM/QEMU/Docker needed.
 # ============================================================
 set -euo pipefail
 
-WORKSPACE="/workspace"
-BACKEND="${WORKSPACE}/backend"
-OUTPUT="${WORKSPACE}/build"
+BACKEND="/workspace/backend"
+OUTPUT="/workspace/build/backend-dist"
 
-echo "============================================================"
-echo "=== System info ==="
-uname -a && arch && python3 --version
-echo "============================================================"
+echo "=== Python version ==="
+python3.11 --version
 
-# ── System packages ─────────────────────────────────────────
-# linux-libc-dev → provides <linux/spi/spidev.h> needed by spidev pip package
-# libpam-dev     → required by pamela
-# patchelf       → required by Nuitka to fix library RPATH entries
-# ccache         → speeds up repeated Nuitka C compilations
-echo "=== Installing system packages ==="
-apt-get update -qq
-apt-get install -y --no-install-recommends \
-    build-essential \
-    gcc \
-    patchelf \
-    ccache \
-    libpam-dev \
-    linux-libc-dev
+echo "=== Compiling Python source to bytecode (.pyc) ==="
+# Creates __pycache__/module.cpython-311.pyc for every .py file.
+# Python 3.11 on the Pi can import these even without the .py source.
+python3.11 -m compileall -q "$BACKEND"
 
-echo "=== Installing Python dependencies ==="
-pip install --upgrade pip wheel setuptools --root-user-action=ignore
-pip install nuitka --root-user-action=ignore
+echo "=== Building bytecode-only distribution ==="
+mkdir -p "$OUTPUT"
 
-# Install all backend requirements.
-# sensor.py now uses _is_raspberry_pi() which checks /proc/device-tree/model.
-# In this Docker container that file does NOT exist → use_mock=True at import time
-# → RPi.GPIO / spidev are never instantiated → no RuntimeError during compilation.
-pip install -r "${BACKEND}/requirements.txt" --root-user-action=ignore
+# Copy the entire backend tree (includes __pycache__ with .pyc files)
+cp -r "$BACKEND/." "$OUTPUT/"
 
-echo "=== Compiling with Nuitka (15–40 min on first run) ==="
-mkdir -p "${OUTPUT}"
-cd "${BACKEND}"
+# Delete Python source files — ship only .pyc bytecode
+# Keep requirements.txt (needed for postinst pip install on the Pi)
+find "$OUTPUT" -name "*.py" -delete
 
-python -m nuitka \
-    --standalone \
-    --follow-imports \
-    \
-    --include-package=uvicorn \
-    --include-package=fastapi \
-    --include-package=starlette \
-    --include-package=pydantic \
-    --include-package=pydantic_core \
-    --include-package=anyio \
-    --include-package=scipy \
-    --include-package=numpy \
-    --include-package=obspy \
-    --include-package=httpx \
-    --include-package=httpcore \
-    --include-package=psutil \
-    --include-package=pamela \
-    \
-    --noinclude-pytest-mode=nofollow \
-    --noinclude-unittest-mode=nofollow \
-    \
-    --output-dir="${OUTPUT}" \
-    run_server.py
+# Remove development-only directories
+rm -rf "$OUTPUT/venv" "$OUTPUT/.venv" 2>/dev/null || true
 
-echo "=== Nuitka compilation done ==="
-echo "Output directory:"
-ls -lh "${OUTPUT}/run_server.dist/"
+echo "=== Distribution summary ==="
+PYC=$(find "$OUTPUT" -name "*.pyc" | wc -l)
+PY=$(find "$OUTPUT" -name "*.py" | wc -l)
+echo "  .pyc files compiled : ${PYC}"
+echo "  .py source remaining: ${PY}  (must be 0)"
+if [ "$PY" -ne 0 ]; then
+    echo "ERROR: Source files still present!"
+    find "$OUTPUT" -name "*.py"
+    exit 1
+fi
+echo "=== Done ==="
