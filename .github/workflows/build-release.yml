@@ -73,15 +73,15 @@ jobs:
       # Python 3.11 matches Raspberry Pi OS Bookworm (Debian 12).
       # The .pyc files must be compiled with the same minor version
       # as the interpreter that will run them on the Pi.
-      - name: Set up Python 3.11
+      - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Compile backend to bytecode (.pyc)
         run: |
-          # Compile every .py file → __pycache__/module.cpython-311.pyc
-          python3.11 -m compileall -q backend/
+          # Compile every .py file → __pycache__/module.cpython-313.pyc
+          python3 -m compileall -q backend/
 
           # Remove Python source files — ship only bytecode
           find backend/ -name "*.py" -delete
@@ -154,14 +154,14 @@ jobs:
           cp -r artifacts/frontend/. "${ROOT}/opt/eew-sensor/frontend/"
 
           # ── DEBIAN/control ───────────────────────────────────
-          # python3.11-venv: required to create the isolated venv in postinst
+          # python3-venv: required to create the isolated venv in postinst
           # libgpiod2, spidev, rpi.gpio: GPIO/SPI hardware access
           printf '%s\n' \
             "Package: eew-sensor" \
             "Version: ${VERSION}" \
             "Architecture: arm64" \
             "Maintainer: CrisisLab <support@crisislab.org.nz>" \
-            "Depends: python3.11, python3.11-venv, sqlite3" \
+            "Depends: python3, python3-venv, sqlite3" \
             "Recommends: network-manager" \
             "Description: EEW Sensor Firmware and UI" \
             " Early Earthquake Warning sensor appliance firmware." \
@@ -174,7 +174,7 @@ jobs:
           # The venv is created/updated by postinst.
           # WorkingDirectory=/opt/eew-sensor/backend → eew_sensor.db created here.
           # EEW_FRONTEND_DIST → main.py uses this to locate the built React app.
-          # Python 3.11 can import from __pycache__/*.cpython-311.pyc without .py source.
+          # Python 3.13 can import from __pycache__/*.cpython-313.pyc without .py source.
           printf '%s\n' \
             "[Unit]" \
             "Description=EEW Sensor Firmware and UI" \
