@@ -78,18 +78,25 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Compile backend to bytecode
+      - name: Compile backend to bytecode (.pyc)
         run: |
-          # Pass workspace as /workspace so compile_backend.sh paths are consistent
-          mkdir -p /workspace
-          cp -r backend /workspace/backend
-          bash .github/scripts/compile_backend.sh
+          # Compile every .py file → __pycache__/module.cpython-311.pyc
+          python3.11 -m compileall -q backend/
+
+          # Remove Python source files — ship only bytecode
+          find backend/ -name "*.py" -delete
+
+          # Verify no source remains
+          PY=$(find backend/ -name "*.py" | wc -l)
+          echo ".pyc files: $(find backend/ -name '*.pyc' | wc -l)"
+          echo ".py  files: ${PY}  (must be 0)"
+          [ "$PY" -eq 0 ] || { echo "ERROR: source files still present!"; exit 1; }
 
       - name: Upload compiled backend
         uses: actions/upload-artifact@v4
         with:
           name: backend-dist
-          path: /workspace/build/backend-dist/
+          path: backend/
           retention-days: 1
 
   # ─────────────────────────────────────────────────────────────
