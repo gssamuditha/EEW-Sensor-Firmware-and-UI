@@ -80,11 +80,15 @@ jobs:
 
       - name: Compile backend to bytecode (.pyc)
         run: |
-          # Compile every .py file → __pycache__/module.cpython-313.pyc
-          python3 -m compileall -q backend/
+          # Compile every .py file and output to legacy locations (-b)
+          # Python ignores __pycache__ if the .py source file is missing (PEP 3147).
+          python3 -m compileall -b -q backend/
 
           # Remove Python source files — ship only bytecode
           find backend/ -name "*.py" -delete
+
+          # Clean up empty/redundant __pycache__ directories
+          find backend/ -name "__pycache__" -type d -exec rm -rf {} +
 
           # Verify no source remains
           PY=$(find backend/ -name "*.py" | wc -l)
@@ -174,7 +178,7 @@ jobs:
           # The venv is created/updated by postinst.
           # WorkingDirectory=/opt/eew-sensor/backend → eew_sensor.db created here.
           # EEW_FRONTEND_DIST → main.py uses this to locate the built React app.
-          # Python 3.13 can import from __pycache__/*.cpython-313.pyc without .py source.
+          # Python can import from legacy .pyc files (e.g. main.pyc) without .py source.
           printf '%s\n' \
             "[Unit]" \
             "Description=EEW Sensor Firmware and UI" \
