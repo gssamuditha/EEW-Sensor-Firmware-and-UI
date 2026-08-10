@@ -57,7 +57,10 @@ echo ""
 # ── Create sensor user if needed ─────────────────────────────
 if ! id "$SENSOR_USER" &>/dev/null; then
     info "Creating user '$SENSOR_USER'..."
-    sudo useradd -m -s /bin/bash "$SENSOR_USER"
+    sudo useradd -m -s /bin/bash -G spi,gpio,dialout "$SENSOR_USER"
+else
+    info "Ensuring user '$SENSOR_USER' is in hardware groups..."
+    sudo usermod -aG spi,gpio,dialout "$SENSOR_USER"
 fi
 
 # ── Install system dependencies ──────────────────────────────
