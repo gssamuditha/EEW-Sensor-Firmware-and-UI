@@ -76,7 +76,7 @@ const cursorSync = {
 // ---------------------------------------------------------------------------
 // ChannelPlot — renders a single TimeLine chart per channel
 // ---------------------------------------------------------------------------
-function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
+function ChannelPlot({ channelName, channelUnit, timeZone, dataRef, latestValue, tick }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const { theme } = useTheme();
@@ -152,21 +152,31 @@ function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
     }
   }, [tick]);
 
-  const labelColor = (name) => {
+  const labelColor = (name, unit) => {
+    // EHZ / velocity channel gets a distinct violet colour
+    if (unit === 'VEL') return 'text-violet-600 dark:text-violet-400';
     if (name.includes('Z')) return 'text-red-600';
     if (name.includes('N')) return 'text-teal-600';
     return 'text-yellow-600';
   };
 
+  // Unit label: EHZ is velocity, everything else is acceleration
+  const unitLabel = channelUnit === 'VEL' ? 'm/s' : 'm/s²';
+
   return (
     <div className="flex flex-col flex-1 min-h-[100px] mb-[2px] bg-white dark:bg-slate-800 shadow-sm p-1 rounded">
       <div className="flex items-center justify-between mb-0 px-1">
-        <span className="font-bold text-gray-500 dark:text-slate-300 text-[10px] tracking-widest leading-none">{channelName}</span>
         <div className="flex items-center space-x-1.5">
-          <span className={`text-sm font-mono font-bold leading-none ${labelColor(channelName)}`}>
+          <span className="font-bold text-gray-500 dark:text-slate-300 text-[10px] tracking-widest leading-none">{channelName}</span>
+          {channelUnit === 'VEL' && (
+            <span className="text-[9px] font-bold text-violet-500 dark:text-violet-400 tracking-wide leading-none uppercase">GEO</span>
+          )}
+        </div>
+        <div className="flex items-center space-x-1.5">
+          <span className={`text-sm font-mono font-bold leading-none ${labelColor(channelName, channelUnit)}`}>
             {latestValue !== null ? latestValue.toFixed(4) : '0.0000'}
           </span>
-          <span className="text-[10px] text-gray-400 dark:text-slate-400 leading-none">m/s²</span>
+          <span className="text-[10px] text-gray-400 dark:text-slate-400 leading-none">{unitLabel}</span>
         </div>
       </div>
       {/* No overflow-hidden: axis plugins create positioned elements that must not be clipped.
@@ -182,6 +192,7 @@ function ChannelPlot({ channelName, timeZone, dataRef, latestValue, tick }) {
 export default function LiveChart({ timeZone, updateSps, onClientSps, onChannelsFound, isExpanded }) {
   const wsRef = useRef(null);
   const [channels, setChannels] = useState([]);
+  const [channelUnits, setChannelUnits] = useState({});  // { ch: 'ACC'|'VEL' }
   const dataRefs = useRef({});          // { ch: [{time, value}, ...] }
   const latestValues = useRef({});
   const lastBatchEndTime = useRef({});  // { ch: number } — expected next t_start
@@ -230,7 +241,7 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
       setConnectionStatus('connected');
 
       const msg = JSON.parse(event.data);
-      const { t_start, sps, samples } = msg;
+      const { t_start, sps, samples, channel_units } = msg;
       const channelNames = Object.keys(samples);
       const nSamples = samples[channelNames[0]].length;
 
@@ -241,6 +252,7 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
       if (!channelsInitRef.current && channelNames.length > 0) {
         channelsInitRef.current = true;
         setChannels(channelNames);
+        if (channel_units) setChannelUnits(channel_units);
         if (onChannelsFoundRef.current) onChannelsFoundRef.current(channelNames);
         channelNames.forEach(ch => {
           dataRefs.current[ch] = [];
@@ -248,6 +260,9 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
           lastBatchEndTime.current[ch] = null;
         });
       }
+
+      // Update units if they arrive on a later message (e.g. after reconnect)
+      if (channel_units) setChannelUnits(prev => ({ ...prev, ...channel_units }));
 
       // Removed isPausedRef early return to allow data to accumulate in the background
       channelNames.forEach(ch => {
@@ -371,6 +386,7 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
             <ChannelPlot
               key={ch}
               channelName={ch}
+              channelUnit={channelUnits[ch] || 'ACC'}
               timeZone={timeZone}
               dataRef={{ current: dataRefs.current[ch] }}
               latestValue={latestValues.current[ch]}
