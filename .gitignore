@@ -80,3 +80,6 @@ eew_auto_update.log
 ehthumbs.db
 Thumbs.db
 *xml
+*.csv
+*.png
+*.txt
