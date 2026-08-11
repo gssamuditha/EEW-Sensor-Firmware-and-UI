@@ -1,0 +1,14 @@
+#!/bin/bash
+# DEBIAN/prerm — runs before the package files are removed
+# Called by dpkg with argument "remove" or "upgrade".
+set -e
+
+SERVICE="eew-sensor.service"
+
+# Stop and disable the service cleanly.
+# During an UPGRADE dpkg calls prerm of the old package before installing the new one.
+# During a REMOVE it permanently disables the service.
+systemctl stop "${SERVICE}"  || true
+systemctl disable "${SERVICE}" || true
+
+echo "EEW Sensor service stopped."

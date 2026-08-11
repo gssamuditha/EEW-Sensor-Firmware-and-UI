@@ -1,0 +1,52 @@
+#!/bin/bash
+# DEBIAN/postinst — runs after the package files are installed
+# Called by dpkg with argument "configure" on a fresh install or upgrade.
+set -e
+
+INSTALL_DIR="/opt/eew-sensor"
+BACKEND_DIR="${INSTALL_DIR}/backend"
+VENV_DIR="${INSTALL_DIR}/venv"
+SERVICE="eew-sensor.service"
+SUDOERS_FILE="/etc/sudoers.d/eew-sensor-permissions"
+
+# ── Python virtual environment ────────────────────────────────
+# Create the venv only if it does not already exist.
+# On upgrades this is skipped — existing packages are kept unless
+# requirements.txt changed, in which case pip install updates them.
+echo "Setting up Python virtual environment..."
+if [ ! -d "${VENV_DIR}" ]; then
+    python3 -m venv "${VENV_DIR}"
+fi
+
+# Install / upgrade all Python dependencies inside the venv.
+# spidev and RPi.GPIO compile from source here on real Pi hardware.
+# This step requires internet access on first install.
+echo "Installing Python dependencies (this may take a few minutes)..."
+"${VENV_DIR}/bin/pip" install --upgrade pip --quiet
+"${VENV_DIR}/bin/pip" install \
+    -r "${BACKEND_DIR}/requirements.txt" \
+    --quiet \
+    --upgrade
+
+# ── Permissions ──────────────────────────────────────────────
+if id "crisislab" &>/dev/null; then
+    chown -R crisislab:crisislab "${INSTALL_DIR}" || true
+fi
+# The venv Python / uvicorn binaries must be executable
+chmod -R a+rX "${VENV_DIR}/bin" || true
+
+# ── Passwordless sudo for nmcli / reboot / systemctl ─────────
+# The web UI's WiFi and reboot endpoints need these.
+cat > "${SUDOERS_FILE}" << 'EOF'
+crisislab ALL=(ALL) NOPASSWD: /usr/bin/nmcli, /bin/nmcli, /sbin/reboot, /usr/sbin/reboot, /usr/bin/systemctl, /bin/systemctl
+EOF
+chmod 440 "${SUDOERS_FILE}"
+
+# ── Systemd ───────────────────────────────────────────────────
+systemctl daemon-reload
+systemctl enable "${SERVICE}"
+systemctl restart "${SERVICE}"
+
+echo "EEW Sensor installed and started."
+echo "  Status: sudo systemctl status ${SERVICE}"
+echo "  Logs:   sudo journalctl -u ${SERVICE} -f"

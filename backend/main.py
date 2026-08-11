@@ -729,8 +729,14 @@ import os
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-# Serve the compiled React frontend directly from FastAPI
-frontend_dist_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
+# Serve the compiled React frontend directly from FastAPI.
+# In production the systemd service sets EEW_FRONTEND_DIST=/opt/eew-sensor/frontend.
+# In development the path is resolved relative to this source file.
+_env_frontend = os.environ.get("EEW_FRONTEND_DIST", "")
+if _env_frontend:
+    frontend_dist_path = os.path.abspath(_env_frontend)
+else:
+    frontend_dist_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
 if os.path.exists(frontend_dist_path):
     app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist_path, "assets")), name="assets")
     
