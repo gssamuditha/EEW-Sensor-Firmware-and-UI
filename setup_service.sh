@@ -145,7 +145,14 @@ curl -sL "$UPDATER_URL" -o "$HOME/.eew_updater.sh"
 chmod +x "$HOME/.eew_updater.sh"
 
 CRON_JOB="*/30 * * * * $HOME/.eew_updater.sh >> $HOME/eew_auto_update.log 2>&1"
-(crontab -l 2>/dev/null | grep -v "\.eew_updater\.sh" | grep -v "auto_update\.sh"; echo "$CRON_JOB") | crontab -
+
+# Safely update crontab without tripping set -e pipefail if it's currently empty
+crontab -l 2>/dev/null > /tmp/current_cron || true
+grep -v "\.eew_updater\.sh" /tmp/current_cron | grep -v "auto_update\.sh" > /tmp/new_cron || true
+echo "$CRON_JOB" >> /tmp/new_cron
+crontab /tmp/new_cron
+rm -f /tmp/current_cron /tmp/new_cron
+
 info "Auto-updater scheduled every 30 minutes."
 
 # ── Final status ─────────────────────────────────────────────
