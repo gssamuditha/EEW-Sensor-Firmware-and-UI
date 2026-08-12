@@ -554,7 +554,7 @@ def api_export(start: float, end: float, format: str = "csv"):
                 yield "time," + ",".join(CHANNEL_NAMES) + "\n"
                 chunk = []
                 for i in range(min_len):
-                    row = f"{times[i]:.6f}" + ",".join(str(ch_data[ch][i]) for ch in CHANNEL_NAMES)
+                    row = f"{times[i]:.6f}," + ",".join(str(ch_data[ch][i]) for ch in CHANNEL_NAMES)
                     chunk.append(row + "\n")
                     if len(chunk) >= 10000:
                         yield "".join(chunk)

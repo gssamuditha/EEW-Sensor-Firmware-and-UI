@@ -600,14 +600,26 @@ class SensorManager:
             If time.time() diverges from the expected monotonic-derived value by more
             than NTP_STEP_THRESHOLD, we treat it as an NTP step and reset the anchor.
         """
-        NTP_STEP_THRESHOLD = 0.5        # seconds — anything larger is an NTP step
+        # ── Timing constants ───────────────────────────────────────────────────
+        # Hard-reset threshold: only triggers for a genuine NTP makestep (e.g. boot).
+        # chrony's default makestep threshold is 1.0s; we catch it at 0.1s.
+        NTP_STEP_THRESHOLD   = 0.1    # seconds
+
+        # Soft-slew discipline: periodically nudge next_loop_utc toward true UTC
+        # to correct for any long-term monotonic drift.  Applied gently so no
+        # timestamp discontinuity occurs (same principle as chrony frequency steering).
+        SLEW_CHECK_INTERVAL  = 10.0   # seconds between slew checks
+        SLEW_THRESHOLD       = 0.005  # only slew if drift > 5 ms
+        MAX_SLEW_PER_STEP    = 0.001  # max 1 ms correction per check (smooth)
+
         target_interval    = 1.0 / 200  # 5 ms per oversampled iteration (200 Hz)
 
         # ── Startup: establish UTC anchor ──────────────────────────────────────
         _init = sorted(time.time() for _ in range(5))
-        next_loop_utc = _init[2]           # median → UTC-accurate start
-        _utc_ref      = next_loop_utc
-        _mono_ref     = time.monotonic()
+        next_loop_utc  = _init[2]           # median → low-jitter UTC start
+        _utc_ref       = next_loop_utc
+        _mono_ref      = time.monotonic()
+        _last_slew_check = _mono_ref        # monotonic time of last slew check
         print(f"sensor-hw: Software PLL started. Initial UTC anchor: {next_loop_utc:.6f}",
               file=sys.stderr)
 
@@ -635,19 +647,52 @@ class SensorManager:
                 # Advance UTC scheduling accumulator
                 next_loop_utc += target_interval
 
-                # ── Software PLL: NTP step detection ──────────────────────────
+                # ── Software PLL: two-tier NTP discipline ─────────────────────
+                #
+                # Tier 1 — Hard reset (NTP makestep):
+                #   If time.time() diverges from the monotonic-derived expected UTC
+                #   by more than NTP_STEP_THRESHOLD (0.1 s), assume chrony fired a
+                #   makestep and re-anchor immediately.  This is rare (only at boot
+                #   or after a very large clock correction).
+                #
+                # Tier 2 — Soft slew (frequency steering):
+                #   Every SLEW_CHECK_INTERVAL seconds, compare next_loop_utc with
+                #   true UTC.  If drift > SLEW_THRESHOLD (5 ms), apply a gentle
+                #   nudge of at most MAX_SLEW_PER_STEP (1 ms).  This keeps the
+                #   accumulator aligned with NTP without any timestamp discontinuity,
+                #   mirroring how chrony itself steers the system clock.
                 now_utc  = time.time()
                 now_mono = time.monotonic()
                 expected_utc = _utc_ref + (now_mono - _mono_ref)
                 utc_error    = now_utc - expected_utc
 
                 if abs(utc_error) > NTP_STEP_THRESHOLD:
+                    # Tier 1: Hard reset
                     next_loop_utc = now_utc
+                    _last_slew_check = now_mono
                     print(
-                        f"sensor-hw: NTP step detected ({utc_error:+.3f}s). "
-                        f"Timing re-anchored to {now_utc:.6f}",
+                        f"sensor-hw: NTP step detected ({utc_error:+.6f}s). "
+                        f"Hard re-anchor to {now_utc:.6f}",
                         file=sys.stderr
                     )
+                elif now_mono - _last_slew_check >= SLEW_CHECK_INTERVAL:
+                    # Tier 2: Soft slew — compare accumulator against true UTC
+                    # True UTC at this moment = now_utc
+                    # Our accumulator's idea of now = next_loop_utc (future target) - target_interval
+                    # (subtract one interval because we haven't slept yet this iteration)
+                    accumulator_now = next_loop_utc - target_interval
+                    drift = now_utc - accumulator_now   # positive = we're running behind UTC
+                    if abs(drift) > SLEW_THRESHOLD:
+                        # Clamp correction to MAX_SLEW_PER_STEP
+                        correction = max(-MAX_SLEW_PER_STEP,
+                                         min(MAX_SLEW_PER_STEP, drift))
+                        next_loop_utc += correction
+                        print(
+                            f"sensor-hw: Soft slew applied: drift={drift*1000:+.3f}ms, "
+                            f"correction={correction*1000:+.3f}ms",
+                            file=sys.stderr
+                        )
+                    _last_slew_check = now_mono
 
                 _utc_ref  = now_utc
                 _mono_ref = now_mono
