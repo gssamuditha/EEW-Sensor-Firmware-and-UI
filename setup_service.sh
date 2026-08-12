@@ -72,6 +72,8 @@ sudo apt-get install -y --no-install-recommends \
     curl \
     python3-dev \
     build-essential \
+    swig \
+    liblgpio-dev \
     2>&1 | tail -3
 
 # ── Fetch latest release ─────────────────────────────────────
