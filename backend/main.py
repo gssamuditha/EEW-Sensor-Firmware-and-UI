@@ -16,9 +16,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
 from database import init_db, get_settings, update_settings
+from sensor import sensor_manager, process_historical_data_task, CHANNEL_NAMES, SENSOR_VARIANT, CHANNEL_UNITS
 from mseed_writer import mseed_writer
 from filters import FILTER_PRESETS
-from sensor import sensor_manager, process_historical_data_task, CHANNEL_NAMES, SENSOR_VARIANT, CHANNEL_UNITS
 from https_publisher import https_publisher
 from concurrent.futures import ProcessPoolExecutor
 
