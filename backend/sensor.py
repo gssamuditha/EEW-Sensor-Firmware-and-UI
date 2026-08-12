@@ -9,7 +9,6 @@ import json
 
 from filters import BandpassFilter, minmax_downsample, FILTER_PRESETS
 import numpy as np
-from mseed_writer import mseed_writer
 
 def process_historical_data_task(start_time: float, end_time: float, low_hz: float, high_hz: float, target_display_points: int = 4000, settings_snapshot: dict = None) -> dict:
     """
@@ -245,6 +244,8 @@ print(f"sensor: active variant={SENSOR_VARIANT}, channels={CHANNEL_NAMES}", file
 # ===========================================================================
 # Mock Sensor
 # ===========================================================================
+
+from mseed_writer import mseed_writer
 
 class MockSensor:
     def __init__(self):

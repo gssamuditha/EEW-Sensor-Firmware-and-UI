@@ -133,8 +133,13 @@ function AnalysisChannelPlot({ channelName, channelUnit, timeZone, dataRef, late
 
   // Recompute on tick (data was mutated in-place on the same array ref)
   useEffect(() => {
-    if (chartRef.current) chartRef.current.recompute();
-  }, [tick]);
+    if (chartRef.current) {
+      if (dataRef.current[channelName]) {
+        chartRef.current.data = dataRef.current[channelName];
+      }
+      chartRef.current.recompute();
+    }
+  }, [tick, channelName, dataRef]);
 
   // Update timeWindow dynamically without recreating the chart
   useEffect(() => {
@@ -259,9 +264,9 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
       .then(data => {
         if (!data || !data.timestamps || data.timestamps.length === 0) {
           // Clear existing data
-          CHANNELS.forEach(ch => {
-            dataRefs.current[ch].length = 0;
-            wsBufferRef.current[ch].length = 0;
+          Object.keys(dataRefs.current).forEach(ch => {
+            if (dataRefs.current[ch]) dataRefs.current[ch].length = 0;
+            if (wsBufferRef.current[ch]) wsBufferRef.current[ch].length = 0;
           });
           setLoading(false);
           isFetchingRef.current = false;
