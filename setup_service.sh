@@ -201,14 +201,19 @@ case "$SENSOR_CHOICE" in
 esac
 
 # Write sensor_variant into the SQLite DB settings table
-EEW_DB="/opt/eew-sensor/eew_sensor.db"
-if command -v sqlite3 &>/dev/null && [ -f "$EEW_DB" ]; then
+EEW_DB="/opt/eew-sensor/backend/eew_sensor.db"
+if command -v sqlite3 &>/dev/null; then
     sudo sqlite3 "$EEW_DB" \
         "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT); INSERT OR REPLACE INTO settings (key, value) VALUES ('sensor_variant', '${SENSOR_VARIANT}');"
     info "Sensor variant '${SENSOR_VARIANT}' saved to database."
 else
     warn "SQLite DB not found yet at $EEW_DB — sensor_variant will be set on first boot."
     warn "If needed, manually run: sqlite3 $EEW_DB \"INSERT OR REPLACE INTO settings (key, value) VALUES ('sensor_variant', '${SENSOR_VARIANT}');\""
+fi
+
+# Restart the service so the newly saved sensor_variant takes effect
+if command -v systemctl &>/dev/null; then
+    sudo systemctl restart eew-sensor
 fi
 
 # ── Final status ─────────────────────────────────────────────
