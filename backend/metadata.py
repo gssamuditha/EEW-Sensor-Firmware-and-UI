@@ -210,6 +210,7 @@ def _sos_to_xml_lines(sos: np.ndarray) -> str:
 
     return "\n".join(num_lines + den_lines)
 
+_BUTTERWORTH_XML_LINES = _sos_to_xml_lines(_compute_butterworth_sos())
 
 # ===========================================================================
 # EHZ Channel XML — GeoPhone velocity response
