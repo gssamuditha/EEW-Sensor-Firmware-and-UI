@@ -606,6 +606,7 @@ class SensorManager:
             "enabled":       self._detection_enabled,
             "triggered":     self._detector.triggered,
             "lta_ready":     self._detector.lta_ready,
+            "lta_fill_pct":  round(self._detector.lta_fill_pct, 1),
             "ratios":        ratios,
             "sta_sec":       self._detector.sta_sec,
             "lta_sec":       self._detector.lta_sec,

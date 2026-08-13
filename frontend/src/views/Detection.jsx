@@ -299,6 +299,9 @@ export default function Detection() {
   const threshOn = status?.threshold_on || 3.5;
   const isTriggered = status?.triggered || false;
   const ltaReady = status?.lta_ready !== false;
+  const ltaFillPct = status?.lta_fill_pct ?? 0;
+  const ltaSec = status?.lta_sec ?? 10;
+  const remainSec = ltaReady ? 0 : Math.ceil((ltaSec * 0.9) * (1 - ltaFillPct / 100));
 
   return (
     <div className="p-3 md:p-6 h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-y-auto gap-4">
@@ -366,9 +369,17 @@ export default function Detection() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-bold text-slate-600 dark:text-slate-300 tracking-widest uppercase">STA/LTA Ratios</h2>
             {!ltaReady && (
-              <span className="text-[9px] text-yellow-500 font-bold animate-pulse">
-                LTA FILLING…
-              </span>
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-[9px] text-yellow-500 font-bold">
+                  LTA FILLING… {ltaFillPct.toFixed(0)}% (~{remainSec}s)
+                </span>
+                <div className="w-40 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-yellow-400 rounded-full transition-all duration-500"
+                    style={{ width: `${ltaFillPct}%` }}
+                  />
+                </div>
+              </div>
             )}
           </div>
           <div className="flex flex-col gap-3">

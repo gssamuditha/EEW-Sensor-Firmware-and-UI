@@ -125,11 +125,28 @@ class STALTADetector:
     ):
         """
         Update detector parameters (thread-safe).
-        Resets all STA/LTA state to prevent stale values producing false triggers.
+
+        IMPORTANT: State is only reset if the STA/LTA window lengths or
+        lockout_sec actually change. Threshold-only changes are applied
+        immediately without resetting the accumulated LTA — this allows
+        live threshold tuning without losing the noise-floor estimate.
+        A window-length change DOES reset state because the existing IIR
+        history is no longer valid for the new time constant.
         """
         with self._lock:
+            windows_changed = (
+                abs(sta_sec   - self.sta_sec)   > 1e-6 or
+                abs(lta_sec   - self.lta_sec)   > 1e-6
+            )
             self._init_params(sta_sec, lta_sec, threshold_on, threshold_off, lockout_sec)
-            self._reset_state()
+            if windows_changed:
+                self._reset_state()
+                print(
+                    f"detector: window params changed — state reset. "
+                    f"STA={sta_sec}s LTA={lta_sec}s",
+                    flush=True
+                )
+            # else: threshold-only change, keep accumulated LTA
 
     def update_channels(self, channel_names: list, channel_units: dict):
         """Update channel configuration and reset state (thread-safe)."""
@@ -207,6 +224,17 @@ class STALTADetector:
     def lta_ready(self) -> bool:
         """True once the LTA window is sufficiently filled to allow triggering."""
         return self._lta_samples_seen >= int(self._lta_full_samples * LTA_MIN_FILL_FRACTION)
+
+    @property
+    def lta_fill_pct(self) -> float:
+        """
+        LTA fill progress as a percentage (0.0–100.0).
+        Reaches 100.0 when lta_ready becomes True (at LTA_MIN_FILL_FRACTION).
+        """
+        target = int(self._lta_full_samples * LTA_MIN_FILL_FRACTION)
+        if target == 0:
+            return 100.0
+        return min(100.0, self._lta_samples_seen / target * 100.0)
 
     # -----------------------------------------------------------------------
     # Internal helpers
