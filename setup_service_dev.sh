@@ -13,13 +13,17 @@ if [ ! -d "$REPO_DIR/backend" ] || [ ! -d "$REPO_DIR/frontend" ]; then
     exit 1
 fi
 
-# Ensure the virtual environment exists
+# Ensure the virtual environment exists and install dependencies
 if [ ! -d "$VENV_DIR" ]; then
-    echo "Virtual environment not found. Please create one and install dependencies first:"
-    echo "  python3 -m venv .venv"
-    echo "  source .venv/bin/activate"
-    echo "  pip install -r backend/requirements.txt"
-    exit 1
+    echo "Virtual environment not found. Installing system dependencies and creating venv..."
+    sudo apt-get update -qq
+    sudo apt-get install -y --no-install-recommends \
+        python3-venv python3-pip sqlite3 python3-dev build-essential swig liblgpio-dev
+    
+    python3 -m venv "$VENV_DIR"
+    source "$VENV_DIR/bin/activate"
+    echo "Installing Python requirements..."
+    pip install -r "$REPO_DIR/backend/requirements.txt"
 fi
 
 SERVICE_FILE=/etc/systemd/system/eew-sensor-dev.service
@@ -74,26 +78,19 @@ echo "  -> $REALUSER can now run nmcli and reboot without a password."
 echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
 
-echo "Enabling eew-sensor service to start on boot..."
-sudo systemctl enable eew-sensor.service
+echo "Enabling eew-sensor-dev service to start on boot..."
+sudo systemctl enable eew-sensor-dev.service
 
-echo "Restarting eew-sensor service..."
-sudo systemctl restart eew-sensor.service
-
-echo "Configuring Safe Out-of-Tree Auto-Updater..."
-cp "$REPO_DIR/auto_update.sh" "$HOME/.eew_updater.sh"
-chmod +x "$HOME/.eew_updater.sh"
-CRON_JOB="*/30 * * * * $HOME/.eew_updater.sh"
-# Remove any old update jobs and add the new safe one
-(crontab -l 2>/dev/null | grep -v "\.eew_updater\.sh" | grep -v "auto_update\.sh"; echo "$CRON_JOB") | crontab -
-echo "  -> Auto-update scheduled to run every 30 minutes (Safe Mode)."
+echo "Restarting eew-sensor-dev service..."
+sudo systemctl restart eew-sensor-dev.service
 
 echo "=================================================================="
-echo "Service setup complete!"
+echo "Development Service setup complete!"
 echo "The sensor and UI will now start automatically when the Pi boots."
 echo ""
-echo "Helpful commands:"
-echo "- Check status: sudo systemctl status eew-sensor.service"
-echo "- View logs:    sudo journalctl -u eew-sensor.service -f"
-echo "- Stop service: sudo systemctl stop eew-sensor.service"
+echo "Helpful Maintenance Commands:"
+echo "- Check status: sudo systemctl status eew-sensor-dev.service"
+echo "- View logs:    sudo journalctl -u eew-sensor-dev.service -f"
+echo "- Stop service: sudo systemctl stop eew-sensor-dev.service"
+echo "- Start service: sudo systemctl start eew-sensor-dev.service"
 echo "=================================================================="
