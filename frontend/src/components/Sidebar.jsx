@@ -2,6 +2,16 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ListBulletIcon, Squares2X2Icon as DashboardIcon, CircleStackIcon as DatabaseIcon, Cog8ToothIcon as Settings } from '@heroicons/react/24/solid';
 
+// Seismograph trigger icon for Detection page
+const TriggerIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M2 12 L5 12 L6.5 7 L9 17 L11 10 L13 14 L14.5 12 L22 12"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+    <circle cx="19" cy="5" r="2.5" fill="currentColor" opacity="0.8"/>
+    <line x1="19" y1="7.5" x2="19" y2="10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+);
+
 const WaveformCircleIcon = ({ className }) => (
   <svg
     className={className}
@@ -27,6 +37,7 @@ export default function Sidebar() {
     { name: 'Dashboard', path: '/dashboard', icon: <DashboardIcon className="w-5 h-5" /> },
     { name: 'Data Export', path: '/export', icon: <DatabaseIcon className="w-5 h-5" /> },
     { name: 'Analysis', path: '/analysis', icon: <WaveformCircleIcon className="w-5 h-5" /> },
+    { name: 'Detection', path: '/detection', icon: <TriggerIcon className="w-5 h-5" /> },
     { name: 'Settings', path: '/settings', icon: <Settings className="w-5 h-5" /> },
   ];
 

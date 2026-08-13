@@ -21,11 +21,15 @@ except ImportError:
 # Filter presets — standard seismological frequency bands
 # ---------------------------------------------------------------------------
 FILTER_PRESETS = {
-    "global":      {"label": "Global",  "low_hz": 0.1,  "high_hz": 0.8},
-    "regional":    {"label": "Regional",              "low_hz": 0.7,  "high_hz": 2.0},
-    "local":       {"label": "Local",                 "low_hz": 3.0,  "high_hz": 8.0},
-    "hyper_local": {"label": "Hyper-Local",           "low_hz": 3.0,  "high_hz": 20.0},
-    "default":     {"label": "Default",  "low_hz": 0.1,  "high_hz": 20.0},
+    "global":       {"label": "Global",        "low_hz": 0.1, "high_hz": 0.8},
+    "regional":     {"label": "Regional",       "low_hz": 0.7, "high_hz": 2.0},
+    "local":        {"label": "Local",          "low_hz": 3.0, "high_hz": 8.0},
+    "hyper_local":  {"label": "Hyper-Local",    "low_hz": 3.0, "high_hz": 20.0},
+    "default":      {"label": "Default",        "low_hz": 0.1, "high_hz": 20.0},
+    # Internal preset used exclusively by the STA/LTA detection pre-filter.
+    # Higher low-cut (2 Hz) suppresses microseism and tilt noise to reduce
+    # false triggers. Not exposed in the Analysis UI preset dropdown.
+    "pwave_detect": {"label": "P-Wave Detection", "low_hz": 2.0, "high_hz": 15.0},
 }
 
 

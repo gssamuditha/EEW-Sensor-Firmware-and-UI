@@ -733,6 +733,125 @@ def api_stream_stats():
         "avg_sps": sensor_manager.avg_sps,
     }
 
+
+# ---------------------------------------------------------------------------
+# STA/LTA Detection endpoints
+# ---------------------------------------------------------------------------
+
+class DetectionSettingsModel(BaseModel):
+    sta_sec: float
+    lta_sec: float
+    threshold_on: float
+    threshold_off: float
+    detection_enabled: bool = True
+    detect_low_hz: float = 2.0
+    detect_high_hz: float = 15.0
+
+
+@app.get("/api/detection/status")
+def api_detection_status():
+    """
+    Return current STA/LTA detector state.
+
+    Response
+    --------
+    {
+      "enabled":       bool,
+      "triggered":     bool,
+      "lta_ready":     bool,    # false until LTA window is filled (~lta_sec after start)
+      "ratios":        {"composite": float, "ENZ": float, ...},
+      "sta_sec":       float,
+      "lta_sec":       float,
+      "threshold_on":  float,
+      "threshold_off": float,
+      "last_event":    dict | null
+    }
+    """
+    return sensor_manager.get_detection_status()
+
+
+@app.get("/api/events")
+def api_get_events(
+    start: float = None,
+    end: float = None,
+    limit: int = 100,
+):
+    """
+    Return seismic event log entries from the SQLite event_log table.
+
+    Query parameters
+    ----------------
+    start : optional epoch timestamp — filter events after this time
+    end   : optional epoch timestamp — filter events before this time
+    limit : max number of events to return (default 100, max 500)
+    """
+    from database import get_events
+    limit = min(max(1, limit), 500)
+    return {"events": get_events(start_time=start, end_time=end, limit=limit)}
+
+
+@app.post("/api/detection/settings")
+def api_set_detection_settings(params: DetectionSettingsModel):
+    """
+    Update STA/LTA detection parameters.  Changes are persisted to the DB
+    and applied to the live detector immediately (no service restart required).
+    """
+    if params.sta_sec <= 0 or params.sta_sec >= params.lta_sec:
+        raise HTTPException(
+            status_code=400,
+            detail="sta_sec must be positive and less than lta_sec"
+        )
+    if params.threshold_off >= params.threshold_on:
+        raise HTTPException(
+            status_code=400,
+            detail="threshold_off must be less than threshold_on"
+        )
+    if params.detect_low_hz >= params.detect_high_hz:
+        raise HTTPException(
+            status_code=400,
+            detail="detect_low_hz must be less than detect_high_hz"
+        )
+
+    settings_dict = {
+        "sta_sec":           str(params.sta_sec),
+        "lta_sec":           str(params.lta_sec),
+        "threshold_on":      str(params.threshold_on),
+        "threshold_off":     str(params.threshold_off),
+        "detection_enabled": "true" if params.detection_enabled else "false",
+        "detect_low_hz":     str(params.detect_low_hz),
+        "detect_high_hz":    str(params.detect_high_hz),
+    }
+    update_settings(settings_dict)
+
+    # Apply immediately to the live detector (thread-safe)
+    sensor_manager._reload_detection_settings(settings_dict)
+
+    return {"status": "ok", **sensor_manager.get_detection_status()}
+
+
+@app.websocket("/ws/detection")
+async def websocket_detection(websocket: WebSocket):
+    """
+    Stream real-time STA/LTA trigger events.
+
+    Message types
+    -------------
+    trigger_on  : { type, timestamp, ratio, channel_ratios, max_amplitude,
+                    triggered_channel, sta_sec, lta_sec, threshold_on }
+    trigger_off : { type, timestamp, ratio, duration_sec, max_amplitude }
+    """
+    await websocket.accept()
+    queue = asyncio.Queue(maxsize=50)
+    sensor_manager.subscribe_detection(queue)
+    try:
+        while True:
+            event = await queue.get()
+            await websocket.send_json(event)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        sensor_manager.unsubscribe_detection(queue)
+
 import os
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse

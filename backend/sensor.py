@@ -8,6 +8,7 @@ import json
 
 
 from filters import BandpassFilter, minmax_downsample, FILTER_PRESETS
+from detector import STALTADetector
 import numpy as np
 
 def process_historical_data_task(start_time: float, end_time: float, low_hz: float, high_hz: float, target_display_points: int = 4000, settings_snapshot: dict = None) -> dict:
@@ -500,6 +501,32 @@ class SensorManager:
         self._cached_data_forwarding = True
         self._filter_lock = threading.Lock()
 
+        # --- Detection state ---
+        # Separate bandpass filter for the STA/LTA detection pre-filter (2–15 Hz).
+        # This is independent from the user-adjustable display filter so the two
+        # pipelines never interfere with each other.
+        self._detect_filters = {
+            ch: BandpassFilter(
+                low_hz=FILTER_PRESETS['pwave_detect']['low_hz'],
+                high_hz=FILTER_PRESETS['pwave_detect']['high_hz'],
+                fs=100.0, order=4
+            )
+            for ch in CHANNEL_NAMES
+        }
+        self._detect_filter_lock = threading.Lock()
+        self._detector = STALTADetector(
+            sta_sec=0.5, lta_sec=10.0,
+            threshold_on=3.5, threshold_off=1.5,
+            fs=100.0,
+            channel_names=CHANNEL_NAMES,
+            channel_units={ch: CHANNEL_UNITS[i] for i, ch in enumerate(CHANNEL_NAMES)},
+        )
+        self._detection_subscribers = []   # asyncio queues for WS /ws/detection
+        self._detection_lock = threading.Lock()
+        self._detection_enabled = True
+        # Cached detection status for GET /api/detection/status
+        self._last_trigger_event = None
+
     def start(self, loop=None):
         if self.running:
             return
@@ -513,6 +540,9 @@ class SensorManager:
         self.sensor.init_sensor()
         self.sensor.calibrate(calibration_time_sec=cal_time)
         self.running = True
+
+        # Load STA/LTA detection parameters from DB
+        self._reload_detection_settings(settings)
 
         self._hw_thread = threading.Thread(target=self._hw_loop, daemon=True, name="sensor-hw")
         self._analytics_thread = threading.Thread(target=self._analytics_loop, daemon=True, name="sensor-analytics")
@@ -558,6 +588,62 @@ class SensorManager:
         """Return current filter parameters."""
         with self._filter_lock:
             return self._filters[CHANNEL_NAMES[0]].params
+
+    # --- Detection subscriber methods ---
+    def subscribe_detection(self, queue):
+        with self._detection_lock:
+            self._detection_subscribers.append(queue)
+
+    def unsubscribe_detection(self, queue):
+        with self._detection_lock:
+            if queue in self._detection_subscribers:
+                self._detection_subscribers.remove(queue)
+
+    def get_detection_status(self) -> dict:
+        """Return current STA/LTA state for GET /api/detection/status."""
+        ratios = self._detector.current_ratios
+        return {
+            "enabled":       self._detection_enabled,
+            "triggered":     self._detector.triggered,
+            "lta_ready":     self._detector.lta_ready,
+            "ratios":        ratios,
+            "sta_sec":       self._detector.sta_sec,
+            "lta_sec":       self._detector.lta_sec,
+            "threshold_on":  self._detector.threshold_on,
+            "threshold_off": self._detector.threshold_off,
+            "last_event":    self._last_trigger_event,
+        }
+
+    def _reload_detection_settings(self, settings: dict = None):
+        """
+        Read STA/LTA params from DB settings dict and apply to the detector
+        and detection pre-filter.  Safe to call at runtime for live re-config.
+        """
+        if settings is None:
+            from database import get_settings
+            settings = get_settings()
+
+        enabled       = settings.get('detection_enabled', 'true').lower() == 'true'
+        sta_sec       = float(settings.get('sta_sec',       0.5))
+        lta_sec       = float(settings.get('lta_sec',       10.0))
+        threshold_on  = float(settings.get('threshold_on',  3.5))
+        threshold_off = float(settings.get('threshold_off', 1.5))
+        low_hz        = float(settings.get('detect_low_hz',  2.0))
+        high_hz       = float(settings.get('detect_high_hz', 15.0))
+
+        self._detection_enabled = enabled
+        self._detector.update_params(sta_sec, lta_sec, threshold_on, threshold_off)
+
+        with self._detect_filter_lock:
+            for ch in CHANNEL_NAMES:
+                self._detect_filters[ch].update_params(low_hz, high_hz)
+
+        print(
+            f"sensor: STA/LTA params loaded — "
+            f"STA={sta_sec}s LTA={lta_sec}s ON={threshold_on} OFF={threshold_off} "
+            f"filter={low_hz}–{high_hz}Hz enabled={enabled}",
+            file=sys.stderr
+        )
 
     def get_historical_filtered(self, start_time: float, end_time: float,
                                 target_display_points: int = 4000) -> dict:
@@ -824,6 +910,8 @@ class SensorManager:
 
                     if cached_settings:
                         self._cached_data_forwarding = cached_settings.get('data_forwarding', 'true').lower() == 'true'
+                        # Reload STA/LTA params alongside existing settings refresh
+                        self._reload_detection_settings(cached_settings)
 
                 # 2. Block until we receive data from HW thread
                 try:
@@ -869,6 +957,61 @@ class SensorManager:
                     print(f"Per-Channel Sample Rates:")
                     for name in CHANNEL_NAMES:
                         print(f"   {name}: {self.hardware_sps:.2f} sps (current), {self.avg_sps:.2f} sps (avg)")
+
+                    # ── STA/LTA Detection pipeline ─────────────────────────────
+                    # 1. Apply the dedicated 2–15 Hz detection pre-filter
+                    # 2. Feed pre-filtered data to the recursive STA/LTA detector
+                    # 3. On trigger events: log to DB and broadcast to WS subscribers
+                    if self._detection_enabled:
+                        with self._detect_filter_lock:
+                            pre_filtered = {
+                                ch: self._detect_filters[ch].apply_batch_realtime(raw[ch])
+                                for ch in CHANNEL_NAMES
+                            }
+
+                        trigger_event = self._detector.process_batch(pre_filtered, timestamps[0])
+
+                        if trigger_event:
+                            # Cache for GET /api/detection/status
+                            self._last_trigger_event = trigger_event
+
+                            # Log to SQLite event_log (trigger_on only)
+                            if trigger_event["type"] == "trigger_on":
+                                try:
+                                    import database as _db
+                                    _db.log_event(
+                                        start_time=trigger_event["timestamp"],
+                                        max_amplitude=trigger_event.get("max_amplitude"),
+                                        channel=trigger_event.get("triggered_channel"),
+                                        notes=(
+                                            f"STA/LTA={trigger_event['ratio']:.2f} "
+                                            f"STA={trigger_event['sta_sec']}s "
+                                            f"LTA={trigger_event['lta_sec']}s "
+                                            f"thr={trigger_event['threshold_on']}"
+                                        ),
+                                    )
+                                    print(
+                                        f"sensor-detect: TRIGGER ON  ratio={trigger_event['ratio']:.2f} "
+                                        f"ch={trigger_event.get('triggered_channel')} "
+                                        f"amp={trigger_event.get('max_amplitude', 0):.6f}",
+                                        file=sys.stderr
+                                    )
+                                except Exception as _e:
+                                    print(f"sensor-detect: DB log error: {_e}", file=sys.stderr)
+
+                            elif trigger_event["type"] == "trigger_off":
+                                print(
+                                    f"sensor-detect: TRIGGER OFF ratio={trigger_event['ratio']:.2f} "
+                                    f"dur={trigger_event.get('duration_sec', 0):.1f}s "
+                                    f"maxAmp={trigger_event.get('max_amplitude', 0):.6f}",
+                                    file=sys.stderr
+                                )
+
+                            # Broadcast to WebSocket detection subscribers
+                            if self._loop and self._loop.is_running():
+                                with self._detection_lock:
+                                    for q in list(self._detection_subscribers):
+                                        self._loop.call_soon_threadsafe(self._safe_put, q, trigger_event)
 
                     # Thread-safe asyncio put
                     if self._loop and self._loop.is_running():

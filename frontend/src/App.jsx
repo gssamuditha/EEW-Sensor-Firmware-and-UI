@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import Dashboard from './views/Dashboard';
 import Export from './views/Export';
 import Analysis from './views/Analysis';
+import Detection from './views/Detection';
 import Settings from './views/Settings';
 import Expanded from './views/Expanded';
 import Setup from './views/Setup';
@@ -50,6 +51,7 @@ function App() {
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/export" element={<Export />} />
                   <Route path="/analysis" element={<Analysis />} />
+                  <Route path="/detection" element={<Detection />} />
                   <Route path="/settings" element={<Settings />} />
                 </Routes>
               </Layout>

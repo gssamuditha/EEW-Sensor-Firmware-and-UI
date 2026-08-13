@@ -40,6 +40,19 @@ _SETTINGS_DEFAULTS = {
     # Hardware variant: '3CH' (ADXL only) or '4CH' (GeoPhone + ADXL)
     # Set by setup_service.sh at installation time. Can be overridden here.
     'sensor_variant':   '3CH',
+
+    # -------------------------------------------------------------------
+    # STA/LTA P-wave detection parameters
+    # -------------------------------------------------------------------
+    # All values are strings (SQLite key-value store) and parsed to float
+    # at runtime by the detector initialisation code in sensor.py.
+    'detection_enabled':  'true',
+    'sta_sec':            '0.5',     # Short-term average window (seconds)
+    'lta_sec':            '10.0',    # Long-term average window (seconds)
+    'threshold_on':       '3.5',     # STA/LTA ratio to trigger ON
+    'threshold_off':      '1.5',     # STA/LTA ratio to de-trigger (hysteresis)
+    'detect_low_hz':      '2.0',     # Pre-filter lower cutoff (Hz)
+    'detect_high_hz':     '15.0',    # Pre-filter upper cutoff (Hz)
 }
 
 
