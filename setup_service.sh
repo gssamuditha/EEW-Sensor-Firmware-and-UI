@@ -205,6 +205,7 @@ EEW_DB="/opt/eew-sensor/backend/eew_sensor.db"
 if command -v sqlite3 &>/dev/null; then
     sudo sqlite3 "$EEW_DB" \
         "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT); INSERT OR REPLACE INTO settings (key, value) VALUES ('sensor_variant', '${SENSOR_VARIANT}');"
+    sudo chown $SENSOR_USER:$SENSOR_USER "$EEW_DB" || true
     info "Sensor variant '${SENSOR_VARIANT}' saved to database."
 else
     warn "SQLite DB not found yet at $EEW_DB — sensor_variant will be set on first boot."
