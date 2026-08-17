@@ -9,7 +9,6 @@ import json
 
 from filters import BandpassFilter, minmax_downsample, FILTER_PRESETS
 import numpy as np
-from mseed_writer import mseed_writer
 
 def process_historical_data_task(start_time: float, end_time: float, low_hz: float, high_hz: float, target_display_points: int = 4000, settings_snapshot: dict = None) -> dict:
     """
@@ -19,12 +18,12 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
     import numpy as np
     from mseed_writer import read_waveform_range
     from filters import BandpassFilter, minmax_downsample
-    
+
     window_seconds = end_time - start_time
-    
+
     # ObsPy returns a Stream object with Traces
     st = read_waveform_range(start_time, end_time, settings=settings_snapshot)
-    
+
     if not st or len(st) == 0:
         return {
             "timestamps": [],
@@ -32,13 +31,13 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
             "sps": 100,
             "window_seconds": window_seconds,
         }
-        
+
     from obspy import UTCDateTime
     st.trim(starttime=UTCDateTime(start_time), endtime=UTCDateTime(end_time), pad=True, fill_value=0)
 
     raw = {}
     timestamps = None
-    
+
     # For each expected channel, extract data, detrend, and scale
     for ch in CHANNEL_NAMES:
         # channel codes in miniSEED are usually 3 chars (e.g. ENZ)
@@ -47,23 +46,24 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
             # Merge in case there are gaps
             tr.merge(method=1, fill_value='interpolate')
             t_obj = tr[0]
-            
+
             # Extract raw counts and timestamps
             counts = t_obj.data.astype(np.float64)
             # Ensure timestamps aligns with the longest trace
             if timestamps is None or len(t_obj.times('timestamp')) > len(timestamps):
                 timestamps = t_obj.times('timestamp')
-                
+
             # Detrend (remove mean) to bypass need for exact RAW_COUNTS_ZERO at boot
             if len(counts) > 0:
                 counts = counts - np.mean(counts)
-                
-            # Scale to m/s²
-            ms2 = counts * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
+
+            # Scale to physical units using per-channel sensitivity
+            ch_idx = CHANNEL_NAMES.index(ch)
+            ms2 = counts * CHANNEL_CONFIGS[SENSOR_VARIANT]['sensitivity_per_count'][ch_idx]
             raw[ch] = ms2
         else:
             raw[ch] = np.array([])
-            
+
     # If no data found, return empty
     if timestamps is None or len(timestamps) == 0:
         return {
@@ -98,215 +98,368 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
         "timestamps": out_t,
         "samples": result_samples,
         "sps": 100,
-        "unit": "m/s²",
+        "unit": "physical",
         "window_seconds": window_seconds,
         "raw_sample_count": len(timestamps),
         "display_points": len(out_t),
     }
 
-# === ADC Config ===
-CS_PINS = [35, 33, 36]        # Acc Z, Acc X, Acc Y
-DRDY_PINS = [11, 15, 13]
-VREF_ADCS = [1.8, 1.8, 1.8]
-FULL_SCALE = 8388607
-CHANNEL_NAMES = ['ENZ', 'ENN', 'ENE']
+
+# ===========================================================================
+# Hardware Pin Definitions (BCM numbers — same PCB for 3-CH and 4-CH)
+# ===========================================================================
+# The EEW sensor PCB is identical for both hardware variants.
+# 4-CH sensors have a GeoPhone plugged into the EHZ ADC slot (index 0).
+# 3-CH sensors leave that slot empty.
+#
+# All pins use BCM numbering (via lgpio) and spi.no_cs=True is required
+# for both variants because CE0 (BCM 8) is used as a manual chip-select.
+# /boot/firmware/config.txt must contain:
+#   dtoverlay=spi0-0cs       (NOT dtparam=spi=on)
+# ===========================================================================
+
+# Full 4-channel hardware pin map (BCM)
+_ALL_CS_PINS   = [8,  19, 13, 16]   # EHZ, ENZ, ENN, ENE
+_ALL_DRDY_PINS = [3,  17, 22, 27]   # EHZ, ENZ, ENN, ENE
+_ALL_VREF      = [3.3, 1.8, 1.8, 1.8]
+
+# ADXL354 self-test and standby control pins (BCM) — wired to ADXL channels only
+ST1  = 23
+ST2  = 24
+STBY = 25
+
+FULL_SCALE   = 8388607    # 24-bit two's complement positive full-scale
 SAMPLES_PER_PACKET = 25
-SAMPLE_INTERVAL = 0.0035  # 100 sps
+SAMPLE_INTERVAL    = 0.0035  # target 100 SPS
 
-# === Accelerometer Settings ===
-ACC_ZERO_VOLTAGES = [0.0, 0.0, 0.0]  # Calibrated zero voltages (V) per axis
-RAW_COUNTS_ZERO = [0, 0, 0]          # Calibrated zero level in raw ADC counts per axis
-ACC_SENSITIVITY_V_PER_G = 0.4        # ADXL354BEZ ±2g range: 400 mV/g (ratiometric to 1.8V)
-G_TO_MS2 = 9.80665                   # Standard gravity (m/s²)
+# Accelerometer physical-conversion constants (ADXL354BEZ ±2g)
+ACC_SENSITIVITY_V_PER_G = 0.4   # V/g  (ratiometric, ±2g range)
+G_TO_MS2                = 9.80665
 
-# === Instrument Sensitivity Constants (for StationXML response file) ===
-# Chain: ADXL354BEZ → ADA4522 RC LPF → ADS1220 (Gain=1, Vref=1.8V, 24-bit)
-#
-# Derivation (counts → m/s²):
-#   voltage  = raw_counts × VREF / FULL_SCALE
-#   g_val    = voltage / SENSITIVITY_V_per_g
-#   ms2      = g_val × G_TO_MS2
-#   ∴  ms2   = raw_counts × (VREF × G_TO_MS2) / (FULL_SCALE × SENSITIVITY_V_per_g)
-#
-# INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
-#   = (VREF × G_TO_MS2) / (FULL_SCALE × SENSITIVITY_V_per_g)
-#   = (1.8 × 9.80665)  / (8388607 × 0.4)
-#   ≈ 5.261e-6 m/s² / count
-#
-# Inverse  (overall instrument sensitivity: m/s² → counts):
-#   = FULL_SCALE × SENSITIVITY_V_per_g / (VREF × G_TO_MS2)
-#   ≈ 190,067 counts / (m/s²)
-INSTRUMENT_SENSITIVITY_MS2_PER_COUNT = (VREF_ADCS[0] * G_TO_MS2) / (FULL_SCALE * ACC_SENSITIVITY_V_PER_G)
+# ===========================================================================
+# Channel Configurations — keyed by variant string '3CH' or '4CH'
+# ===========================================================================
+# sensitivity_per_count: physical-unit per raw ADC count (used by analytics)
+#   ACC channels:  (VREF × G_TO_MS2) / (FULL_SCALE × SENSITIVITY_V_per_g) [m/s² / count]
+#   EHZ channel:   instrument sensitivity is embedded in the StationXML response;
+#                  for display we use a placeholder 1.0 (counts are shown as raw)
 
-# === Sensor Control Pins ===
-ST1 = 16
-ST2 = 18
-STBY = 22
+def _acc_sensitivity(vref: float) -> float:
+    """Return m/s² per raw ADC count for an accelerometer channel."""
+    return (vref * G_TO_MS2) / (FULL_SCALE * ACC_SENSITIVITY_V_PER_G)
+
+CHANNEL_CONFIGS = {
+    '3CH': {
+        'names':                ['ENZ', 'ENN', 'ENE'],
+        'cs_pins':              [19, 13, 16],
+        'drdy_pins':            [17, 22, 27],
+        'vref':                 [1.8, 1.8, 1.8],
+        # channel unit types for UI labelling ('ACC' = m/s², 'VEL' = m/s)
+        'units':                ['ACC', 'ACC', 'ACC'],
+        'sensitivity_per_count': [
+            _acc_sensitivity(1.8),
+            _acc_sensitivity(1.8),
+            _acc_sensitivity(1.8),
+        ],
+    },
+    '4CH': {
+        'names':                ['EHZ', 'ENZ', 'ENN', 'ENE'],
+        'cs_pins':              [8,  19, 13, 16],
+        'drdy_pins':            [3,  17, 22, 27],
+        'vref':                 [3.3, 1.8, 1.8, 1.8],
+        # EHZ is velocity (m/s), ADXL channels are acceleration (m/s²)
+        'units':                ['VEL', 'ACC', 'ACC', 'ACC'],
+        'sensitivity_per_count': [
+            # EHZ: overall sensitivity 399,650,000 counts/(m/s) → 1/sensitivity m/s/count
+            1.0 / 399_650_000.0,
+            _acc_sensitivity(1.8),
+            _acc_sensitivity(1.8),
+            _acc_sensitivity(1.8),
+        ],
+    },
+}
+
+# ===========================================================================
+# Sensor variant detection
+# ===========================================================================
+
+def _detect_sensor_variant() -> str:
+    """
+    Determine whether this unit has a GeoPhone (4-CH) or not (3-CH).
+
+    Priority:
+    1. DB setting 'sensor_variant' ('3CH' or '4CH') — allows manual override.
+    2. Auto-detection via lgpio: probe DRDY pin BCM 3 (EHZ slot).
+       Because the PCB is identical for both variants the ADC is always
+       physically present, so a simple pin-claim succeeds on both.
+       Therefore we fall back to DB if no explicit override is set.
+       On Windows / mock environments, always returns '3CH'.
+    """
+    if sys.platform == 'win32':
+        return '3CH'
+
+    # Check DB override first
+    try:
+        from database import get_settings
+        s = get_settings()
+        forced = s.get('sensor_variant', '').strip().upper()
+        if forced in ('3CH', '4CH'):
+            print(f"sensor: variant forced by DB setting → {forced}", file=sys.stderr)
+            return forced
+    except Exception:
+        pass
+
+    # No DB setting — default to 3CH (safe fallback)
+    # The user can set sensor_variant='4CH' in the DB via setup_service.sh
+    print("sensor: sensor_variant not set in DB, defaulting to 3CH. "
+          "Run setup_service.sh or set sensor_variant=4CH in settings to enable GeoPhone.",
+          file=sys.stderr)
+    return '3CH'
+
+
+# Resolve variant once at module import (before any class is instantiated)
+SENSOR_VARIANT: str = _detect_sensor_variant()
+
+# Active channel configuration
+_cfg = CHANNEL_CONFIGS[SENSOR_VARIANT]
+CHANNEL_NAMES:  list = _cfg['names']
+CS_PINS:        list = _cfg['cs_pins']
+DRDY_PINS:      list = _cfg['drdy_pins']
+VREF_ADCS:      list = _cfg['vref']
+CHANNEL_UNITS:  list = _cfg['units']   # 'ACC' or 'VEL' per channel
+N_CHANNELS:     int  = len(CHANNEL_NAMES)
+
+# Instrument sensitivity (m/s² or m/s per count) — used for analytics/UDP
+INSTRUMENT_SENSITIVITY_PER_COUNT: list = _cfg['sensitivity_per_count']
+
+# Legacy alias kept for metadata.py compatibility
+INSTRUMENT_SENSITIVITY_MS2_PER_COUNT: float = _acc_sensitivity(VREF_ADCS[0] if SENSOR_VARIANT == '3CH' else 1.8)
+
+# Zero-level calibration per channel (filled by RealSensor.calibrate)
+RAW_COUNTS_ZERO: list = [0] * N_CHANNELS
+
+print(f"sensor: active variant={SENSOR_VARIANT}, channels={CHANNEL_NAMES}", file=sys.stderr)
+
+
+# ===========================================================================
+# Mock Sensor
+# ===========================================================================
+
+from mseed_writer import mseed_writer
 
 class MockSensor:
     def __init__(self):
         self.sample_interval = 0.01  # 100 sps
-        self.channels = ['ENZ', 'ENN', 'ENE']
-        
+        self.channels = CHANNEL_NAMES
+
     def init_sensor(self):
         print("Mock sensor initialized")
-        
+
     def calibrate(self, calibration_time_sec=1):
         print("Mock sensor calibrated")
         time.sleep(1)
-        
-    def read_all(self):
-        # Generate realistic-looking acceleration noise in m/s²
-        t = time.time()
-        z = 0.5 * random.random() + 0.1
-        x = 0.5 * random.random() - 0.2
-        y = 0.5 * random.random() + 0.05
-        return (t, z, x, y)
 
     def read_all_raw(self):
-        """Return mock signed 24-bit ADC counts (simulates what raw hardware returns)."""
-        # Timestamp is no longer generated here — the SensorManager hw_loop
-        # computes all sample times from a monotonic counter anchored to NTP.
-        z = int((0.5 * random.random() + 0.1) / INSTRUMENT_SENSITIVITY_MS2_PER_COUNT)
-        x = int((0.5 * random.random() - 0.2) / INSTRUMENT_SENSITIVITY_MS2_PER_COUNT)
-        y = int((0.5 * random.random() + 0.05) / INSTRUMENT_SENSITIVITY_MS2_PER_COUNT)
-        return (z, x, y)
+        """Return mock signed 24-bit ADC counts (one per channel)."""
+        results = []
+        for i, unit in enumerate(CHANNEL_UNITS):
+            vref = VREF_ADCS[i]
+            if unit == 'VEL':
+                # GeoPhone: simulate small velocity noise
+                cnt = int((random.gauss(0, 0.00001) / (1.0 / 399_650_000.0)))
+                cnt = max(-FULL_SCALE, min(FULL_SCALE, cnt))
+            else:
+                # Accelerometer: simulate ~0.1 m/s² noise
+                ms2 = random.gauss(0.0, 0.1)
+                cnt = int(ms2 / _acc_sensitivity(vref))
+                cnt = max(-FULL_SCALE, min(FULL_SCALE, cnt))
+            results.append(cnt)
+        return tuple(results)
 
+
+# ===========================================================================
+# Real Sensor — unified lgpio implementation for 3-CH and 4-CH
+# ===========================================================================
 
 class RealSensor:
+    """
+    Hardware SPI sensor reader using lgpio (BCM pin numbering).
+
+    Works for both 3-CH (ADXL only) and 4-CH (GeoPhone + ADXL) variants
+    because the PCB is identical. The active channel count is determined by
+    SENSOR_VARIANT / CHANNEL_CONFIGS at module load time.
+
+    SPI setup:
+      - spi.no_cs = True  (CE0 / BCM8 is used as manual chip-select)
+      - Requires dtoverlay=spi0-0cs in /boot/firmware/config.txt
+    """
+
     def __init__(self):
         import spidev
-        import RPi.GPIO as GPIO
         self.spidev = spidev
-        self.GPIO = GPIO
-        
         self.spi = spidev.SpiDev()
         self.spi.open(0, 0)
         self.spi.max_speed_hz = 4000000
         self.spi.mode = 0b01
-        
+        self.spi.no_cs = True   # CRITICAL: CE0 is a manual CS, not hardware CE
+
+        self._h = None           # lgpio handle
+
+    def _open_gpio(self):
+        """Open the lgpio chip handle, trying gpiochip0 then gpiochip4."""
+        import lgpio
+        self._lgpio = lgpio
+        try:
+            self._h = lgpio.gpiochip_open(0)
+        except Exception:
+            self._h = lgpio.gpiochip_open(4)
+
+    def _claim_pin_out(self, pin: int, initial: int):
+        lgpio = self._lgpio
+        try:
+            lgpio.gpio_claim_output(self._h, pin, initial)
+        except lgpio.error:
+            lgpio.gpio_free(self._h, pin)
+            lgpio.gpio_claim_output(self._h, pin, initial)
+
+    def _claim_pin_in(self, pin: int):
+        lgpio = self._lgpio
+        try:
+            lgpio.gpio_claim_input(self._h, pin, lgpio.SET_PULL_UP)
+        except lgpio.error:
+            lgpio.gpio_free(self._h, pin)
+            lgpio.gpio_claim_input(self._h, pin, lgpio.SET_PULL_UP)
+
+    def _gpio_out(self, pin: int, val: bool):
+        self._lgpio.gpio_write(self._h, pin, 1 if val else 0)
+
     def init_sensor(self):
-        self.GPIO.setwarnings(False)
-        self.GPIO.setmode(self.GPIO.BOARD)
+        """Claim all GPIO pins, power up, and run initial ADC flush cycles."""
+        self._open_gpio()
 
-        self.GPIO.setup(ST1, self.GPIO.OUT)
-        self.GPIO.setup(ST2, self.GPIO.OUT)
-        self.GPIO.setup(STBY, self.GPIO.OUT)
+        # CS pins start HIGH (deselected), control pins start LOW
+        for pin in CS_PINS:
+            self._claim_pin_out(pin, 1)   # CS high = deselected
+        for pin in [ST1, ST2]:
+            self._claim_pin_out(pin, 0)   # self-test off
+        self._claim_pin_out(STBY, 1)      # standby high = active
 
-        self.GPIO.output(ST1, self.GPIO.LOW)
-        self.GPIO.output(ST2, self.GPIO.LOW)
-        self.GPIO.output(STBY, self.GPIO.HIGH)
-        time.sleep(10)
+        # DRDY pins are inputs with pull-up
+        for pin in DRDY_PINS:
+            self._claim_pin_in(pin)
 
-        for cs in CS_PINS:
-            self.GPIO.setup(cs, self.GPIO.OUT)
-            self.GPIO.output(cs, self.GPIO.HIGH)
+        time.sleep(0.5)   # allow power rails to stabilise
 
-        for drdy in DRDY_PINS:
-            self.GPIO.setup(drdy, self.GPIO.IN, pull_up_down=self.GPIO.PUD_UP)
-            
-        time.sleep(1)
         self._adc_init_all()
+
+        # Flush 5 warm-up conversions to stabilise ADC references
         for _ in range(5):
             self._start_conversion_all()
-            for i in range(3):
-                try:
-                    self._read_adc(i)
-                except Exception:
-                    pass
+            try:
+                self._wait_all_drdy(timeout=2)
+                for i in range(N_CHANNELS):
+                    self._read_adc_raw(i)
+            except Exception:
+                pass
             time.sleep(0.01)
-            
+
     def _adc_init_all(self):
-        for i in range(3):
-            self.GPIO.output(CS_PINS[i], self.GPIO.LOW)
-            time.sleep(0.000001)
-            self.spi.xfer2([0x06])
+        """Send RESET + config registers to each ADC."""
+        for i in range(N_CHANNELS):
+            self._gpio_out(CS_PINS[i], False)
+            time.sleep(0.0001)
+            self.spi.xfer2([0x06])          # RESET command
             time.sleep(0.1)
-            # Reg 0: 0x81 (AIN0/AIN1, PGA disabled)
-            # Reg 1: 0x80 (330 SPS, Normal mode, Single-shot) 
-            # Reg 2: 0x40 (VREF external)
+            # Reg 0 = 0x81 : AIN0/AIN1, PGA disabled (Gain=1)
+            # Reg 1 = 0x80 : 330 SPS, Normal mode, Single-shot
+            # Reg 2 = 0x40 : External Vref
             self.spi.xfer2([0x42, 0x81, 0x80, 0x40])
-            self.spi.xfer2([0x08])
-            self.GPIO.output(CS_PINS[i], self.GPIO.HIGH)
+            self.spi.xfer2([0x08])          # START command
+            self._gpio_out(CS_PINS[i], True)
             time.sleep(0.1)
 
     def _start_conversion_all(self):
-        for cs in CS_PINS:
-            self.GPIO.output(cs, self.GPIO.LOW)
-        self.spi.xfer2([0x08])
-        for cs in CS_PINS:
-            self.GPIO.output(cs, self.GPIO.HIGH)
+        """Assert START command simultaneously to all ADCs."""
+        for pin in CS_PINS:
+            self._gpio_out(pin, False)
+        self.spi.xfer2([0x08])             # START/SYNC
+        for pin in CS_PINS:
+            self._gpio_out(pin, True)
 
-    def _read_adc(self, i, return_raw=False):
-        self.GPIO.output(CS_PINS[i], self.GPIO.LOW)
+    def _wait_all_drdy(self, timeout: float = 10.0):
+        """Block until all DRDY pins go LOW (conversion complete)."""
+        lgpio = self._lgpio
+        h = self._h
         start = time.time()
-        while self.GPIO.input(DRDY_PINS[i]):
-            if time.time() - start > 0.15:
-                raise TimeoutError(f"DRDY timeout on ADC {i}")
-            pass
+        while True:
+            all_ready = all(lgpio.gpio_read(h, pin) == 0 for pin in DRDY_PINS)
+            if all_ready:
+                return
+            if time.time() - start > timeout:
+                raise TimeoutError(f"Timeout waiting for DRDY on {DRDY_PINS}")
+
+    def _read_adc_raw(self, i: int, return_raw: bool = True) -> int:
+        """Read 24-bit signed ADC count from channel index i (DRDY must be low)."""
+        self._gpio_out(CS_PINS[i], False)
         data = self.spi.xfer2([0x00, 0x00, 0x00])
-        self.GPIO.output(CS_PINS[i], self.GPIO.HIGH)
+        self._gpio_out(CS_PINS[i], True)
+
         raw = (data[0] << 16) | (data[1] << 8) | data[2]
         if raw & (1 << 23):
-            raw -= (1 << 24)
-        if return_raw:
-            return raw
-        voltage = (raw / FULL_SCALE) * VREF_ADCS[i]
-        return voltage
-        
-    def calibrate(self, calibration_time_sec=100):
-        print(f"Starting accelerometer zero-level calibration for {calibration_time_sec} seconds...")
-        samples_v   = [[], [], []]  # Voltage samples per axis
-        samples_raw = [[], [], []]  # Raw ADC count samples per axis
+            raw -= (1 << 24)   # two's complement sign extension
+        return raw
+
+    def calibrate(self, calibration_time_sec: int = 60):
+        """
+        Compute zero-level raw count offsets for each channel.
+        Stores results in the module-level RAW_COUNTS_ZERO list.
+        EHZ (velocity) channel is included but its zero may fluctuate.
+        """
+        print(f"Starting zero-level calibration for {calibration_time_sec} seconds…", file=sys.stderr)
+        samples = [[] for _ in range(N_CHANNELS)]
         start_time = time.time()
+
         while time.time() - start_time < calibration_time_sec:
             self._start_conversion_all()
-            for axis in range(3):
-                raw_cnt = self._read_adc(axis, return_raw=True)
-                voltage = (raw_cnt / FULL_SCALE) * VREF_ADCS[axis]
-                samples_v[axis].append(voltage)
-                samples_raw[axis].append(raw_cnt)
+            self._wait_all_drdy(timeout=2)
+            for i in range(N_CHANNELS):
+                raw = self._read_adc_raw(i)
+                samples[i].append(raw)
             time.sleep(SAMPLE_INTERVAL)
 
-        for i in range(3):
-            ACC_ZERO_VOLTAGES[i] = sum(samples_v[i]) / len(samples_v[i])
-            RAW_COUNTS_ZERO[i]   = int(round(sum(samples_raw[i]) / len(samples_raw[i])))
+        for i in range(N_CHANNELS):
+            RAW_COUNTS_ZERO[i] = int(round(sum(samples[i]) / len(samples[i])))
 
-        print("Calibration complete.")
-        print(f"Zero voltages  — Z: {ACC_ZERO_VOLTAGES[0]:.6f} V, X: {ACC_ZERO_VOLTAGES[1]:.6f} V, Y: {ACC_ZERO_VOLTAGES[2]:.6f} V")
-        print(f"Zero raw counts— Z: {RAW_COUNTS_ZERO[0]}, X: {RAW_COUNTS_ZERO[1]}, Y: {RAW_COUNTS_ZERO[2]}")
+        print("Calibration complete.", file=sys.stderr)
+        for i, ch in enumerate(CHANNEL_NAMES):
+            print(f"  {ch}: zero={RAW_COUNTS_ZERO[i]}", file=sys.stderr)
 
-    def read_all(self):
-        """Read all axes and return corrected acceleration in m/s²."""
-        self._start_conversion_all()
-        readings = []
-        for i in range(3):
-            voltage = self._read_adc(i)
-            zero_voltage = ACC_ZERO_VOLTAGES[i]
-            g_val = (voltage - zero_voltage) / ACC_SENSITIVITY_V_PER_G
-            ms2 = g_val * G_TO_MS2
-            readings.append(ms2)
-        return (time.time(), readings[0], readings[1], readings[2])
-
-    def read_all_raw(self):
-        """Read all axes and return TRUE signed 24-bit ADC counts (no offset removed).
-
-        The zero offset (RAW_COUNTS_ZERO) is NOT subtracted here — raw counts include
-        the full DC bias from gravity loading and manufacturing tolerances. This matches
-        the Raspberry Shake behaviour: unmodified hardware counts are sent over UDP,
-        and the DC offset is removed by the receiver (e.g. tr.detrend('demean') before
-        ObsPy remove_response()). The offset values are documented in the StationXML
-        <Comment> elements for reference.
+    def read_all_raw(self) -> tuple:
+        """
+        Trigger simultaneous conversion on all channels, wait for DRDY,
+        then read 24-bit signed counts.  Returns a tuple of N integer counts
+        (one per channel, in CHANNEL_NAMES order).
         """
         self._start_conversion_all()
-        readings = []
-        for i in range(3):
-            raw_cnt = self._read_adc(i, return_raw=True)
-            readings.append(raw_cnt)  # NO subtraction — true hardware counts
-        # Timestamp is NOT included here — the SensorManager hw_loop computes
-        # all sample times from a monotonic counter anchored to NTP, eliminating
-        # per-sample time.time() jitter entirely.
-        return (readings[0], readings[1], readings[2])
+        self._wait_all_drdy(timeout=10)
+        return tuple(self._read_adc_raw(i) for i in range(N_CHANNELS))
+
+    def cleanup(self):
+        """Release GPIO and SPI resources."""
+        try:
+            if self._h is not None:
+                self._lgpio.gpiochip_close(self._h)
+        except Exception:
+            pass
+        try:
+            self.spi.close()
+        except Exception:
+            pass
+
+
+# ===========================================================================
+# SensorManager
+# ===========================================================================
 
 class SensorManager:
     def __init__(self, use_mock=False):
@@ -315,7 +468,7 @@ class SensorManager:
             self.sensor = MockSensor()
         else:
             self.sensor = RealSensor()
-            
+
         self.running = False
         self.thread = None
         self.subscribers = []  # asyncio queues (raw stream)
@@ -329,17 +482,17 @@ class SensorManager:
         # --- Analysis / Filter state ---
         self.analysis_subscribers = []  # asyncio queues (filtered stream)
         self._analysis_lock = threading.Lock()
-        # Per-axis bandpass filters (default: earthquake band 0.1–20 Hz)
+        # Per-channel bandpass filters (default: earthquake band 0.1–20 Hz)
         self._filters = {
             ch: BandpassFilter(low_hz=0.1, high_hz=20.0, fs=100.0, order=4)
             for ch in CHANNEL_NAMES
         }
         self.avg_sps = 0.0
-        
+
         self._loop = None
         self._hw_thread = None
         self._analytics_thread = None
-        
+
         import queue
         self._analytics_queue = queue.Queue(maxsize=1000)
         # _cached_targets: list of dicts with keys: ip, port, format ('corrected'|'raw')
@@ -347,28 +500,25 @@ class SensorManager:
         self._cached_data_forwarding = True
         self._filter_lock = threading.Lock()
 
-        # Timing state is managed entirely inside _hw_loop using the Software PLL
-        # approach (time.time() + chrony discipline). No shared state needed here.
-        
     def start(self, loop=None):
         if self.running:
             return
-            
+
         self._loop = loop
-        
+
         from database import get_settings
         settings = get_settings()
         cal_time = int(settings.get('calibration_time', 60))
-        
+
         self.sensor.init_sensor()
         self.sensor.calibrate(calibration_time_sec=cal_time)
         self.running = True
-        
+
         self._hw_thread = threading.Thread(target=self._hw_loop, daemon=True, name="sensor-hw")
         self._analytics_thread = threading.Thread(target=self._analytics_loop, daemon=True, name="sensor-analytics")
         self._hw_thread.start()
         self._analytics_thread.start()
-        
+
     def stop(self):
         self.running = False
         if self._hw_thread:
@@ -376,11 +526,13 @@ class SensorManager:
         if self._analytics_thread:
             self._analytics_thread.join()
         self.sock.close()
-            
+        if hasattr(self.sensor, 'cleanup'):
+            self.sensor.cleanup()
+
     def subscribe(self, queue):
         with self._sub_lock:
             self.subscribers.append(queue)
-        
+
     def unsubscribe(self, queue):
         with self._sub_lock:
             if queue in self.subscribers:
@@ -410,14 +562,14 @@ class SensorManager:
     def get_historical_filtered(self, start_time: float, end_time: float,
                                 target_display_points: int = 4000) -> dict:
         """
-        Backward compatible call. For true non-blocking, use ProcessPoolExecutor 
+        Backward compatible call. For true non-blocking, use ProcessPoolExecutor
         with process_historical_data_task directly.
         """
         with self._filter_lock:
             high_hz = self._filters[CHANNEL_NAMES[0]].high_hz
             low_hz = self._filters[CHANNEL_NAMES[0]].low_hz
         return process_historical_data_task(start_time, end_time, low_hz, high_hz, target_display_points)
-            
+
     def _hw_loop(self):
         """
         Strictly prioritized hardware loop for 100 SPS SPI reading and UDP sending.
@@ -448,34 +600,45 @@ class SensorManager:
             If time.time() diverges from the expected monotonic-derived value by more
             than NTP_STEP_THRESHOLD, we treat it as an NTP step and reset the anchor.
         """
-        NTP_STEP_THRESHOLD = 0.5        # seconds — anything larger is an NTP step
+        # ── Timing constants ───────────────────────────────────────────────────
+        # Hard-reset threshold: only triggers for a genuine NTP makestep (e.g. boot).
+        # chrony's default makestep threshold is 1.0s; we catch it at 0.1s.
+        NTP_STEP_THRESHOLD   = 0.1    # seconds
+
+        # Soft-slew discipline: periodically nudge next_loop_utc toward true UTC
+        # to correct for any long-term monotonic drift.  Applied gently so no
+        # timestamp discontinuity occurs (same principle as chrony frequency steering).
+        SLEW_CHECK_INTERVAL  = 10.0   # seconds between slew checks
+        SLEW_THRESHOLD       = 0.005  # only slew if drift > 5 ms
+        MAX_SLEW_PER_STEP    = 0.001  # max 1 ms correction per check (smooth)
+
         target_interval    = 1.0 / 200  # 5 ms per oversampled iteration (200 Hz)
 
         # ── Startup: establish UTC anchor ──────────────────────────────────────
-        # Take median of 5 time.time() readings to reduce OS scheduler jitter
-        # on the very first sample.
         _init = sorted(time.time() for _ in range(5))
-        next_loop_utc = _init[2]           # median → UTC-accurate start
-        _utc_ref      = next_loop_utc
-        _mono_ref     = time.monotonic()
-        print(f"sensor-hw: Software PLL started. Initial UTC anchor: {next_loop_utc:.6f}", file=sys.stderr)
+        next_loop_utc  = _init[2]           # median → low-jitter UTC start
+        _utc_ref       = next_loop_utc
+        _mono_ref      = time.monotonic()
+        _last_slew_check = _mono_ref        # monotonic time of last slew check
+        print(f"sensor-hw: Software PLL started. Initial UTC anchor: {next_loop_utc:.6f}",
+              file=sys.stderr)
 
-        udp_buffers = [[], [], []]         # m/s² per axis (corrected UDP path)
-        raw_buffers  = [[], [], []]        # integer counts per axis (raw UDP path)
+        # N-channel buffers
+        udp_buffers = [[] for _ in range(N_CHANNELS)]  # physical units (corrected UDP)
+        raw_buffers = [[] for _ in range(N_CHANNELS)]   # integer counts (raw UDP)
 
         total_samples = 0
         total_time    = 0
-        sps_mono_ref  = time.monotonic()  # monotonic reference for SPS tracking
+        sps_mono_ref  = time.monotonic()
         sample_count  = 0
 
         # 2nd-Order Butterworth Low-Pass (fc=50 Hz, fs=200 Hz) — Anti-Aliasing.
-        # Pure integer arithmetic; bypasses Numpy/Scipy GIL. ~1 µs per sample.
         b0, b1, b2 = 0.29289322, 0.58578644, 0.29289322
         a1, a2     = 0.0, 0.17157288
 
-        # Per-axis IIR state
-        x_hist = {'Z': [0.0, 0.0], 'X': [0.0, 0.0], 'Y': [0.0, 0.0]}
-        y_hist = {'Z': [0.0, 0.0], 'X': [0.0, 0.0], 'Y': [0.0, 0.0]}
+        # Per-channel IIR filter state: dict keyed by channel name
+        x_hist = {ch: [0.0, 0.0] for ch in CHANNEL_NAMES}
+        y_hist = {ch: [0.0, 0.0] for ch in CHANNEL_NAMES}
 
         decimate_flag = False
 
@@ -484,61 +647,87 @@ class SensorManager:
                 # Advance UTC scheduling accumulator
                 next_loop_utc += target_interval
 
-                # ── Software PLL: NTP step detection ──────────────────────────
-                # Under normal chrony operation time.time() slews smoothly — no
-                # jump will be detected here.  A jump > NTP_STEP_THRESHOLD means
-                # a manual NTP step (e.g. chrony makestep at boot) — we reset.
+                # ── Software PLL: two-tier NTP discipline ─────────────────────
+                #
+                # Tier 1 — Hard reset (NTP makestep):
+                #   If time.time() diverges from the monotonic-derived expected UTC
+                #   by more than NTP_STEP_THRESHOLD (0.1 s), assume chrony fired a
+                #   makestep and re-anchor immediately.  This is rare (only at boot
+                #   or after a very large clock correction).
+                #
+                # Tier 2 — Soft slew (frequency steering):
+                #   Every SLEW_CHECK_INTERVAL seconds, compare next_loop_utc with
+                #   true UTC.  If drift > SLEW_THRESHOLD (5 ms), apply a gentle
+                #   nudge of at most MAX_SLEW_PER_STEP (1 ms).  This keeps the
+                #   accumulator aligned with NTP without any timestamp discontinuity,
+                #   mirroring how chrony itself steers the system clock.
                 now_utc  = time.time()
                 now_mono = time.monotonic()
                 expected_utc = _utc_ref + (now_mono - _mono_ref)
                 utc_error    = now_utc - expected_utc
 
                 if abs(utc_error) > NTP_STEP_THRESHOLD:
-                    # Large NTP step: re-anchor to current UTC
+                    # Tier 1: Hard reset
                     next_loop_utc = now_utc
+                    _last_slew_check = now_mono
                     print(
-                        f"sensor-hw: NTP step detected ({utc_error:+.3f}s). "
-                        f"Timing re-anchored to {now_utc:.6f}",
+                        f"sensor-hw: NTP step detected ({utc_error:+.6f}s). "
+                        f"Hard re-anchor to {now_utc:.6f}",
                         file=sys.stderr
                     )
+                elif now_mono - _last_slew_check >= SLEW_CHECK_INTERVAL:
+                    # Tier 2: Soft slew — compare accumulator against true UTC
+                    # True UTC at this moment = now_utc
+                    # Our accumulator's idea of now = next_loop_utc (future target) - target_interval
+                    # (subtract one interval because we haven't slept yet this iteration)
+                    accumulator_now = next_loop_utc - target_interval
+                    drift = now_utc - accumulator_now   # positive = we're running behind UTC
+                    if abs(drift) > SLEW_THRESHOLD:
+                        # Clamp correction to MAX_SLEW_PER_STEP
+                        correction = max(-MAX_SLEW_PER_STEP,
+                                         min(MAX_SLEW_PER_STEP, drift))
+                        next_loop_utc += correction
+                        print(
+                            f"sensor-hw: Soft slew applied: drift={drift*1000:+.3f}ms, "
+                            f"correction={correction*1000:+.3f}ms",
+                            file=sys.stderr
+                        )
+                    _last_slew_check = now_mono
 
-                # Update short-lived references for spin-wait calculation
                 _utc_ref  = now_utc
                 _mono_ref = now_mono
 
-                # ── Hardware Read (no timestamp — timing is handled here) ──────
-                z_cnt, x_cnt, y_cnt = self.sensor.read_all_raw()
+                # ── Hardware Read ──────────────────────────────────────────────
+                raw_counts = self.sensor.read_all_raw()   # tuple of N int counts
 
-                # ── Anti-Aliasing IIR Filter (pure arithmetic, no GIL) ────────
-                z_f = b0*z_cnt + b1*x_hist['Z'][0] + b2*x_hist['Z'][1] - a1*y_hist['Z'][0] - a2*y_hist['Z'][1]
-                x_hist['Z'] = [z_cnt, x_hist['Z'][0]]; y_hist['Z'] = [z_f,   y_hist['Z'][0]]
-
-                x_f = b0*x_cnt + b1*x_hist['X'][0] + b2*x_hist['X'][1] - a1*y_hist['X'][0] - a2*y_hist['X'][1]
-                x_hist['X'] = [x_cnt, x_hist['X'][0]]; y_hist['X'] = [x_f,   y_hist['X'][0]]
-
-                y_f = b0*y_cnt + b1*x_hist['Y'][0] + b2*x_hist['Y'][1] - a1*y_hist['Y'][0] - a2*y_hist['Y'][1]
-                x_hist['Y'] = [y_cnt, x_hist['Y'][0]]; y_hist['Y'] = [y_f,   y_hist['Y'][0]]
+                # ── Anti-Aliasing IIR Filter (per channel) ────────────────────
+                filtered_counts = []
+                for i, ch in enumerate(CHANNEL_NAMES):
+                    cnt = raw_counts[i]
+                    f = (b0*cnt
+                         + b1*x_hist[ch][0] + b2*x_hist[ch][1]
+                         - a1*y_hist[ch][0] - a2*y_hist[ch][1])
+                    x_hist[ch] = [cnt, x_hist[ch][0]]
+                    y_hist[ch] = [f,   y_hist[ch][0]]
+                    filtered_counts.append(f)
 
                 # ── Decimation: keep every 2nd → 100 SPS output ───────────────
                 decimate_flag = not decimate_flag
                 if not decimate_flag:
-
-                    # ── Sample Timestamp: scheduled UTC time ─────────────────
-                    # t = next_loop_utc — the NTP-disciplined UTC instant this
-                    # ADC conversion was commanded.  No per-sample syscall.
-                    # No synthetic counter math.  chrony provides the PLL steering.
                     t = next_loop_utc
 
-                    # Convert filtered counts → physical units for analytics/UDP
-                    z_ms2 = (z_f - RAW_COUNTS_ZERO[0]) * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
-                    x_ms2 = (x_f - RAW_COUNTS_ZERO[1]) * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
-                    y_ms2 = (y_f - RAW_COUNTS_ZERO[2]) * INSTRUMENT_SENSITIVITY_MS2_PER_COUNT
+                    # Convert filtered counts → physical units
+                    phys_values = [
+                        (filtered_counts[i] - RAW_COUNTS_ZERO[i])
+                        * INSTRUMENT_SENSITIVITY_PER_COUNT[i]
+                        for i in range(N_CHANNELS)
+                    ]
 
-                    # 1. miniSEED archive (raw int32 counts — unmodified hardware data)
-                    mseed_writer.enqueue(t, int(round(z_f)), int(round(x_f)), int(round(y_f)))
+                    # 1. miniSEED archive (raw int32 counts)
+                    mseed_writer.enqueue(t, [int(round(f)) for f in filtered_counts])
 
                     # 2. Analytics WebSocket (non-blocking)
-                    record = (t, z_ms2, x_ms2, y_ms2)
+                    record = (t,) + tuple(phys_values)
                     if not self._analytics_queue.full():
                         self._analytics_queue.put_nowait(record)
 
@@ -546,13 +735,10 @@ class SensorManager:
 
                     # 3. UDP Buffering & Sending
                     if len(udp_buffers[0]) == 0:
-                        timestamp = t        # packet start timestamp (6 decimal places)
-                    udp_buffers[0].append(z_ms2)
-                    udp_buffers[1].append(x_ms2)
-                    udp_buffers[2].append(y_ms2)
-                    raw_buffers[0].append(int(round(z_f)))
-                    raw_buffers[1].append(int(round(x_f)))
-                    raw_buffers[2].append(int(round(y_f)))
+                        timestamp = t
+                    for i in range(N_CHANNELS):
+                        udp_buffers[i].append(phys_values[i])
+                        raw_buffers[i].append(int(round(filtered_counts[i])))
 
                     if len(udp_buffers[0]) >= SAMPLES_PER_PACKET:
                         if self._cached_targets and self._cached_data_forwarding:
@@ -564,16 +750,20 @@ class SensorManager:
                                     else:
                                         samples = [round(v, 6) for v in udp_buffers[i]]
                                     samples_str = ", ".join(str(s) for s in samples)
-                                    # Raspberry Shake Datacast format (microsecond precision)
-                                    packet_str = "{'" + name + "', " + f"{timestamp:.6f}" + ", " + samples_str + "}"
+                                    # Raspberry Shake Datacast format
+                                    packet_str = ("{'%s', %.6f, %s}" % (name, timestamp, samples_str))
                                     try:
-                                        self.sock.sendto(packet_str.encode('utf-8'), (target['ip'], target['port']))
+                                        self.sock.sendto(
+                                            packet_str.encode('utf-8'),
+                                            (target['ip'], target['port'])
+                                        )
                                     except OSError as e:
-                                        print(f"UDP send error → {target['ip']}:{target['port']}: {e}", file=sys.stderr)
-                        udp_buffers = [[], [], []]
-                        raw_buffers  = [[], [], []]
+                                        print(f"UDP send error → {target['ip']}:{target['port']}: {e}",
+                                              file=sys.stderr)
+                        udp_buffers = [[] for _ in range(N_CHANNELS)]
+                        raw_buffers = [[] for _ in range(N_CHANNELS)]
 
-                    # 4. SPS Tracking (monotonic — immune to chrony slewing)
+                    # 4. SPS Tracking
                     if sample_count >= SAMPLES_PER_PACKET:
                         now_m   = time.monotonic()
                         elapsed = now_m - sps_mono_ref
@@ -586,9 +776,6 @@ class SensorManager:
                         sample_count     = 0
 
                 # ── Rate Limiting ──────────────────────────────────────────────
-                # Sleep uses time.monotonic() (fast VDSO, no syscall overhead).
-                # We convert the UTC target to its equivalent monotonic time via
-                # the short-lived (_utc_ref, _mono_ref) pair updated above.
                 target_mono = _mono_ref + (next_loop_utc - _utc_ref)
                 remaining   = target_mono - time.monotonic()
                 if remaining > 0.0005:
@@ -599,7 +786,6 @@ class SensorManager:
             except Exception as e:
                 print(f"HW loop error: {e}", file=sys.stderr)
                 time.sleep(1)
-                # Re-anchor to current UTC after any error to avoid stale timing
                 _init = sorted(time.time() for _ in range(5))
                 next_loop_utc = _init[2]
                 _utc_ref  = next_loop_utc
@@ -618,10 +804,10 @@ class SensorManager:
         """Secondary loop for DB settings, batch filtering, and WebSockets."""
         from database import get_settings
         import queue
-        
+
         settings_refresh_time = 0
         batch_records = []
-        
+
         while self.running:
             try:
                 # 1. Update DB settings every 5s
@@ -629,13 +815,13 @@ class SensorManager:
                 if now_mono - settings_refresh_time > 5.0:
                     cached_settings = get_settings()
                     settings_refresh_time = now_mono
-                    
+
                     targets_str = cached_settings.get('targets', '[]') if cached_settings else '[]'
                     try:
                         self._cached_targets = json.loads(targets_str)
                     except Exception:
                         self._cached_targets = []
-                        
+
                     if cached_settings:
                         self._cached_data_forwarding = cached_settings.get('data_forwarding', 'true').lower() == 'true'
 
@@ -645,64 +831,67 @@ class SensorManager:
                     batch_records.append(record)
                 except queue.Empty:
                     continue
-                
-                # 3. Process in batches to massively reduce GIL overhead
+
+                # 3. Process in batches to reduce GIL overhead
                 if len(batch_records) >= SAMPLES_PER_PACKET:
                     timestamps = [r[0] for r in batch_records]
+
+                    # Build per-channel numpy arrays from the record tuples
+                    # record = (t, ch0_val, ch1_val, ..., chN-1_val)
                     raw = {
-                        'ENZ': np.array([r[1] for r in batch_records], dtype=np.float64),
-                        'ENN': np.array([r[2] for r in batch_records], dtype=np.float64),
-                        'ENE': np.array([r[3] for r in batch_records], dtype=np.float64)
+                        ch: np.array([r[i + 1] for r in batch_records], dtype=np.float64)
+                        for i, ch in enumerate(CHANNEL_NAMES)
                     }
-                    
+
                     with self._filter_lock:
                         filtered = {}
                         for ch in CHANNEL_NAMES:
                             filtered[ch] = self._filters[ch].apply_batch_realtime(raw[ch]).tolist()
-                    
+
                     raw_lists = {ch: raw[ch].tolist() for ch in CHANNEL_NAMES}
-                    
+
                     batch_msg = {
                         "t_start": timestamps[0],
                         "sps": 100,
-                        "samples": raw_lists
+                        "samples": raw_lists,
+                        # Expose channel metadata so the frontend can label units
+                        "channel_units": {ch: CHANNEL_UNITS[i] for i, ch in enumerate(CHANNEL_NAMES)},
                     }
-                    
+
                     analysis_msg = {
                         "t_start": timestamps[0],
                         "sps": 100,
                         "samples": filtered,
                         "decimation_factor": 1,
+                        "channel_units": {ch: CHANNEL_UNITS[i] for i, ch in enumerate(CHANNEL_NAMES)},
                     }
-                    
-                    # Log SPS safely without blocking the hardware thread
+
                     print(f"Per-Channel Sample Rates:")
                     for name in CHANNEL_NAMES:
-                        print(f"   {name}: {self.hardware_sps:.2f} samples/sec (current), {self.avg_sps:.2f} samples/sec (avg)")
-                    
+                        print(f"   {name}: {self.hardware_sps:.2f} sps (current), {self.avg_sps:.2f} sps (avg)")
+
                     # Thread-safe asyncio put
                     if self._loop and self._loop.is_running():
                         with self._sub_lock:
                             for q in list(self.subscribers):
                                 self._loop.call_soon_threadsafe(self._safe_put, q, batch_msg)
-                        
+
                         with self._analysis_lock:
                             for q in list(self.analysis_subscribers):
                                 self._loop.call_soon_threadsafe(self._safe_put, q, analysis_msg)
-                    
+
                     batch_records = []
-                    
+
             except Exception as e:
                 print(f"Analytics loop error: {e}")
                 time.sleep(1)
+
 
 # ── Hardware detection ─────────────────────────────────────────────────────
 # Use the mock sensor if:
 #   a) Running on Windows (development)
 #   b) EEW_MOCK=1 environment variable is set (CI / build environment)
 #   c) /proc/device-tree/model does not exist or does not contain 'Raspberry Pi'
-#      (catches any Linux host that is NOT actually a Pi — including the ARM64
-#      Docker container used by the Nuitka CI build step)
 import os as _os
 
 def _is_raspberry_pi() -> bool:

@@ -72,6 +72,9 @@ from sensor import (
     VREF_ADCS,
     ACC_SENSITIVITY_V_PER_G,
     G_TO_MS2,
+    SENSOR_VARIANT,
+    CHANNEL_NAMES,
+    CHANNEL_UNITS,
 )
 
 # ---------------------------------------------------------------------------
@@ -134,12 +137,20 @@ NETWORK_CODE: str = "EW"
 # Conservative deployment epoch
 _EPOCH_START: str = "2024-01-01T00:00:00.000000Z"
 
-# Channel definitions: (SEED_code, azimuth_deg, dip_deg)
-_CHANNELS = [
-    ("ENZ",   0.0, -90.0),   # Vertical    (Z-axis)
-    ("ENN",   0.0,   0.0),   # North–South (N-axis)
-    ("ENE",  90.0,   0.0),   # East–West   (E-axis)
-]
+# ---------------------------------------------------------------------------
+# Channel definitions — dynamic based on active hardware variant
+# ---------------------------------------------------------------------------
+# Tuple: (SEED_code, azimuth_deg, dip_deg, channel_unit)
+# channel_unit: 'ACC' = accelerometer (M/S**2), 'VEL' = geophone (M/S)
+_CHANNELS_ALL = {
+    'EHZ': ('EHZ',   0.0, -90.0, 'VEL'),   # GeoPhone vertical velocity
+    'ENZ': ('ENZ',   0.0, -90.0, 'ACC'),   # ADXL354 vertical acceleration
+    'ENN': ('ENN',   0.0,   0.0, 'ACC'),   # ADXL354 North–South
+    'ENE': ('ENE',  90.0,   0.0, 'ACC'),   # ADXL354 East–West
+}
+
+# Build the ordered channel list from the active CHANNEL_NAMES
+_CHANNELS = [_CHANNELS_ALL[ch] for ch in CHANNEL_NAMES if ch in _CHANNELS_ALL]
 
 
 # ---------------------------------------------------------------------------
@@ -199,10 +210,144 @@ def _sos_to_xml_lines(sos: np.ndarray) -> str:
 
     return "\n".join(num_lines + den_lines)
 
+_BUTTERWORTH_XML_LINES = _sos_to_xml_lines(_compute_butterworth_sos())
 
-# Compute once at module load
-_BUTTERWORTH_SOS = _compute_butterworth_sos()
-_BUTTERWORTH_XML_LINES = _sos_to_xml_lines(_BUTTERWORTH_SOS)
+# ===========================================================================
+# EHZ Channel XML — GeoPhone velocity response
+# ===========================================================================
+# Based on the Raspberry Shake 4D EHZ channel response (R2472_response.xml).
+# Confirmed same hardware: 4.5 Hz geophone, RS4D instrument chain.
+#
+# Sensitivity: 399,650,000 counts/(m/s) @ 5 Hz
+# Stage 1: Poles/Zeros (Laplace, radians/second)
+#   Zeros: (0+0j) × 3
+#   Poles: -1, -3.03, -3.03, -666.67  (all real)
+# Stage 2: ADC gain (V→COUNTS), unity decimation (200 SPS input)
+# Stage 3: Our 2nd-order Butterworth IIR anti-alias + ×2 decimation
+#          (same as the ADXL channels — both share the same ADS1220 setup)
+# ===========================================================================
+
+_EHZ_SENSITIVITY         = 399_650_000.0   # counts / (m/s)
+_EHZ_REF_FREQ_HZ         = 5.0
+# EHZ ADC: ADS1220 with VREF = 3.3V
+_EHZ_VREF                = 3.3
+_EHZ_ADC_GAIN            = FULL_SCALE / _EHZ_VREF               # counts/V
+
+
+def _build_ehz_channel_xml(
+    latitude: float,
+    longitude: float,
+    elevation: float,
+    start_date: str,
+) -> str:
+    """Return the complete <Channel> XML block for the EHZ GeoPhone channel."""
+    return f"""    <Channel code="EHZ" startDate="{start_date}" restrictedStatus="open" locationCode="00">
+        <Latitude unit="DEGREES">{latitude:.9f}</Latitude>
+        <Longitude unit="DEGREES">{longitude:.9f}</Longitude>
+        <Elevation>{elevation:.1f}</Elevation>
+        <Depth>0.0</Depth>
+        <Azimuth unit="DEGREES">0.0</Azimuth>
+        <Dip unit="DEGREES">-90.0</Dip>
+        <SampleRate unit="SAMPLES/S">{_OUT_SPS:.1f}</SampleRate>
+        <SampleRateRatio>
+          <NumberSamples>{int(_OUT_SPS)}</NumberSamples>
+          <NumberSeconds>1</NumberSeconds>
+        </SampleRateRatio>
+        <ClockDrift unit="SECONDS/SAMPLE">0.0</ClockDrift>
+        <Sensor resourceId="Sensor-4D-RS-V7-VEL">
+          <Type>GeoPhone</Type>
+          <Description>Velocity — Raspberry Shake 4D vertical geophone (4.5 Hz)</Description>
+          <Manufacturer>Raspberry Shake</Manufacturer>
+        </Sensor>
+        <DataLogger resourceId="Datalogger-EEW-ADS1220-{int(_OUT_SPS)}hz"/>
+        <Response>
+
+          <!-- Overall sensitivity: M/S → COUNTS = {_EHZ_SENSITIVITY:.0f} counts/(m/s) @ {_EHZ_REF_FREQ_HZ} Hz -->
+          <InstrumentSensitivity>
+            <Value>{_EHZ_SENSITIVITY:.4f}</Value>
+            <Frequency>{_EHZ_REF_FREQ_HZ:.1f}</Frequency>
+            <InputUnits>
+              <Name>M/S</Name>
+              <Description>Velocity in Meters Per Second</Description>
+            </InputUnits>
+            <OutputUnits>
+              <Name>COUNTS</Name>
+            </OutputUnits>
+          </InstrumentSensitivity>
+
+          <!-- Stage 1: GeoPhone Poles/Zeros (Laplace, radians/second)
+               RS4D 4.5 Hz geophone: 3 zeros at origin, poles at -1, -3.03×2, -666.67
+               StageGain = 399,650,000 counts/(m/s) @ 5 Hz -->
+          <Stage number="1">
+            <PolesZeros name="RP-4D-RS-V6-VEL" resourceId="ResponsePAZ-4D-RS-V6-VEL">
+              <InputUnits>
+                <Name>M/S</Name>
+                <Description>Velocity in Meters Per Second</Description>
+              </InputUnits>
+              <OutputUnits>
+                <Name>V</Name>
+              </OutputUnits>
+              <PzTransferFunctionType>LAPLACE (RADIANS/SECOND)</PzTransferFunctionType>
+              <NormalizationFactor>673.744</NormalizationFactor>
+              <NormalizationFrequency unit="HERTZ">{_EHZ_REF_FREQ_HZ:.1f}</NormalizationFrequency>
+              <Zero number="0"><Real>0.0</Real><Imaginary>0.0</Imaginary></Zero>
+              <Zero number="1"><Real>0.0</Real><Imaginary>0.0</Imaginary></Zero>
+              <Zero number="2"><Real>0.0</Real><Imaginary>0.0</Imaginary></Zero>
+              <Pole number="0"><Real>-1.0</Real><Imaginary>0.0</Imaginary></Pole>
+              <Pole number="1"><Real>-3.03</Real><Imaginary>0.0</Imaginary></Pole>
+              <Pole number="2"><Real>-3.03</Real><Imaginary>0.0</Imaginary></Pole>
+              <Pole number="3"><Real>-666.67</Real><Imaginary>0.0</Imaginary></Pole>
+            </PolesZeros>
+            <StageGain>
+              <Value>{_EHZ_SENSITIVITY:.4f}</Value>
+              <Frequency>{_EHZ_REF_FREQ_HZ:.1f}</Frequency>
+            </StageGain>
+          </Stage>
+
+          <!-- Stage 2: ADS1220IPWR 24-bit ADC (VREF={_EHZ_VREF} V, Gain=1) -->
+          <Stage number="2">
+            <Coefficients>
+              <InputUnits><Name>V</Name></InputUnits>
+              <OutputUnits><Name>COUNTS</Name></OutputUnits>
+              <CfTransferFunctionType>DIGITAL</CfTransferFunctionType>
+            </Coefficients>
+            <Decimation>
+              <InputSampleRate unit="HERTZ">{_HW_SPS:.1f}</InputSampleRate>
+              <Factor>1</Factor>
+              <Offset>0</Offset>
+              <Delay>0.0</Delay>
+              <Correction>0.0</Correction>
+            </Decimation>
+            <StageGain>
+              <Value>{_EHZ_ADC_GAIN:.4f}</Value>
+              <Frequency>0.0</Frequency>
+            </StageGain>
+          </Stage>
+
+          <!-- Stage 3: 2nd-order Butterworth IIR anti-alias + ×2 decimation
+               (identical to ADXL channels — shared ADS1220 pipeline) -->
+          <Stage number="3">
+            <Coefficients>
+              <InputUnits><Name>COUNTS</Name></InputUnits>
+              <OutputUnits><Name>COUNTS</Name></OutputUnits>
+              <CfTransferFunctionType>DIGITAL</CfTransferFunctionType>
+{_BUTTERWORTH_XML_LINES}
+            </Coefficients>
+            <Decimation>
+              <InputSampleRate unit="HERTZ">{_HW_SPS:.1f}</InputSampleRate>
+              <Factor>{_DECIMATION_FACTOR}</Factor>
+              <Offset>0</Offset>
+              <Delay>0.0</Delay>
+              <Correction>0.0</Correction>
+            </Decimation>
+            <StageGain>
+              <Value>1.0</Value>
+              <Frequency>0.0</Frequency>
+            </StageGain>
+          </Stage>
+
+        </Response>
+      </Channel>"""
 
 
 # ---------------------------------------------------------------------------
@@ -402,10 +547,15 @@ def build_stationxml(
     now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     station_code = device_id.upper()
 
-    channel_blocks = "\n".join(
-        _build_channel_xml(code, az, dip, latitude, longitude, elevation, start_date)
-        for code, az, dip in _CHANNELS
-    )
+    channel_blocks_list = []
+    for entry in _CHANNELS:
+        code, az, dip, ch_unit = entry
+        if ch_unit == 'VEL':
+            block = _build_ehz_channel_xml(latitude, longitude, elevation, start_date)
+        else:
+            block = _build_channel_xml(code, az, dip, latitude, longitude, elevation, start_date)
+        channel_blocks_list.append(block)
+    channel_blocks = "\n".join(channel_blocks_list)
 
     return f"""<?xml version='1.0' encoding='UTF-8'?>
 <FDSNStationXML xmlns="http://www.fdsn.org/xml/station/1" schemaVersion="1.2">

@@ -72,6 +72,8 @@ sudo apt-get install -y --no-install-recommends \
     curl \
     python3-dev \
     build-essential \
+    swig \
+    liblgpio-dev \
     2>&1 | tail -3
 
 # ── Fetch latest release ─────────────────────────────────────
@@ -155,12 +157,72 @@ rm -f /tmp/current_cron /tmp/new_cron
 
 info "Auto-updater scheduled every 30 minutes."
 
+# ── Sensor Variant Selection ──────────────────────────────────
+echo ""
+echo "=========================================================="
+echo "  Sensor Hardware Variant"
+echo "=========================================================="
+echo ""
+echo "  This firmware supports two hardware variants:"
+echo "  [1] 3-CH  — 3× ADXL354 accelerometers only (ENZ, ENN, ENE)"
+echo "  [2] 4-CH  — GeoPhone (EHZ) + 3× ADXL354 accelerometers"
+echo ""
+read -r -p "  Select your sensor type [1/2, default=1]: " SENSOR_CHOICE
+
+case "$SENSOR_CHOICE" in
+    2)
+        SENSOR_VARIANT="4CH"
+        info "4-CH variant selected — GeoPhone EHZ channel will be active."
+        echo ""
+        warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        warn "  REQUIRED: /boot/firmware/config.txt change for 4-CH SPI"
+        warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "  The 4-CH sensor uses BCM pin 8 (CE0) as a manual chip-select."
+        echo "  Standard SPI must be disabled and replaced with the no-CS overlay."
+        echo ""
+        echo "  Edit /boot/firmware/config.txt and make this change:"
+        echo ""
+        echo "    # REMOVE or comment out this line:"
+        echo "    #   dtparam=spi=on"
+        echo ""
+        echo "    # ADD this line:"
+        echo "    dtoverlay=spi0-0cs"
+        echo ""
+        warn "  This change requires a REBOOT to take effect."
+        warn "  The sensor will NOT work until this change is made."
+        echo ""
+        read -r -p "  Press ENTER to continue after noting the above..." _dummy
+        ;;
+    *)
+        SENSOR_VARIANT="3CH"
+        info "3-CH variant selected — ADXL354 accelerometer channels only."
+        ;;
+esac
+
+# Write sensor_variant into the SQLite DB settings table
+EEW_DB="/opt/eew-sensor/backend/eew_sensor.db"
+if command -v sqlite3 &>/dev/null; then
+    sudo sqlite3 "$EEW_DB" \
+        "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT); INSERT OR REPLACE INTO settings (key, value) VALUES ('sensor_variant', '${SENSOR_VARIANT}');"
+    info "Sensor variant '${SENSOR_VARIANT}' saved to database."
+else
+    warn "SQLite DB not found yet at $EEW_DB — sensor_variant will be set on first boot."
+    warn "If needed, manually run: sqlite3 $EEW_DB \"INSERT OR REPLACE INTO settings (key, value) VALUES ('sensor_variant', '${SENSOR_VARIANT}');\""
+fi
+
+# Restart the service so the newly saved sensor_variant takes effect
+if command -v systemctl &>/dev/null; then
+    sudo systemctl restart eew-sensor
+fi
+
 # ── Final status ─────────────────────────────────────────────
 echo ""
 echo "=========================================================="
 echo -e "  ${GREEN}EEW Sensor $TAG_NAME installed successfully!${NC}"
 echo "=========================================================="
 echo ""
+info "Sensor variant  : $SENSOR_VARIANT"
 info "Service status  : sudo systemctl status eew-sensor"
 info "Live logs       : sudo journalctl -u eew-sensor -f"
 info "Web UI          : http://$(hostname -I | awk '{print $1}')/"

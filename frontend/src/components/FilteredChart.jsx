@@ -20,7 +20,7 @@ import {
  * Uses stable refs so TimeLine sees data mutations correctly.
  */
 
-const CHANNELS = ['ENZ', 'ENN', 'ENE'];
+
 
 // ---------------------------------------------------------------------------
 // Cursor sync (shared across all analysis chart instances)
@@ -72,7 +72,7 @@ const analysisCursorSync = {
 // ---------------------------------------------------------------------------
 // AnalysisChannelPlot — single TimeLine chart per axis
 // ---------------------------------------------------------------------------
-function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick, timeWindowMs }) {
+function AnalysisChannelPlot({ channelName, channelUnit, timeZone, dataRef, latestValue, tick, timeWindowMs }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const { theme } = useTheme();
@@ -133,8 +133,13 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
 
   // Recompute on tick (data was mutated in-place on the same array ref)
   useEffect(() => {
-    if (chartRef.current) chartRef.current.recompute();
-  }, [tick]);
+    if (chartRef.current) {
+      if (dataRef.current[channelName]) {
+        chartRef.current.data = dataRef.current[channelName];
+      }
+      chartRef.current.recompute();
+    }
+  }, [tick, channelName, dataRef]);
 
   // Update timeWindow dynamically without recreating the chart
   useEffect(() => {
@@ -144,25 +149,31 @@ function AnalysisChannelPlot({ channelName, timeZone, dataRef, latestValue, tick
     }
   }, [timeWindowMs]);
 
-  const labelColor = (name) => {
+  const labelColor = (name, unit) => {
+    if (unit === 'VEL') return 'text-violet-600 dark:text-violet-400';
     if (name.includes('Z')) return 'text-red-600';
     if (name.includes('N')) return 'text-teal-600';
     return 'text-yellow-600';
   };
+
+  const unitLabel = channelUnit === 'VEL' ? 'm/s' : 'm/s²';
 
   return (
     <div className="flex flex-col flex-1 min-h-[100px] mb-[2px] bg-white dark:bg-slate-800 shadow-sm p-1 rounded">
       <div className="flex items-center justify-between mb-0 px-1">
         <div className="flex items-center space-x-2">
           <span className="font-bold text-gray-500 dark:text-slate-300 text-[10px] tracking-widest leading-none">{channelName}</span>
+          {channelUnit === 'VEL' && (
+            <span className="text-[9px] font-bold text-violet-500 dark:text-violet-400 tracking-wide leading-none uppercase">GEO</span>
+          )}
         </div>
         <div className="flex items-center space-x-1.5">
-          <span className={`text-sm font-mono font-bold leading-none ${labelColor(channelName)}`}>
+          <span className={`text-sm font-mono font-bold leading-none ${labelColor(channelName, channelUnit)}`}>
             {latestValue !== null && latestValue !== 0
               ? (Math.abs(latestValue) >= 0.001 ? latestValue.toFixed(4) : latestValue.toExponential(3))
               : '0.000'}
           </span>
-          <span className="text-[10px] text-gray-400 dark:text-slate-400 leading-none">m/s²</span>
+          <span className="text-[10px] text-gray-400 dark:text-slate-400 leading-none">{unitLabel}</span>
         </div>
       </div>
       <div ref={containerRef} className="w-full flex-1 min-h-0" />
@@ -190,13 +201,22 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
   const dataRefs = useRef({});
   const latestValues = useRef({});
 
-  // Ensure arrays exist (runs once)
-  if (!dataRefs.current.ENZ) {
-    CHANNELS.forEach(ch => {
-      dataRefs.current[ch] = [];
-      latestValues.current[ch] = 0;
+  const [channels, setChannels] = useState([]);
+  const [channelUnits, setChannelUnits] = useState({});
+  const channelsInitRef = useRef(false);
+
+  // Ensure arrays exist when channels change
+  useEffect(() => {
+    channels.forEach(ch => {
+      if (!dataRefs.current[ch]) {
+        dataRefs.current[ch] = [];
+        latestValues.current[ch] = 0;
+      }
+      if (!wsBufferRef.current[ch]) {
+        wsBufferRef.current[ch] = [];
+      }
     });
-  }
+  }, [channels]);
 
   const wsRef = useRef(null);
   const [tick, setTick] = useState(0);
@@ -209,7 +229,7 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
 
   // Buffer to catch WS data arriving while historical fetch is running
   const isFetchingRef = useRef(false);
-  const wsBufferRef = useRef({ ENZ: [], ENN: [], ENE: [] });
+  const wsBufferRef = useRef({});
 
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
@@ -244,9 +264,9 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
       .then(data => {
         if (!data || !data.timestamps || data.timestamps.length === 0) {
           // Clear existing data
-          CHANNELS.forEach(ch => {
-            dataRefs.current[ch].length = 0;
-            wsBufferRef.current[ch].length = 0;
+          Object.keys(dataRefs.current).forEach(ch => {
+            if (dataRefs.current[ch]) dataRefs.current[ch].length = 0;
+            if (wsBufferRef.current[ch]) wsBufferRef.current[ch].length = 0;
           });
           setLoading(false);
           isFetchingRef.current = false;
@@ -254,11 +274,23 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
           return;
         }
 
-        CHANNELS.forEach(ch => {
+          // Initialize missing arrays (e.g. initial historical load)
+          if (channels.length === 0 && Object.keys(data.samples).length > 0) {
+            const chs = Object.keys(data.samples);
+            setChannels(chs);
+            chs.forEach(ch => {
+              dataRefs.current[ch] = [];
+              latestValues.current[ch] = 0;
+              wsBufferRef.current[ch] = [];
+            });
+          }
+
+          Object.keys(data.samples).forEach(ch => {
           const samples = data.samples[ch] || [];
           // IMPORTANT: mutate the existing array, don't replace it.
           // TimeLine holds a reference to this exact array object.
           const arr = dataRefs.current[ch];
+          if (!arr) return;
           arr.length = 0;  // clear in-place
           
           for (let i = 0; i < samples.length; i++) {
@@ -269,7 +301,7 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
           }
 
           // Drain the WS buffer that accumulated during the fetch
-          const buf = wsBufferRef.current[ch];
+          const buf = wsBufferRef.current[ch] || [];
           for (let i = 0; i < buf.length; i++) {
             const pt = buf[i];
             // Only append points strictly newer than our last historical point
@@ -283,6 +315,7 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
             latestValues.current[ch] = arr[arr.length - 1].value;
           }
         });
+
         
         isFetchingRef.current = false;
         setLoading(false);
@@ -323,12 +356,28 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
       setConnectionStatus('connected');
 
       const msg = JSON.parse(event.data);
-      const { t_start, sps, samples } = msg;
+      const { t_start, sps, samples, channel_units } = msg;
+      const channelNames = Object.keys(samples);
 
-      CHANNELS.forEach(ch => {
+      // First-time channel discovery
+      if (!channelsInitRef.current && channelNames.length > 0) {
+        channelsInitRef.current = true;
+        setChannels(channelNames);
+        if (channel_units) setChannelUnits(channel_units);
+        channelNames.forEach(ch => {
+          if (!dataRefs.current[ch]) dataRefs.current[ch] = [];
+          if (!latestValues.current[ch]) latestValues.current[ch] = 0;
+          if (!wsBufferRef.current[ch]) wsBufferRef.current[ch] = [];
+        });
+      }
+
+      if (channel_units) setChannelUnits(prev => ({ ...prev, ...channel_units }));
+
+      channelNames.forEach(ch => {
         const chSamples = samples[ch] || [];
         // If fetch is in progress, accumulate in wsBufferRef instead of main array
         const targetArr = isFetchingRef.current ? wsBufferRef.current[ch] : dataRefs.current[ch];
+        if (!targetArr) return;
 
         for (let i = 0; i < chSamples.length; i++) {
           const t = (t_start + i / sps) * 1000;
@@ -430,10 +479,11 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
     <div className="flex flex-col h-full overflow-hidden">
       <div className="relative flex-1 min-h-0 flex flex-col pr-1 overflow-y-auto">
         {statusBadge()}
-        {CHANNELS.map(ch => (
+        {channels.map(ch => (
           <AnalysisChannelPlot
             key={ch}
             channelName={ch}
+            channelUnit={channelUnits[ch] || 'ACC'}
             timeZone={timeZone}
             dataRef={dataRefs}  // Pass the stable parent ref — child accesses .current[ch]
             latestValue={latestValues.current[ch] || 0}

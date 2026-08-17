@@ -4,6 +4,7 @@ websockets
 pydantic
 spidev
 RPi.GPIO
+lgpio
 psutil
 scipy
 numpy

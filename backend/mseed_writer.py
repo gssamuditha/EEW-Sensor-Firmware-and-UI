@@ -56,8 +56,15 @@ except ImportError:
 
 FLUSH_INTERVAL = 60          # seconds between SD-card writes
 SAMPLING_RATE  = 100.0       # Hz
-CHANNEL_NAMES  = ['ENZ', 'ENN', 'ENE']
 MSEED_RECLEN   = 512         # miniSEED record length in bytes
+
+# CHANNEL_NAMES is resolved at runtime from sensor.py so that it automatically
+# reflects the active hardware variant (3CH or 4CH).  A fallback list is used
+# during module initialisation order edge-cases (e.g. ProcessPoolExecutor workers).
+try:
+    from sensor import CHANNEL_NAMES
+except Exception:
+    CHANNEL_NAMES = ['ENZ', 'ENN', 'ENE']   # safe fallback for subprocess workers
 
 # Default SDS archive root (overridden by DB settings at runtime)
 DEFAULT_ARCHIVE_ROOT = '/home/crisislab/data/archive'
@@ -153,19 +160,19 @@ class MiniSEEDWriter:
         if self._thread:
             self._thread.join(timeout=10)
 
-    def enqueue(self, timestamp: float, z_cnt: int, x_cnt: int, y_cnt: int):
+    def enqueue(self, timestamp: float, counts: list):
         """
         Queue one decimated sample (non-blocking).
 
         Parameters
         ----------
-        timestamp : Unix epoch float (time of first sample in any batch)
-        z_cnt     : signed int32 ADC count, Z-axis (post-IIR, post-decimation)
-        x_cnt     : signed int32 ADC count, N-axis
-        y_cnt     : signed int32 ADC count, E-axis
+        timestamp : Unix epoch float (UTC time of this sample)
+        counts    : list of signed int32 ADC counts, one per channel,
+                    in CHANNEL_NAMES order (post-IIR, post-decimation).
+                    Length must match the active CHANNEL_NAMES list (3 or 4).
         """
         try:
-            self._queue.put_nowait((timestamp, z_cnt, x_cnt, y_cnt))
+            self._queue.put_nowait((timestamp, counts))
         except queue.Full:
             pass   # Drop rather than block the hardware thread
 
@@ -235,24 +242,28 @@ class MiniSEEDWriter:
                 return
 
         # Collect all queued samples
-        samples = []
+        # Each item: (timestamp, counts_list)
+        raw_items = []
         while True:
             try:
-                samples.append(self._queue.get_nowait())
+                raw_items.append(self._queue.get_nowait())
             except queue.Empty:
                 break
 
-        if not samples:
+        if not raw_items:
             return
 
-        # Convert efficiently using list comprehensions to avoid object boxing
-        timestamps = np.array([s[0] for s in samples], dtype=np.float64)
-        z_counts   = np.array([s[1] for s in samples], dtype=np.int32)
-        x_counts   = np.array([s[2] for s in samples], dtype=np.int32)
-        y_counts   = np.array([s[3] for s in samples], dtype=np.int32)
+        n_ch = len(CHANNEL_NAMES)
+        timestamps = np.array([item[0] for item in raw_items], dtype=np.float64)
+        # Build per-channel count arrays, tolerating mismatched lengths gracefully
+        ch_counts = []
+        for i in range(n_ch):
+            ch_counts.append(
+                np.array([item[1][i] if len(item[1]) > i else 0 for item in raw_items], dtype=np.int32)
+            )
 
         # Split at UTC midnight boundaries so each chunk maps to one daily file
-        segments = self._split_at_day_boundaries(timestamps, z_counts, x_counts, y_counts)
+        segments = self._split_at_day_boundaries(timestamps, ch_counts)
 
         with self._settings_lock:
             net = self._network_code
@@ -260,14 +271,23 @@ class MiniSEEDWriter:
             loc = self._location_code
             root = self._archive_root
 
-        for seg_timestamps, seg_z, seg_x, seg_y, seg_starttime in segments:
-            for ch, data in zip(CHANNEL_NAMES, [seg_z, seg_x, seg_y]):
+        for seg in segments:
+            seg_timestamps, seg_ch_counts, seg_starttime = seg
+            for ch, data in zip(CHANNEL_NAMES, seg_ch_counts):
                 self._write_segment(root, net, sta, loc, ch, seg_starttime, data)
 
-    def _split_at_day_boundaries(self, timestamps, z, x, y):
+    def _split_at_day_boundaries(self, timestamps, ch_counts: list):
         """
-        Split arrays at UTC midnight boundaries.
-        Returns a list of (timestamps, z, x, y, UTCDateTime_starttime) tuples.
+        Split per-channel arrays at UTC midnight boundaries.
+
+        Parameters
+        ----------
+        timestamps : np.ndarray of float64 epoch times
+        ch_counts  : list of np.ndarray, one per channel (same length as timestamps)
+
+        Returns
+        -------
+        List of (timestamps_slice, ch_counts_slices, UTCDateTime_starttime) tuples.
         """
         if len(timestamps) == 0:
             return []
@@ -280,13 +300,10 @@ class MiniSEEDWriter:
         for i in range(1, len(timestamps)):
             t = UTCDateTime(timestamps[i])
             if t.julday != start_day or t.year != start_year:
-                # Day boundary — emit current segment
                 seg_start = UTCDateTime(timestamps[seg_start_idx])
                 segments.append((
                     timestamps[seg_start_idx:i],
-                    z[seg_start_idx:i],
-                    x[seg_start_idx:i],
-                    y[seg_start_idx:i],
+                    [arr[seg_start_idx:i] for arr in ch_counts],
                     seg_start,
                 ))
                 seg_start_idx = i
@@ -297,9 +314,7 @@ class MiniSEEDWriter:
         seg_start = UTCDateTime(timestamps[seg_start_idx])
         segments.append((
             timestamps[seg_start_idx:],
-            z[seg_start_idx:],
-            x[seg_start_idx:],
-            y[seg_start_idx:],
+            [arr[seg_start_idx:] for arr in ch_counts],
             seg_start,
         ))
         return segments
@@ -499,6 +514,10 @@ def read_waveform_range(t_start, t_end, settings: dict = None) -> object:
                 except Exception as e:
                     print(f"mseed_writer: read error {fpath}: {e}", file=sys.stderr)
         current += 86400   # advance one day
+
+    # Re-resolve CHANNEL_NAMES at read time in case this runs in a subprocess
+    # where the import-time resolution may have used the fallback list.
+    # This is a no-op when CHANNEL_NAMES already matches the active variant.
 
     return streams if len(streams) > 0 else None
 

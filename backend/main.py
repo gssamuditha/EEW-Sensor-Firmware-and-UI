@@ -16,9 +16,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
 from database import init_db, get_settings, update_settings
+from sensor import sensor_manager, process_historical_data_task, CHANNEL_NAMES, SENSOR_VARIANT, CHANNEL_UNITS
 from mseed_writer import mseed_writer
 from filters import FILTER_PRESETS
-from sensor import sensor_manager, process_historical_data_task, CHANNEL_NAMES
 from https_publisher import https_publisher
 from concurrent.futures import ProcessPoolExecutor
 
@@ -337,7 +337,11 @@ def api_get_settings():
         "archive_size_bytes": mseed_writer.get_archive_size_bytes(),
         "data_forwarding": s.get("data_forwarding", "true").lower() == "true",
         "is_configured": s.get("is_configured", "false").lower() == "true",
-        "active_wifi": _get_active_ssid()
+        "active_wifi": _get_active_ssid(),
+        # Hardware variant info (read-only, set by setup_service.sh or manual DB edit)
+        "sensor_variant": SENSOR_VARIANT,
+        "channel_names": CHANNEL_NAMES,
+        "channel_units": {ch: CHANNEL_UNITS[i] for i, ch in enumerate(CHANNEL_NAMES)},
     }
 
 @app.post("/api/settings")
@@ -527,39 +531,43 @@ def api_export(start: float, end: float, format: str = "csv"):
             
     else:
         try:
-            # This handles cases where channels may be missing or mismatched slightly
+            # Build channel dict dynamically from CHANNEL_NAMES
             chans = {tr.stats.channel: tr for tr in st}
-            tr_z = chans.get("ENZ")
-            tr_n = chans.get("ENN")
-            tr_e = chans.get("ENE")
-            
-            ref_tr = tr_z or tr_n or tr_e
+            ref_tr = None
+            for ch in CHANNEL_NAMES:
+                if ch in chans:
+                    ref_tr = chans[ch]
+                    break
+
             if not ref_tr:
-                raise ValueError("No ENZ, ENN, or ENE channels found in archive")
-            
+                raise ValueError(f"No channels from {CHANNEL_NAMES} found in archive")
+
             times = ref_tr.times(type="timestamp")
-            z_data = tr_z.data if tr_z else [0] * len(times)
-            n_data = tr_n.data if tr_n else [0] * len(times)
-            e_data = tr_e.data if tr_e else [0] * len(times)
-            
-            min_len = min(len(times), len(z_data), len(n_data), len(e_data))
-            
+            ch_data = {}
+            for ch in CHANNEL_NAMES:
+                ch_data[ch] = chans[ch].data if ch in chans else [0] * len(times)
+
+            min_len = min(len(times), *(len(ch_data[ch]) for ch in CHANNEL_NAMES))
+
             def iter_csv():
-                yield "time,ENZ,ENN,ENE\n"
+                # Header: time, CH0, CH1, ...
+                yield "time," + ",".join(CHANNEL_NAMES) + "\n"
                 chunk = []
                 for i in range(min_len):
-                    chunk.append(f"{times[i]:.6f},{z_data[i]},{n_data[i]},{e_data[i]}\n")
+                    row = f"{times[i]:.6f}," + ",".join(str(ch_data[ch][i]) for ch in CHANNEL_NAMES)
+                    chunk.append(row + "\n")
                     if len(chunk) >= 10000:
                         yield "".join(chunk)
                         chunk.clear()
                 if chunk:
                     yield "".join(chunk)
-                    
+
             response = StreamingResponse(iter_csv(), media_type="text/csv")
             response.headers["Content-Disposition"] = f"attachment; filename=eew_export_{int(time.time())}.csv"
             return response
         except Exception as e:
              raise HTTPException(status_code=500, detail=f"CSV generation failed: {e}")
+
 
 @app.get("/api/export/all")
 def api_export_all():
