@@ -213,6 +213,7 @@ _EHZ_REF_FREQ_HZ         = 5.0
 # EHZ ADC: ADS1220 with VREF = 3.3V
 _EHZ_VREF                = 3.3
 _EHZ_ADC_GAIN            = FULL_SCALE / _EHZ_VREF               # counts/V
+_EHZ_STAGE1_GAIN         = _EHZ_SENSITIVITY / _EHZ_ADC_GAIN     # V / (m/s)
 
 
 def _build_ehz_channel_xml(
@@ -276,7 +277,7 @@ def _build_ehz_channel_xml(
               <Pole number="3"><Real>-666.67</Real><Imaginary>0.0</Imaginary></Pole>
             </PolesZeros>
             <StageGain>
-              <Value>{_EHZ_SENSITIVITY:.4f}</Value>
+              <Value>{_EHZ_STAGE1_GAIN:.7f}</Value>
               <Frequency>{_EHZ_REF_FREQ_HZ:.1f}</Frequency>
             </StageGain>
           </Stage>
