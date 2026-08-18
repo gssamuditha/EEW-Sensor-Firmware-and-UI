@@ -816,6 +816,7 @@ class SensorManager:
         import queue
 
         settings_refresh_time = 0
+        last_print_time = 0
         batch_records = []
 
         while self.running:
@@ -876,9 +877,17 @@ class SensorManager:
                         "channel_units": {ch: CHANNEL_UNITS[i] for i, ch in enumerate(CHANNEL_NAMES)},
                     }
 
-                    print(f"Per-Channel Sample Rates:")
-                    for name in CHANNEL_NAMES:
-                        print(f"   {name}: {self.hardware_sps:.2f} sps (current), {self.avg_sps:.2f} sps (avg)")
+                    now_mono = time.monotonic()
+                    if now_mono - last_print_time >= 5.0:
+                        print(f"Per-Channel Sample Rates:")
+                        for name in CHANNEL_NAMES:
+                            print(f"   {name}: {self.hardware_sps:.2f} sps (current), {self.avg_sps:.2f} sps (avg)")
+                        last_print_time = now_mono
+
+                    # To test printing 4 times per second (every batch), comment out the 6 lines above and uncomment this block:
+                    # print(f"Per-Channel Sample Rates:")
+                    # for name in CHANNEL_NAMES:
+                    #     print(f"   {name}: {self.hardware_sps:.2f} sps (current), {self.avg_sps:.2f} sps (avg)")
 
                     # Thread-safe asyncio put
                     if self._loop and self._loop.is_running():

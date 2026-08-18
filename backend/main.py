@@ -23,8 +23,22 @@ from https_publisher import https_publisher
 from concurrent.futures import ProcessPoolExecutor
 
 # Use a ProcessPool to run heavy numpy/scipy operations entirely out-of-process, bypassing the GIL.
-# process_pool = ProcessPoolExecutor(max_workers=2)
-process_pool = ProcessPoolExecutor(max_workers=2, max_tasks_per_child=50)
+# To fall back to the previous behavior for testing, change max_workers=1 back to max_workers=2:
+# process_pool = ProcessPoolExecutor(max_workers=2, max_tasks_per_child=50)
+process_pool = ProcessPoolExecutor(max_workers=1, max_tasks_per_child=50)
+
+# Global state for system metrics to stabilize CPU readings
+cached_cpu_percent = 0.0
+
+def _cpu_monitor_loop():
+    while True:
+        global cached_cpu_percent
+        # Blocks for 1 second, calculating average CPU usage over that second
+        cached_cpu_percent = psutil.cpu_percent(interval=1.0)
+
+# Start CPU monitor daemon
+threading.Thread(target=_cpu_monitor_loop, daemon=True, name="cpu-monitor").start()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -460,7 +474,7 @@ MAC_ADDRESS = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele 
 @app.get("/api/system_status")
 def api_system_status():
     try:
-        cpu = psutil.cpu_percent(interval=None) # Non-blocking return since last call
+        cpu = cached_cpu_percent # Returns the stable 1-second average from the background thread
         ram = psutil.virtual_memory().percent
         disk = psutil.disk_usage('/').percent
         uptime_sec = int(time.time() - psutil.boot_time())
