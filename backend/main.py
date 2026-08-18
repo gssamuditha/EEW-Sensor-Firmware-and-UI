@@ -461,7 +461,7 @@ MAC_ADDRESS = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele 
 def api_system_status():
     try:
         cpu = psutil.cpu_percent(interval=None) # Non-blocking return since last call
-        # ram = psutil.virtual_memory().percent
+        ram = psutil.virtual_memory().percent
         disk = psutil.disk_usage('/').percent
         uptime_sec = int(time.time() - psutil.boot_time())
         days = uptime_sec // (24 * 3600)
@@ -482,7 +482,7 @@ def api_system_status():
             
         return {
             "cpu_percent": cpu,
-            # "ram_percent": ram,
+            "ram_percent": ram,
             "disk_percent": disk,
             "uptime": uptime_str,
             "local_ip": ip,
