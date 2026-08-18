@@ -396,6 +396,16 @@ class RealSensor:
             if all_ready:
                 return
             if time.time() - start > timeout:
+                if SENSOR_VARIANT == '4CH':
+                    ehz_ready = lgpio.gpio_read(h, DRDY_PINS[0]) == 0
+                    others_ready = all(lgpio.gpio_read(h, p) == 0 for p in DRDY_PINS[1:])
+                    if not ehz_ready and others_ready:
+                        print("sensor: Geophone ADC not detected! Auto-downgrading to 3CH and restarting...", file=sys.stderr)
+                        from database import update_settings
+                        import os
+                        update_settings({'sensor_variant': '3CH'})
+                        os._exit(1) # Force systemd to restart the service to apply changes
+                
                 raise TimeoutError(f"Timeout waiting for DRDY on {DRDY_PINS}")
 
     def _read_adc_raw(self, i: int, return_raw: bool = True) -> int:
