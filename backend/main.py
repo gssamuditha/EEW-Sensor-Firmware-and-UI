@@ -425,7 +425,7 @@ def api_metadata_stationxml():
     elevation   = float(s.get("elevation",  0.0))
 
     xml_content = build_stationxml(device_name, device_id, latitude, longitude, elevation)
-    filename    = f"{device_name}_response.xml"
+    filename    = f"{device_id}_response.xml"
 
     return StreamingResponse(
         iter([xml_content]),
