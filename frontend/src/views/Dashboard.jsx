@@ -19,7 +19,7 @@ export default function Dashboard() {
 
   const [systemStats, setSystemStats] = useState({
     cpu_percent: 0,
-    ram_percent: 0,
+    // ram_percent: 0,
     disk_percent: 0,
     uptime: '-',
     local_ip: '-',
@@ -211,15 +211,15 @@ export default function Dashboard() {
                   <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${systemStats.cpu_percent}%` }}></div>
                 </div>
               </div>
-              <div>
+              {/* <div>
                 <div className="flex justify-between text-xs font-bold font-mono text-slate-400 mb-1">
                   <span>Ram Usage</span>
-                  <span>{systemStats.ram_percent.toFixed(1)}%</span>
+                  <span>{systemStats.ram_percent?.toFixed(1)}%</span>
                 </div>
                 <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
                   <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${systemStats.ram_percent}%` }}></div>
                 </div>
-              </div>
+              </div> */}
               <div>
                 <div className="flex justify-between text-xs font-bold font-mono text-slate-400 mb-1">
                   <span>Disk Usage</span>
