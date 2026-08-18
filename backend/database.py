@@ -19,6 +19,12 @@ Design decisions
 import sqlite3
 import time
 from threading import Lock
+import random
+import string
+
+def _generate_device_id():
+    chars = string.ascii_uppercase + string.digits
+    return 'C' + ''.join(random.choice(chars) for _ in range(4))
 
 DB_PATH = "eew_sensor.db"
 db_lock = Lock()
@@ -29,7 +35,7 @@ _SETTINGS_DEFAULTS = {
     'latitude':         '0.0',
     'longitude':        '0.0',
     'device_name':      'CRISIS-NODE-01',
-    'device_id':        'T0021',          # 5-char SEED station code
+    'device_id':        _generate_device_id(),  # Auto-generated unique ID on first boot
     'network_code':     'CL',             # 2-char SEED network code
     'location_code':    '00',
     'archive_root':     '/home/crisislab/data/archive',

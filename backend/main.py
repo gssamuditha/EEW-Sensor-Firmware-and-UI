@@ -343,7 +343,7 @@ def api_get_settings():
         "floor_unit": int(s.get("floor_unit", 0)),
         "total_floors": int(s.get("total_floors", 1)),
         "device_name": s.get("device_name", "CRISIS-NODE-01"),
-        "device_id": s.get("device_id", "T0021"),
+        "device_id": s.get("device_id", "UNKNW"),
         "owner_name": s.get("owner_name", ""),
         "owner_email": s.get("owner_email", ""),
         "calibration_time": int(s.get("calibration_time", 60)),
@@ -396,7 +396,7 @@ def api_set_settings(settings: SettingsModel):
     # Fetch the definitively saved settings from the database
     updated_s = get_settings()
     https_publisher.send_metadata({
-        "device_id":    updated_s.get("device_id", "T0021"),
+        "device_id":    updated_s.get("device_id", "UNKNW"),
         "ts":           time.time(),
         "device_name":  updated_s.get("device_name", "CRISIS-NODE-01"),
         "owner_name":   updated_s.get("owner_name", ""),

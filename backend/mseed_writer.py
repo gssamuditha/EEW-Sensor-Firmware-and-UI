@@ -131,7 +131,7 @@ class MiniSEEDWriter:
         # Settings refreshed every 60 s from DB
         self._archive_root   = DEFAULT_ARCHIVE_ROOT
         self._network_code   = 'CL'
-        self._device_id      = 'T0021'   # 5-char SEED station code
+        self._device_id      = 'UNKNW'   # 5-char SEED station code
         self._location_code  = '00'
         self._settings_lock  = threading.Lock()
         self._write_lock     = threading.Lock()
@@ -192,7 +192,7 @@ class MiniSEEDWriter:
             with self._settings_lock:
                 self._archive_root  = s.get('archive_root',  DEFAULT_ARCHIVE_ROOT)
                 self._network_code  = s.get('network_code',  'CL').upper()
-                self._device_id     = s.get('device_id',     'T0021').upper()
+                self._device_id     = s.get('device_id',     'UNKNW').upper()
                 self._location_code = s.get('location_code', '00')
         except Exception as e:
             print(f"mseed_writer: settings refresh error: {e}", file=sys.stderr)
@@ -231,9 +231,12 @@ class MiniSEEDWriter:
         Handles day-boundary splits automatically — if the buffer spans
         midnight (UTC), it writes two separate records to the correct daily files.
         """
+        with self._settings_lock:
+            skip_writing = (not OBSPY_AVAILABLE) or (self._device_id == 'UNKNW')
+
         with self._write_lock:
-            if not OBSPY_AVAILABLE:
-                # Discard without error — running in a no-ObsPy environment
+            if skip_writing:
+                # Discard without error — running in a no-ObsPy environment or device is unconfigured
                 while not self._queue.empty():
                     try:
                         self._queue.get_nowait()
@@ -487,15 +490,15 @@ def read_waveform_range(t_start, t_end, settings: dict = None) -> object:
             s = get_settings()
             root = s.get('archive_root', DEFAULT_ARCHIVE_ROOT)
             net  = s.get('network_code',  'CL').upper()
-            sta  = s.get('device_id',     'T0021').upper()
+            sta  = s.get('device_id',     'UNKNW').upper()
             loc  = s.get('location_code', '00')
         except Exception:
             root = DEFAULT_ARCHIVE_ROOT
-            net, sta, loc = 'CL', 'T0021', '00'
+            net, sta, loc = 'CL', 'UNKNW', '00'
     else:
         root = settings.get('archive_root', DEFAULT_ARCHIVE_ROOT)
         net  = settings.get('network_code', 'CL').upper()
-        sta  = settings.get('device_id',    'T0021').upper()
+        sta  = settings.get('device_id',    'UNKNW').upper()
         loc  = settings.get('location_code','00')
 
     # Collect daily files that overlap the requested window

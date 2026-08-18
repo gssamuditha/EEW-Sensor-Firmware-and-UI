@@ -56,14 +56,16 @@ export default function Setup({ onComplete }) {
   // Additional target state
   const [newTarget, setNewTarget] = useState({ name: '', ip: '', port: 2098, format: 'corrected' });
 
-  // Generate ID on mount
+  // Fetch auto-generated ID from backend on mount
   useEffect(() => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let randomString = '';
-    for (let i = 0; i < 4; i++) {
-      randomString += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setFormData(prev => ({ ...prev, device_id: 'C' + randomString }));
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data.device_id && data.device_id !== 'UNKNW') {
+          setFormData(prev => ({ ...prev, device_id: data.device_id }));
+        }
+      })
+      .catch(err => console.error('Failed to fetch initial device_id:', err));
   }, []);
 
   const handleChange = (e) => {
