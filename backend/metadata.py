@@ -124,7 +124,7 @@ _SENSOR_NORM_FACTOR: float = math.sqrt(
 )  # ≈ 9424.83 (dominated by the pole term)
 
 # Network code for this EEW deployment
-NETWORK_CODE: str = "EW"
+NETWORK_CODE: str = "CL"
 
 # Conservative deployment epoch
 _EPOCH_START: str = "2024-01-01T00:00:00.000000Z"
