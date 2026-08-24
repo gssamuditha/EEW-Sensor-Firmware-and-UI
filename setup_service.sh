@@ -140,22 +140,12 @@ rm -f "$DEB_TMP" "$SHA256_TMP"
 # ── Save installed version ───────────────────────────────────
 echo "$TAG_NAME" | sudo tee "$VERSION_FILE" > /dev/null
 
-# ── Configure Safe Out-of-Tree Auto-Updater ──────────────────
-info "Setting up automatic OTA updater..."
-UPDATER_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/auto_update.sh"
-curl -sL "$UPDATER_URL" -o "$HOME/.eew_updater.sh"
-chmod +x "$HOME/.eew_updater.sh"
-
-CRON_JOB="*/30 * * * * $HOME/.eew_updater.sh >> $HOME/eew_auto_update.log 2>&1"
-
-# Safely update crontab without tripping set -e pipefail if it's currently empty
-crontab -l 2>/dev/null > /tmp/current_cron || true
-grep -v "\.eew_updater\.sh" /tmp/current_cron | grep -v "auto_update\.sh" > /tmp/new_cron || true
-echo "$CRON_JOB" >> /tmp/new_cron
-crontab /tmp/new_cron
-rm -f /tmp/current_cron /tmp/new_cron
-
-info "Auto-updater scheduled every 30 minutes."
+# ── Clean up legacy OTA Updater (if exists) ───────────────────
+if crontab -l 2>/dev/null | grep -q "\.eew_updater\.sh\|auto_update\.sh"; then
+    info "Removing legacy user crontab entry for OTA updater..."
+    crontab -l 2>/dev/null | grep -v "\.eew_updater\.sh" | grep -v "auto_update\.sh" | crontab - || true
+    rm -f "$HOME/.eew_updater.sh"
+fi
 
 # ── Sensor Variant Selection ──────────────────────────────────
 echo ""

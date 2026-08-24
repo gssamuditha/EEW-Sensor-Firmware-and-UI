@@ -157,6 +157,16 @@ jobs:
           # ── React frontend ───────────────────────────────────
           cp -r artifacts/frontend/. "${ROOT}/opt/eew-sensor/frontend/"
 
+          # ── OTA Updater & System Cronjob ───────────────────────
+          cp auto_update.sh "${ROOT}/opt/eew-sensor/auto_update.sh"
+          chmod 755 "${ROOT}/opt/eew-sensor/auto_update.sh"
+          
+          mkdir -p "${ROOT}/etc/cron.d"
+          printf '%s\n' \
+            "*/30 * * * * root /opt/eew-sensor/auto_update.sh >> /var/log/eew_sensor_ota.log 2>&1" \
+            > "${ROOT}/etc/cron.d/eew-sensor-ota"
+          chmod 644 "${ROOT}/etc/cron.d/eew-sensor-ota"
+
           # ── DEBIAN/control ───────────────────────────────────
           # python3-venv: required to create the isolated venv in postinst
           # libgpiod2, spidev, rpi.gpio: GPIO/SPI hardware access

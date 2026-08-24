@@ -36,7 +36,7 @@ REPO_API="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/lates
 # Installation path written by the .deb package.
 INSTALL_DIR="/opt/eew-sensor"
 DB_PATH="${INSTALL_DIR}/backend/eew_sensor.db"
-DB_BACKUP="${HOME}/eew_sensor.db.bak"
+DB_BACKUP="/var/backups/eew_sensor.db.bak"
 
 # Version marker (stores the currently installed tag name).
 VERSION_FILE="/opt/eew-sensor/.installed_version"
@@ -45,7 +45,7 @@ VERSION_FILE="/opt/eew-sensor/.installed_version"
 DEB_TMP="/tmp/eew-sensor-update.deb"
 SHA256_TMP="/tmp/eew-sensor-update.deb.sha256"
 
-LOG_FILE="${HOME}/eew_auto_update.log"
+LOG_FILE="/var/log/eew_sensor_ota.log"
 
 # ============================================================
 # HELPERS
