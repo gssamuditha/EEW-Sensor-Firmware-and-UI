@@ -38,6 +38,16 @@ DB_BACKUP="/var/backups/eew_sensor.db.bak"
 # Version marker (stores the currently installed tag name).
 VERSION_FILE="/opt/eew-sensor/.installed_version"
 
+# GitHub PAT token (for private repos). Stored by setup_service.sh.
+TOKEN_FILE="/etc/eew-sensor/github_token"
+if [ -f "$TOKEN_FILE" ]; then
+    GITHUB_TOKEN=$(cat "$TOKEN_FILE")
+else
+    GITHUB_TOKEN=""
+fi
+# Helper: emit curl auth args if a token is available
+curl_auth() { [ -n "$GITHUB_TOKEN" ] && echo "-H" && echo "Authorization: token $GITHUB_TOKEN" || true; }
+
 # Temporary download location.
 DEB_TMP="/tmp/eew-sensor-update.deb"
 SHA256_TMP="/tmp/eew-sensor-update.deb.sha256"
@@ -123,7 +133,7 @@ fi
 # STEP 3 — Fetch Latest Release from GitHub API
 # ============================================================
 log "Querying GitHub Releases API..."
-LATEST_JSON=$(curl -sf --max-time 15 "$REPO_API") || {
+LATEST_JSON=$(curl -sf --max-time 15 $(curl_auth) "$REPO_API") || {
     log "ERROR: GitHub API request failed. Skipping."
     exit 1
 }
@@ -203,7 +213,7 @@ fi
 # STEP 7 — Download .deb Package
 # ============================================================
 log "Downloading $TAG_NAME package..."
-if ! curl -L --fail --max-time 300 --progress-bar -o "$DEB_TMP" "$DEB_URL"; then
+if ! curl -L --fail --max-time 300 --progress-bar $(curl_auth) -o "$DEB_TMP" "$DEB_URL"; then
     log "ERROR: Failed to download package. Aborting."
     exit 1
 fi
@@ -214,7 +224,7 @@ log "  Downloaded $(du -sh "$DEB_TMP" | cut -f1)"
 # ============================================================
 if [ -n "$SHA256_URL" ]; then
     log "Verifying SHA256 checksum..."
-    if ! curl -sL --max-time 15 -o "$SHA256_TMP" "$SHA256_URL"; then
+    if ! curl -sL --max-time 15 $(curl_auth) -o "$SHA256_TMP" "$SHA256_URL"; then
         log "  WARNING: Could not download checksum file — skipping verification."
     else
         # The checksum file contains "HASH  filename.deb"
