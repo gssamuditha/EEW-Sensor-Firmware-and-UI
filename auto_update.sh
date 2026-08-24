@@ -25,9 +25,6 @@
 # CONFIGURATION
 # ============================================================
 
-# Cron schedule — changing this here propagates to all sensors on next run.
-DESIRED_CRON="0 * * * *"
-
 # GitHub repository (public releases are fetched without a token).
 REPO_OWNER="gssamuditha"
 REPO_NAME="EEW-Sensor-Firmware-and-UI"
@@ -103,15 +100,8 @@ cleanup_tmp() {
 }
 trap cleanup_tmp EXIT
 
-# ============================================================
-# STEP 0 — Self-Adjust Cron Schedule
-# ============================================================
-CURRENT_CRON=$(crontab -l 2>/dev/null | grep "\.eew_updater\.sh")
-EXPECTED_CRON="$DESIRED_CRON $HOME/.eew_updater.sh"
-if [ "$CURRENT_CRON" != "$EXPECTED_CRON" ]; then
-    log "Updating cron schedule to: $DESIRED_CRON"
-    (crontab -l 2>/dev/null | grep -v "\.eew_updater\.sh"; echo "$EXPECTED_CRON") | crontab -
-fi
+# NOTE: Cron schedule is managed by /etc/cron.d/eew-sensor-ota,
+# installed as part of the .deb package. No self-modification needed.
 
 # ============================================================
 # STEP 1 — Stagger Execution
