@@ -137,7 +137,7 @@ class HttpsPublisher:
         self._metadata_queue: queue.Queue = queue.Queue(maxsize=10)
 
         # Cached device_id — updated from DB by refresh_settings()
-        self._device_id: str = "T0021"
+        self._device_id: str = "UNKNW"
         self._settings_lock = threading.Lock()
 
     # ------------------------------------------------------------------
@@ -312,7 +312,7 @@ class HttpsPublisher:
             from database import get_settings
             s = get_settings()
             payload = {
-                "device_id":    s.get("device_id",      "T0021"),
+                "device_id":    s.get("device_id",      "UNKNW"),
                 "ts":           time.time(),
                 "device_name":  s.get("device_name",    "CRISIS-NODE-01"),
                 "owner_name":   s.get("owner_name",     ""),
@@ -401,7 +401,7 @@ class HttpsPublisher:
             from database import get_settings
             s = get_settings()
             with self._settings_lock:
-                self._device_id = s.get("device_id", "T0021")
+                self._device_id = s.get("device_id", "UNKNW")
         except Exception as e:
             logger.warning(f"https_publisher: settings refresh error: {e}")
 

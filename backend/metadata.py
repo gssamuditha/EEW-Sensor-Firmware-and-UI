@@ -16,13 +16,7 @@ Three-stage response (M/S**2 → COUNTS):
     Stage 2 — Coefficients    ADC conversion  V      → COUNTS  (Factor=1, 200 SPS → 200 SPS)
     Stage 3 — Coefficients    IIR anti-alias  COUNTS → COUNTS  (Factor=2, 200 SPS → 100 SPS)
 
-NOTE on the RS4D FIR coefficients
-----------------------------------
-This sensor uses a completely different hardware chain from the Raspberry Shake 4D.
-The RS4D ``RF-DL100.stage_2`` FIR taps represent a proprietary hardware FIR filter
-inside the RS custom ASIC — they are NOT applicable here.
-
-Our Stage 3 is a 2nd-order Butterworth IIR low-pass anti-aliasing filter (fc=50 Hz, fs=200 Hz)
+NOTE: Stage 3 is a 2nd-order Butterworth IIR low-pass anti-aliasing filter (fc=50 Hz, fs=200 Hz)
 followed by stride-2 decimation. This is explicitly applied in the sensor's hardware loop.
 The SOS coefficients are computed at module import time and embedded in the StationXML
 as IIR numerator/denominator sections.
@@ -115,9 +109,7 @@ import math
 # The ADXL354BEZ has a -3 dB bandwidth of 1500 Hz (±2g range, datasheet Table 1).
 # This is modelled as a single real pole in the Laplace domain:
 #   H_sensor(s) = 1 / (s - p₀)    where p₀ = -2π × 1500
-# At seismic frequencies (0.1–50 Hz) the roll-off is negligible (<0.01 dB),
-# but including the pole makes the PolesZeros formally identical to the
-# Raspberry Shake 4D accelerometer response structure.
+# At seismic frequencies (0.1–50 Hz) the roll-off is negligible (<0.01 dB).
 _SENSOR_BW_HZ: float = 1500.0
 _SENSOR_POLE_RAD_S: float = -2.0 * math.pi * _SENSOR_BW_HZ   # ≈ -9424.78 rad/s
 
@@ -132,7 +124,7 @@ _SENSOR_NORM_FACTOR: float = math.sqrt(
 )  # ≈ 9424.83 (dominated by the pole term)
 
 # Network code for this EEW deployment
-NETWORK_CODE: str = "EW"
+NETWORK_CODE: str = "CL"
 
 # Conservative deployment epoch
 _EPOCH_START: str = "2024-01-01T00:00:00.000000Z"
@@ -215,23 +207,13 @@ _BUTTERWORTH_XML_LINES = _sos_to_xml_lines(_compute_butterworth_sos())
 # ===========================================================================
 # EHZ Channel XML — GeoPhone velocity response
 # ===========================================================================
-# Based on the Raspberry Shake 4D EHZ channel response (R2472_response.xml).
-# Confirmed same hardware: 4.5 Hz geophone, RS4D instrument chain.
-#
-# Sensitivity: 399,650,000 counts/(m/s) @ 5 Hz
-# Stage 1: Poles/Zeros (Laplace, radians/second)
-#   Zeros: (0+0j) × 3
-#   Poles: -1, -3.03, -3.03, -666.67  (all real)
-# Stage 2: ADC gain (V→COUNTS), unity decimation (200 SPS input)
-# Stage 3: Our 2nd-order Butterworth IIR anti-alias + ×2 decimation
-#          (same as the ADXL channels — both share the same ADS1220 setup)
-# ===========================================================================
 
 _EHZ_SENSITIVITY         = 399_650_000.0   # counts / (m/s)
 _EHZ_REF_FREQ_HZ         = 5.0
 # EHZ ADC: ADS1220 with VREF = 3.3V
 _EHZ_VREF                = 3.3
 _EHZ_ADC_GAIN            = FULL_SCALE / _EHZ_VREF               # counts/V
+_EHZ_STAGE1_GAIN         = _EHZ_SENSITIVITY / _EHZ_ADC_GAIN     # V / (m/s)
 
 
 def _build_ehz_channel_xml(
@@ -254,15 +236,14 @@ def _build_ehz_channel_xml(
           <NumberSeconds>1</NumberSeconds>
         </SampleRateRatio>
         <ClockDrift unit="SECONDS/SAMPLE">0.0</ClockDrift>
-        <Sensor resourceId="Sensor-4D-RS-V7-VEL">
+        <Sensor resourceId="Sensor-EEW-GeoPhone-VEL">
           <Type>GeoPhone</Type>
-          <Description>Velocity — Raspberry Shake 4D vertical geophone (4.5 Hz)</Description>
-          <Manufacturer>Raspberry Shake</Manufacturer>
+          <Description>Velocity — Vertical geophone (4.5 Hz)</Description>
+          <Manufacturer>EEW Sensor</Manufacturer>
         </Sensor>
         <DataLogger resourceId="Datalogger-EEW-ADS1220-{int(_OUT_SPS)}hz"/>
         <Response>
 
-          <!-- Overall sensitivity: M/S → COUNTS = {_EHZ_SENSITIVITY:.0f} counts/(m/s) @ {_EHZ_REF_FREQ_HZ} Hz -->
           <InstrumentSensitivity>
             <Value>{_EHZ_SENSITIVITY:.4f}</Value>
             <Frequency>{_EHZ_REF_FREQ_HZ:.1f}</Frequency>
@@ -275,11 +256,8 @@ def _build_ehz_channel_xml(
             </OutputUnits>
           </InstrumentSensitivity>
 
-          <!-- Stage 1: GeoPhone Poles/Zeros (Laplace, radians/second)
-               RS4D 4.5 Hz geophone: 3 zeros at origin, poles at -1, -3.03×2, -666.67
-               StageGain = 399,650,000 counts/(m/s) @ 5 Hz -->
           <Stage number="1">
-            <PolesZeros name="RP-4D-RS-V6-VEL" resourceId="ResponsePAZ-4D-RS-V6-VEL">
+            <PolesZeros name="RP-EEW-GeoPhone-VEL" resourceId="ResponsePAZ-EEW-GeoPhone-VEL">
               <InputUnits>
                 <Name>M/S</Name>
                 <Description>Velocity in Meters Per Second</Description>
@@ -299,12 +277,11 @@ def _build_ehz_channel_xml(
               <Pole number="3"><Real>-666.67</Real><Imaginary>0.0</Imaginary></Pole>
             </PolesZeros>
             <StageGain>
-              <Value>{_EHZ_SENSITIVITY:.4f}</Value>
+              <Value>{_EHZ_STAGE1_GAIN:.7f}</Value>
               <Frequency>{_EHZ_REF_FREQ_HZ:.1f}</Frequency>
             </StageGain>
           </Stage>
 
-          <!-- Stage 2: ADS1220IPWR 24-bit ADC (VREF={_EHZ_VREF} V, Gain=1) -->
           <Stage number="2">
             <Coefficients>
               <InputUnits><Name>V</Name></InputUnits>
@@ -324,8 +301,6 @@ def _build_ehz_channel_xml(
             </StageGain>
           </Stage>
 
-          <!-- Stage 3: 2nd-order Butterworth IIR anti-alias + ×2 decimation
-               (identical to ADXL channels — shared ADS1220 pipeline) -->
           <Stage number="3">
             <Coefficients>
               <InputUnits><Name>COUNTS</Name></InputUnits>
@@ -386,11 +361,6 @@ def _build_channel_xml(
         <DataLogger resourceId="Datalogger-EEW-ADS1220-{int(_OUT_SPS)}hz"/>
         <Response>
 
-          <!-- Overall sensitivity: M/S**2 → COUNTS
-               = Stage1 ({_SENSOR_GAIN_V_PER_MS2:.6f} V·s²/m)
-               × Stage2 ({_ADC_GAIN_COUNTS_PER_V:.2f} counts/V)
-               × Stage3 (1.0)
-               = {INSTRUMENT_SENSITIVITY_COUNTS_PER_MS2:.4f} counts/(m/s²) -->
           <InstrumentSensitivity>
             <Value>{INSTRUMENT_SENSITIVITY_COUNTS_PER_MS2:.4f}</Value>
             <Frequency>{_REF_FREQ_HZ:.1f}</Frequency>
@@ -403,20 +373,6 @@ def _build_channel_xml(
             </OutputUnits>
           </InstrumentSensitivity>
 
-          <!-- ── Stage 1: ADXL354BEZ MEMS accelerometer ─────────────────
-               DC-coupled MEMS accelerometer.
-               Bandwidth: ±3 dB at 1500 Hz (datasheet Table 1, ±2g range).
-               Modelled as a single real Laplace pole at s = -2π×1500 rad/s.
-               At seismic frequencies (0–50 Hz) the attenuation is <0.01 dB
-               so the response is effectively flat, matching RS4D convention.
-
-               StageGain = SENSITIVITY / G
-                         = {ACC_SENSITIVITY_V_PER_G} V/g ÷ {G_TO_MS2} (m/s²)/g
-                         = {_SENSOR_GAIN_V_PER_MS2:.8f} V/(m/s²)  at {_REF_FREQ_HZ} Hz
-
-               NormalizationFactor A0 at ω_ref = 2π×{_REF_FREQ_HZ} rad/s:
-                 A0 = √(ω_ref² + pole²) = {_SENSOR_NORM_FACTOR:.4f}
-               (so that A0 × |H(jω_ref)| = 1, per FDSN StationXML §5.3) ── -->
           <Stage number="1">
             <PolesZeros name="RP-EEW-ADXL354BEZ-ACC" resourceId="ResponsePAZ-EEW-ADXL354BEZ-ACC">
               <InputUnits>
@@ -429,12 +385,10 @@ def _build_channel_xml(
               <PzTransferFunctionType>LAPLACE (RADIANS/SECOND)</PzTransferFunctionType>
               <NormalizationFactor>{_SENSOR_NORM_FACTOR:.4f}</NormalizationFactor>
               <NormalizationFrequency unit="HERTZ">{_REF_FREQ_HZ:.1f}</NormalizationFrequency>
-              <!-- Single real pole: ADXL354BEZ bandwidth limit at 1500 Hz -->
               <Pole number="0">
                 <Real>{_SENSOR_POLE_RAD_S:.4f}</Real>
                 <Imaginary>0.0</Imaginary>
               </Pole>
-              <!-- No zeros: DC-coupled flat accelerometer response -->
             </PolesZeros>
             <StageGain>
               <Value>{_SENSOR_GAIN_V_PER_MS2:.8f}</Value>
@@ -442,15 +396,6 @@ def _build_channel_xml(
             </StageGain>
           </Stage>
 
-          <!-- ── Stage 2: ADS1220IPWR 24-bit ADC ─────────────────────────
-               Config: Reg0=0x81 (AIN0/AIN1, PGA bypassed, Gain=1)
-                       Reg1=0x80 (330 SPS, Normal mode)
-                       Reg2=0x40 (External Vref = {VREF_ADCS[0]} V)
-               StageGain = FULL_SCALE / VREF
-                         = {FULL_SCALE} / {VREF_ADCS[0]}
-                         = {_ADC_GAIN_COUNTS_PER_V:.4f} counts/V
-               Note: ADS1220 sinc³ digital filter is intrinsic to the
-               delta-sigma modulator and is represented implicitly here. ── -->
           <Stage number="2">
             <Coefficients>
               <InputUnits>
@@ -474,12 +419,6 @@ def _build_channel_xml(
             </StageGain>
           </Stage>
 
-          <!-- ── Stage 3: 2nd-order Butterworth IIR anti-alias + ×2 decimation ──
-               Software filter implemented in sensor.py::_hw_loop for anti-aliasing
-               prior to decimation. Parameters: low-pass fc=50 Hz, fs=200 SPS, order=2.
-               Coefficients below are the actual scipy SOS sections flattened
-               to transfer-function Numerator/Denominator form.
-               Stage passband gain = 1.0 (Butterworth unity passband). ── -->
           <Stage number="3">
             <Coefficients>
               <InputUnits>

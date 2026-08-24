@@ -56,14 +56,16 @@ export default function Setup({ onComplete }) {
   // Additional target state
   const [newTarget, setNewTarget] = useState({ name: '', ip: '', port: 2098, format: 'corrected' });
 
-  // Generate ID on mount
+  // Fetch auto-generated ID from backend on mount
   useEffect(() => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let randomString = '';
-    for (let i = 0; i < 4; i++) {
-      randomString += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setFormData(prev => ({ ...prev, device_id: 'C' + randomString }));
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data.device_id && data.device_id !== 'UNKNW') {
+          setFormData(prev => ({ ...prev, device_id: data.device_id }));
+        }
+      })
+      .catch(err => console.error('Failed to fetch initial device_id:', err));
   }, []);
 
   const handleChange = (e) => {
@@ -200,8 +202,8 @@ export default function Setup({ onComplete }) {
               </div>
             </div>
 
-            <div className="h-64 w-full border border-gray-100 dark:border-slate-700 rounded-xl z-0 relative overflow-hidden shadow-sm">
-              <MapContainer center={[formData.latitude || 0, formData.longitude || 0]} zoom={2} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
+            <div className="w-full border border-gray-100 dark:border-slate-700 rounded-xl z-0 relative overflow-hidden shadow-sm" style={{ height: '500px' }}>
+              <MapContainer center={[formData.latitude || 0, formData.longitude || 0]} zoom={2} scrollWheelZoom={true} style={{ height: '500px', width: '100%' }}>
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 <LocationMarker
                   position={{ lat: formData.latitude, lng: formData.longitude }}

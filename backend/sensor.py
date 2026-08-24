@@ -396,6 +396,16 @@ class RealSensor:
             if all_ready:
                 return
             if time.time() - start > timeout:
+                if SENSOR_VARIANT == '4CH':
+                    ehz_ready = lgpio.gpio_read(h, DRDY_PINS[0]) == 0
+                    others_ready = all(lgpio.gpio_read(h, p) == 0 for p in DRDY_PINS[1:])
+                    if not ehz_ready and others_ready:
+                        print("sensor: Geophone ADC not detected! Auto-downgrading to 3CH and restarting...", file=sys.stderr)
+                        from database import update_settings
+                        import os
+                        update_settings({'sensor_variant': '3CH'})
+                        os._exit(1) # Force systemd to restart the service to apply changes
+                
                 raise TimeoutError(f"Timeout waiting for DRDY on {DRDY_PINS}")
 
     def _read_adc_raw(self, i: int, return_raw: bool = True) -> int:
@@ -806,6 +816,7 @@ class SensorManager:
         import queue
 
         settings_refresh_time = 0
+        last_print_time = 0
         batch_records = []
 
         while self.running:
@@ -866,9 +877,17 @@ class SensorManager:
                         "channel_units": {ch: CHANNEL_UNITS[i] for i, ch in enumerate(CHANNEL_NAMES)},
                     }
 
-                    print(f"Per-Channel Sample Rates:")
-                    for name in CHANNEL_NAMES:
-                        print(f"   {name}: {self.hardware_sps:.2f} sps (current), {self.avg_sps:.2f} sps (avg)")
+                    now_mono = time.monotonic()
+                    if now_mono - last_print_time >= 5.0:
+                        print(f"Per-Channel Sample Rates:")
+                        for name in CHANNEL_NAMES:
+                            print(f"   {name}: {self.hardware_sps:.2f} sps (current), {self.avg_sps:.2f} sps (avg)")
+                        last_print_time = now_mono
+
+                    # To test printing 4 times per second (every batch), comment out the 6 lines above and uncomment this block:
+                    # print(f"Per-Channel Sample Rates:")
+                    # for name in CHANNEL_NAMES:
+                    #     print(f"   {name}: {self.hardware_sps:.2f} sps (current), {self.avg_sps:.2f} sps (avg)")
 
                     # Thread-safe asyncio put
                     if self._loop and self._loop.is_running():

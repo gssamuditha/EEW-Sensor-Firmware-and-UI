@@ -316,12 +316,11 @@ export default function Settings() {
       {/* Tab Content Container */}
       <div className="w-full flex-1 relative min-h-0">
 
-        {/* Tab 1: General */}
         <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'general' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full overflow-y-auto p-1 pb-6">
 
             {/* Left column: Device Details + Response File */}
-            <div className="flex flex-col gap-6 overflow-y-auto">
+            <div className="flex flex-col gap-6">
 
               {/* Widget 1: Station & Operator Details */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
@@ -377,12 +376,12 @@ export default function Settings() {
             </div>{/* end left column */}
 
             {/* Widget 3: Device Location — right column full height */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full min-h-0">
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
               <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                 Device Location
               </h3>
               <div className="flex-1 flex flex-col min-h-0">
-                <div className="flex-1 min-h-0 mb-4 border border-slate-100 dark:border-slate-700 z-0 relative">
+                <div className="flex-1 min-h-[350px] mb-4 border border-slate-100 dark:border-slate-700 z-0 relative rounded-md overflow-hidden">
                   <MapContainer center={[lat || 0, lon || 0]} zoom={2} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <LocationMarker position={{ lat, lng: lon }} setPosition={(pos) => { setLat(pos.lat); setLon(pos.lng); }} />
@@ -460,7 +459,7 @@ export default function Settings() {
 
         {/* Tab 2: Network */}
         <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'network' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full overflow-y-auto p-1 pb-6">
 
             {/* Widget 1: Wi-Fi Manager */}
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
@@ -592,7 +591,7 @@ export default function Settings() {
             </div>
 
             {/* Widget 2: Data Sharing (UDP Targets) */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full min-h-0">
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
               <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider">
                   Data Sharing
@@ -725,7 +724,7 @@ export default function Settings() {
 
         {/* Tab 3: System */}
         <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'system' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full overflow-y-auto p-1 pb-6">
             {/* Left Column */}
             <div className="space-y-6 flex flex-col">
 
