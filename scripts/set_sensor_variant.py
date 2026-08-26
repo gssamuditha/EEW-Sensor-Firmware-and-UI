@@ -8,18 +8,21 @@ def main():
     # Handle command-line arguments if provided
     if len(sys.argv) == 2:
         choice = sys.argv[1].strip().upper()
-        if choice not in ('3CH', '4CH'):
-            print(f"[!] Invalid variant '{choice}'. Must be 3CH or 4CH.")
+        if choice not in ('3CH', '4CH', '3CH_V2'):
+            print(f"[!] Invalid variant '{choice}'. Must be 3CH, 4CH, or 3CH_V2.")
             sys.exit(1)
     else:
         # Interactive prompt
         print("\nSelect the sensor hardware variant for this development machine:")
-        print("  [1] 3-CH  (3× ADXL354 accelerometers only)")
-        print("  [2] 4-CH  (GeoPhone + 3× ADXL354 accelerometers)")
+        print("  [1] 3-CH     (3× ADXL354 accelerometers only)")
+        print("  [2] 4-CH     (GeoPhone + 3× ADXL354 accelerometers)")
+        print("  [3] 3-CH V2  (3× ADXL354 with new pin mapping)")
         print("")
-        ans = input("Enter choice [1/2, default=1]: ").strip()
+        ans = input("Enter choice [1/2/3, default=1]: ").strip()
         
-        if ans == '2':
+        if ans == '3':
+            choice = '3CH_V2'
+        elif ans == '2':
             choice = '4CH'
         else:
             choice = '3CH'
