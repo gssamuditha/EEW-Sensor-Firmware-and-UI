@@ -178,13 +178,38 @@ echo "=========================================================="
 echo "  Sensor Hardware Variant"
 echo "=========================================================="
 echo ""
-echo "  This firmware supports two hardware variants:"
-echo "  [1] 3-CH  — 3× ADXL354 accelerometers only (ENZ, ENN, ENE)"
-echo "  [2] 4-CH  — GeoPhone (EHZ) + 3× ADXL354 accelerometers"
+echo "  This firmware supports three hardware variants:"
+echo "  [1] 3-CH     — 3× ADXL354 accelerometers only (ENZ, ENN, ENE)"
+echo "  [2] 4-CH     — GeoPhone (EHZ) + 3× ADXL354 accelerometers"
+echo "  [3] 3-CH V2  — 3× ADXL354 with new pin mapping (CS: 8,19,16 | DRDY: 3,17,27)"
 echo ""
-read -r -p "  Select your sensor type [1/2, default=1]: " SENSOR_CHOICE
+read -r -p "  Select your sensor type [1/2/3, default=1]: " SENSOR_CHOICE
 
 case "$SENSOR_CHOICE" in
+    3)
+        SENSOR_VARIANT="3CH_V2"
+        info "3-CH V2 variant selected — ADXL354 accelerometer channels with new pin mappings."
+        echo ""
+        warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        warn "  REQUIRED: /boot/firmware/config.txt change for 3-CH V2"
+        warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "  The 3-CH V2 sensor uses BCM pin 8 (CE0) as a manual chip-select."
+        echo "  Standard SPI must be disabled and replaced with the no-CS overlay."
+        echo ""
+        echo "  Edit /boot/firmware/config.txt and make this change:"
+        echo ""
+        echo "    # REMOVE or comment out this line:"
+        echo "    #   dtparam=spi=on"
+        echo ""
+        echo "    # ADD this line:"
+        echo "    dtoverlay=spi0-0cs"
+        echo ""
+        warn "  This change requires a REBOOT to take effect."
+        warn "  The sensor will NOT work until this change is made."
+        echo ""
+        read -r -p "  Press ENTER to continue after noting the above..." _dummy
+        ;;
     2)
         SENSOR_VARIANT="4CH"
         info "4-CH variant selected — GeoPhone EHZ channel will be active."

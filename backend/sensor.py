@@ -162,6 +162,19 @@ CHANNEL_CONFIGS = {
             _acc_sensitivity(1.8),
         ],
     },
+    '3CH_V2': {
+        'names':                ['ENZ', 'ENN', 'ENE'],
+        'cs_pins':              [8, 19, 16],
+        'drdy_pins':            [3, 17, 27],
+        'vref':                 [1.8, 1.8, 1.8],
+        # channel unit types for UI labelling ('ACC' = m/s², 'VEL' = m/s)
+        'units':                ['ACC', 'ACC', 'ACC'],
+        'sensitivity_per_count': [
+            _acc_sensitivity(1.8),
+            _acc_sensitivity(1.8),
+            _acc_sensitivity(1.8),
+        ],
+    },
     '4CH': {
         'names':                ['EHZ', 'ENZ', 'ENN', 'ENE'],
         'cs_pins':              [8,  19, 13, 16],
@@ -203,7 +216,7 @@ def _detect_sensor_variant() -> str:
         from database import get_settings
         s = get_settings()
         forced = s.get('sensor_variant', '').strip().upper()
-        if forced in ('3CH', '4CH'):
+        if forced in ('3CH', '4CH', '3CH_V2'):
             print(f"sensor: variant forced by DB setting → {forced}", file=sys.stderr)
             return forced
     except Exception:
@@ -233,7 +246,7 @@ N_CHANNELS:     int  = len(CHANNEL_NAMES)
 INSTRUMENT_SENSITIVITY_PER_COUNT: list = _cfg['sensitivity_per_count']
 
 # Legacy alias kept for metadata.py compatibility
-INSTRUMENT_SENSITIVITY_MS2_PER_COUNT: float = _acc_sensitivity(VREF_ADCS[0] if SENSOR_VARIANT == '3CH' else 1.8)
+INSTRUMENT_SENSITIVITY_MS2_PER_COUNT: float = _acc_sensitivity(VREF_ADCS[0] if SENSOR_VARIANT in ('3CH', '3CH_V2') else 1.8)
 
 # Zero-level calibration per channel (filled by RealSensor.calibrate)
 RAW_COUNTS_ZERO: list = [0] * N_CHANNELS
