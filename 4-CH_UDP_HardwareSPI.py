@@ -66,8 +66,7 @@ def adc_init_all():
 def start_conversion_all():
     for cs in CS_PINS:
         gpio_out(cs, False)
-    spi.xfer2([0x08])
-    for cs in CS_PINS:
+        spi.xfer2([0x08])
         gpio_out(cs, True)
 
 def wait_all_drdy(timeout=10):

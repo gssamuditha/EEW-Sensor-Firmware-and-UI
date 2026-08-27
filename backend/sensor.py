@@ -379,24 +379,35 @@ class RealSensor:
     def _adc_init_all(self):
         """Send RESET + config registers to each ADC."""
         for i in range(N_CHANNELS):
+            # 1. RESET
             self._gpio_out(CS_PINS[i], False)
             time.sleep(0.0001)
             self.spi.xfer2([0x06])          # RESET command
+            self._gpio_out(CS_PINS[i], True)
             time.sleep(0.1)
+
+            # 2. Config WREG
+            self._gpio_out(CS_PINS[i], False)
+            time.sleep(0.0001)
             # Reg 0 = 0x81 : AIN0/AIN1, PGA disabled (Gain=1)
             # Reg 1 = 0x80 : 330 SPS, Normal mode, Single-shot
             # Reg 2 = 0x40 : External Vref
             self.spi.xfer2([0x42, 0x81, 0x80, 0x40])
+            self._gpio_out(CS_PINS[i], True)
+            time.sleep(0.1)
+
+            # 3. START
+            self._gpio_out(CS_PINS[i], False)
+            time.sleep(0.0001)
             self.spi.xfer2([0x08])          # START command
             self._gpio_out(CS_PINS[i], True)
             time.sleep(0.1)
 
     def _start_conversion_all(self):
-        """Assert START command simultaneously to all ADCs."""
+        """Assert START command sequentially to all ADCs to prevent SPI MISO contention."""
         for pin in CS_PINS:
             self._gpio_out(pin, False)
-        self.spi.xfer2([0x08])             # START/SYNC
-        for pin in CS_PINS:
+            self.spi.xfer2([0x08])             # START/SYNC
             self._gpio_out(pin, True)
 
     def _wait_all_drdy(self, timeout: float = 10.0):
