@@ -19,7 +19,7 @@ for pin in CS_PINS:
 
 spi = spidev.SpiDev()
 spi.open(0, 0)
-spi.max_speed_hz = 1000000
+spi.max_speed_hz = 4000000  # MUST be 4MHz — ADC reads 0.003V at 1MHz
 spi.mode = 0b01
 spi.no_cs = True
 

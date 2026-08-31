@@ -33,18 +33,22 @@ for pin in DRDY_PINS:
 
 spi = spidev.SpiDev()
 spi.open(0, 0)
-spi.max_speed_hz = 1000000
+spi.max_speed_hz = 4000000  # MUST be 4MHz — ADC reads 0.003V at 1MHz
 spi.mode = 0b01
 spi.no_cs = True  # We still need this because 19, 13, 16 are standard GPIOs, not hardware CS pins!
 
 def gpio_out(pin, val):
     lgpio.gpio_write(h, pin, 1 if val else 0)
 
-print("Initializing ADXL354 ADCs...")
+print("Waking up ADXL354 (STBY -> HIGH)...")
 gpio_out(ST1, False)
 gpio_out(ST2, False)
 gpio_out(STBY, True)
-time.sleep(0.5)
+print("Warming up sensor... (12 seconds — required on cold start)")
+for i in range(12, 0, -1):
+    print(f"  {i}s remaining...", end='\r')
+    time.sleep(1)
+print("Warmup complete.                  ")
 
 # Reset & Config ADCs with PROPER CS TOGGLING
 for cs in CS_PINS:
