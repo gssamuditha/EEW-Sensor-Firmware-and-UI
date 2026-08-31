@@ -80,7 +80,7 @@ export default function Dashboard() {
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4 flex-shrink-0">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center space-x-2 mr-2">
-            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-wider">Eew Sensor</h1>
+            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-wider">Ground Motion Sensor</h1>
             <span className="text-slate-300 dark:text-slate-700 text-xl">|</span>
           </div>
           <h2 className="text-xl font-bold text-primary dark:text-sky-400 tracking-wide">Live Telemetry</h2>

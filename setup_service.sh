@@ -21,8 +21,24 @@ REPO_NAME="EEW-Sensor-Firmware-and-UI"
 REPO_API="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest"
 SENSOR_USER="${SENSOR_USER:-crisislab}"
 VERSION_FILE="/opt/eew-sensor/.installed_version"
+TOKEN_FILE="/etc/eew-sensor/github_token"
 DEB_TMP="/tmp/eew-sensor-install.deb"
 SHA256_TMP="/tmp/eew-sensor-install.deb.sha256"
+
+# ── GitHub auth header (supports private repos) ──────────────
+# Pass your PAT via environment variable on first install:
+#   GITHUB_TOKEN=ghp_xxx curl -fsSL .../setup_service.sh | bash
+# On subsequent runs the token is read from TOKEN_FILE.
+if [ -z "${GITHUB_TOKEN:-}" ] && [ -f "$TOKEN_FILE" ]; then
+    GITHUB_TOKEN=$(cat "$TOKEN_FILE")
+fi
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+    GH_AUTH_HEADER="Authorization: token $GITHUB_TOKEN"
+else
+    GH_AUTH_HEADER=""
+fi
+# Helper: build curl auth args (empty if no token)
+curl_auth() { [ -n "$GH_AUTH_HEADER" ] && echo "-H" && echo "$GH_AUTH_HEADER" || true; }
 
 # ── Colour helpers ───────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
@@ -78,8 +94,9 @@ sudo apt-get install -y --no-install-recommends \
 
 # ── Fetch latest release ─────────────────────────────────────
 info "Fetching latest release from GitHub..."
-LATEST_JSON=$(curl -sf --max-time 15 "$REPO_API") || {
+LATEST_JSON=$(curl -sf --max-time 15 $(curl_auth) "$REPO_API") || {
     error "Failed to reach GitHub API. Check your internet connection."
+    [ -z "${GITHUB_TOKEN:-}" ] && warn "If this is a private repo, pass GITHUB_TOKEN=<pat> before the curl command."
     exit 1
 }
 
@@ -114,13 +131,13 @@ fi
 
 # ── Download package ─────────────────────────────────────────
 info "Downloading $TAG_NAME..."
-curl -L --fail --max-time 300 --progress-bar -o "$DEB_TMP" "$DEB_URL"
+curl -L --fail --max-time 300 --progress-bar $(curl_auth) -o "$DEB_TMP" "$DEB_URL"
 info "Downloaded $(du -sh "$DEB_TMP" | cut -f1)"
 
 # ── Verify checksum ──────────────────────────────────────────
 if [ -n "$SHA256_URL" ]; then
     info "Verifying SHA256 checksum..."
-    curl -sL --max-time 15 -o "$SHA256_TMP" "$SHA256_URL"
+    curl -sL --max-time 15 $(curl_auth) -o "$SHA256_TMP" "$SHA256_URL"
     EXPECTED=$(awk '{print $1}' "$SHA256_TMP")
     ACTUAL=$(sha256sum "$DEB_TMP" | awk '{print $1}')
     if [ "$EXPECTED" != "$ACTUAL" ]; then
@@ -140,6 +157,14 @@ rm -f "$DEB_TMP" "$SHA256_TMP"
 # ── Save installed version ───────────────────────────────────
 echo "$TAG_NAME" | sudo tee "$VERSION_FILE" > /dev/null
 
+# ── Save GitHub token for OTA updater ────────────────────────
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+    sudo mkdir -p /etc/eew-sensor
+    echo "$GITHUB_TOKEN" | sudo tee "$TOKEN_FILE" > /dev/null
+    sudo chmod 600 "$TOKEN_FILE"
+    info "GitHub token saved to $TOKEN_FILE for OTA updater."
+fi
+
 # ── Clean up legacy OTA Updater (if exists) ───────────────────
 if crontab -l 2>/dev/null | grep -q "\.eew_updater\.sh\|auto_update\.sh"; then
     info "Removing legacy user crontab entry for OTA updater..."
@@ -153,13 +178,38 @@ echo "=========================================================="
 echo "  Sensor Hardware Variant"
 echo "=========================================================="
 echo ""
-echo "  This firmware supports two hardware variants:"
-echo "  [1] 3-CH  — 3× ADXL354 accelerometers only (ENZ, ENN, ENE)"
-echo "  [2] 4-CH  — GeoPhone (EHZ) + 3× ADXL354 accelerometers"
+echo "  This firmware supports three hardware variants:"
+echo "  [1] 3-CH     — 3× ADXL354 accelerometers only (ENZ, ENN, ENE)"
+echo "  [2] 4-CH     — GeoPhone (EHZ) + 3× ADXL354 accelerometers"
+echo "  [3] 3-CH V2  — 3× ADXL354 with new pin mapping (CS: 8,19,16 | DRDY: 3,17,27)"
 echo ""
-read -r -p "  Select your sensor type [1/2, default=1]: " SENSOR_CHOICE
+read -r -p "  Select your sensor type [1/2/3, default=1]: " SENSOR_CHOICE
 
 case "$SENSOR_CHOICE" in
+    3)
+        SENSOR_VARIANT="3CH_V2"
+        info "3-CH V2 variant selected — ADXL354 accelerometer channels with new pin mappings."
+        echo ""
+        warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        warn "  REQUIRED: /boot/firmware/config.txt change for 3-CH V2"
+        warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "  The 3-CH V2 sensor uses BCM pin 8 (CE0) as a manual chip-select."
+        echo "  Standard SPI must be disabled and replaced with the no-CS overlay."
+        echo ""
+        echo "  Edit /boot/firmware/config.txt and make this change:"
+        echo ""
+        echo "    # REMOVE or comment out this line:"
+        echo "    #   dtparam=spi=on"
+        echo ""
+        echo "    # ADD this line:"
+        echo "    dtoverlay=spi0-0cs"
+        echo ""
+        warn "  This change requires a REBOOT to take effect."
+        warn "  The sensor will NOT work until this change is made."
+        echo ""
+        read -r -p "  Press ENTER to continue after noting the above..." _dummy
+        ;;
     2)
         SENSOR_VARIANT="4CH"
         info "4-CH variant selected — GeoPhone EHZ channel will be active."

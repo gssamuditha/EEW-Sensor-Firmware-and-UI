@@ -162,6 +162,19 @@ CHANNEL_CONFIGS = {
             _acc_sensitivity(1.8),
         ],
     },
+    '3CH_V2': {
+        'names':                ['ENZ', 'ENN', 'ENE'],
+        'cs_pins':              [8, 19, 16],
+        'drdy_pins':            [3, 17, 27],
+        'vref':                 [1.8, 1.8, 1.8],
+        # channel unit types for UI labelling ('ACC' = m/s², 'VEL' = m/s)
+        'units':                ['ACC', 'ACC', 'ACC'],
+        'sensitivity_per_count': [
+            _acc_sensitivity(1.8),
+            _acc_sensitivity(1.8),
+            _acc_sensitivity(1.8),
+        ],
+    },
     '4CH': {
         'names':                ['EHZ', 'ENZ', 'ENN', 'ENE'],
         'cs_pins':              [8,  19, 13, 16],
@@ -203,7 +216,7 @@ def _detect_sensor_variant() -> str:
         from database import get_settings
         s = get_settings()
         forced = s.get('sensor_variant', '').strip().upper()
-        if forced in ('3CH', '4CH'):
+        if forced in ('3CH', '4CH', '3CH_V2'):
             print(f"sensor: variant forced by DB setting → {forced}", file=sys.stderr)
             return forced
     except Exception:
@@ -233,7 +246,7 @@ N_CHANNELS:     int  = len(CHANNEL_NAMES)
 INSTRUMENT_SENSITIVITY_PER_COUNT: list = _cfg['sensitivity_per_count']
 
 # Legacy alias kept for metadata.py compatibility
-INSTRUMENT_SENSITIVITY_MS2_PER_COUNT: float = _acc_sensitivity(VREF_ADCS[0] if SENSOR_VARIANT == '3CH' else 1.8)
+INSTRUMENT_SENSITIVITY_MS2_PER_COUNT: float = _acc_sensitivity(VREF_ADCS[0] if SENSOR_VARIANT in ('3CH', '3CH_V2') else 1.8)
 
 # Zero-level calibration per channel (filled by RealSensor.calibrate)
 RAW_COUNTS_ZERO: list = [0] * N_CHANNELS
@@ -366,24 +379,35 @@ class RealSensor:
     def _adc_init_all(self):
         """Send RESET + config registers to each ADC."""
         for i in range(N_CHANNELS):
+            # 1. RESET
             self._gpio_out(CS_PINS[i], False)
             time.sleep(0.0001)
             self.spi.xfer2([0x06])          # RESET command
+            self._gpio_out(CS_PINS[i], True)
             time.sleep(0.1)
+
+            # 2. Config WREG
+            self._gpio_out(CS_PINS[i], False)
+            time.sleep(0.0001)
             # Reg 0 = 0x81 : AIN0/AIN1, PGA disabled (Gain=1)
             # Reg 1 = 0x80 : 330 SPS, Normal mode, Single-shot
             # Reg 2 = 0x40 : External Vref
             self.spi.xfer2([0x42, 0x81, 0x80, 0x40])
+            self._gpio_out(CS_PINS[i], True)
+            time.sleep(0.1)
+
+            # 3. START
+            self._gpio_out(CS_PINS[i], False)
+            time.sleep(0.0001)
             self.spi.xfer2([0x08])          # START command
             self._gpio_out(CS_PINS[i], True)
             time.sleep(0.1)
 
     def _start_conversion_all(self):
-        """Assert START command simultaneously to all ADCs."""
+        """Assert START command sequentially to all ADCs to prevent SPI MISO contention."""
         for pin in CS_PINS:
             self._gpio_out(pin, False)
-        self.spi.xfer2([0x08])             # START/SYNC
-        for pin in CS_PINS:
+            self.spi.xfer2([0x08])             # START/SYNC
             self._gpio_out(pin, True)
 
     def _wait_all_drdy(self, timeout: float = 10.0):

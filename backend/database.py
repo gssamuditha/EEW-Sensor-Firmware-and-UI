@@ -43,7 +43,7 @@ _SETTINGS_DEFAULTS = {
     'calibration_time': '60',
     'data_forwarding':  'true',
     'is_configured':    'false',
-    # Hardware variant: '3CH' (ADXL only) or '4CH' (GeoPhone + ADXL)
+    # Hardware variant: '3CH', '4CH' (GeoPhone), or '3CH_V2'
     # Set by setup_service.sh at installation time. Can be overridden here.
     'sensor_variant':   '3CH',
 }
