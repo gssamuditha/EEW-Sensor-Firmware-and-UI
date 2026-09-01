@@ -36,6 +36,49 @@ spi.mode = 0b01
 def cs_pin(pin, val):
     lgpio.gpio_write(h, pin, 1 if val else 0)
 
+def full_reset():
+    """
+    Complete ADXL354 + ADS1234 reset sequence.
+
+    The ADXL354 has no hardware RESET pin. A STBY LOW→HIGH cycle is the
+    equivalent: it fully powers down and reinitialises the internal reference,
+    signal chain, and proof-mass circuit — identical to a power cycle of the
+    analog core.
+
+    Sequence (per ADXL354 datasheet Table 2 and ADS1234 datasheet §9.5.1):
+      1. Force ST1 and ST2 LOW  — exit self-test mode (MUST be LOW)
+      2. Force STBY LOW         — ADXL354 analog core powers off
+      3. Hold 200 ms            — ensure VREFOUT fully discharges
+      4. Force STBY HIGH        — analog core restarts from clean state
+      5. Hold 500 ms            — VREFOUT stabilises at ~1.8 V
+      6. Send RESET (0x06)      — ADS1234 hardware register reset
+      7. Send WREG              — reconfigure ADS1234 registers
+      8. Send START (0x08)      — begin first conversion
+    """
+    print("  [reset] ST1=LOW, ST2=LOW (disable self-test)")
+    lgpio.gpio_write(h, ST1, 0)
+    lgpio.gpio_write(h, ST2, 0)
+
+    print("  [reset] STBY=LOW (analog core off — soft reset)")
+    lgpio.gpio_write(h, STBY, 0)
+    time.sleep(0.2)   # 200 ms — let VREFOUT fully discharge
+
+    print("  [reset] STBY=HIGH (analog core restarting...)")
+    lgpio.gpio_write(h, STBY, 1)
+    time.sleep(0.5)   # 500 ms — VREFOUT ramp + internal settling
+
+    print("  [reset] Sending RESET+WREG+START to each ADS1234")
+    for pin in CS_PINS:
+        cs_pin(pin, False)
+        time.sleep(0.000001)
+        spi.xfer2([0x06])                    # ADS1234 RESET command
+        time.sleep(0.1)                      # wait for reset to complete
+        spi.xfer2([0x42, 0x81, 0x80, 0x40]) # WREG: configure registers
+        spi.xfer2([0x08])                    # START first conversion
+        cs_pin(pin, True)
+        time.sleep(0.1)
+    print("  [reset] Done — sensor ready.")
+
 def init_adcs():
     """Initialises all ADS1234 ADCs (Reset -> Config -> Start)."""
     for pin in CS_PINS:
@@ -72,14 +115,20 @@ def read_once():
 
 # -----------------------------------------------------------------
 # TEST FLOW
-# config.txt must have: gpio=25=op,dl  (STBY = LOW at boot)
-# This script takes over and manually controls the wake/sleep cycle.
+# config.txt should have:
+#   gpio=23=op,dl   (ST1  = LOW — self-test disabled at boot)
+#   gpio=24=op,dl   (ST2  = LOW — self-test disabled at boot)
+#   gpio=25=op,dl   (STBY = LOW — clean standby at boot)
 # -----------------------------------------------------------------
 
 print("=" * 50)
 print("ADXL354 Standby Toggle Test")
-print("Expected boot state: STBY = LOW (gpio=25=op,dl)")
+print("Expected boot state: ST1=LOW, ST2=LOW, STBY=LOW")
 print("=" * 50)
+
+print("\n[STARTUP] Running full reset sequence...")
+full_reset()
+
 
 # -- STEP 1: Confirm clean standby --------------------------------
 print("\n[STEP 1] Explicitly holding STBY = LOW for 500ms (clean standby)")
