@@ -37,61 +37,90 @@ def cs_pin(pin, val):
     lgpio.gpio_write(h, pin, 1 if val else 0)
 
 def init_adcs():
-    """Initializes the ADS1234 ADCs."""
+    """Initialises all ADS1234 ADCs (Reset -> Config -> Start)."""
     for pin in CS_PINS:
         cs_pin(pin, False)
         time.sleep(0.000001)
-        spi.xfer2([0x06]) # Reset
+        spi.xfer2([0x06])                    # RESET
         time.sleep(0.1)
-        spi.xfer2([0x42, 0x81, 0x80, 0x40]) # Config
-        spi.xfer2([0x08]) # Start
+        spi.xfer2([0x42, 0x81, 0x80, 0x40]) # WREG: configure
+        spi.xfer2([0x08])                    # START conversion
         cs_pin(pin, True)
         time.sleep(0.1)
 
-def read_adc(i):
-    """Reads a single ADC."""
-    cs_pin(CS_PINS[i], False)
-    t0 = time.time()
-    while lgpio.gpio_read(h, DRDY_PINS[i]) != 0:
-        if time.time() - t0 > 0.5:
+def read_once():
+    """Reads all 3 ADC channels once and prints the voltages."""
+    results = []
+    for i in range(3):
+        cs_pin(CS_PINS[i], False)
+        t0 = time.time()
+        while lgpio.gpio_read(h, DRDY_PINS[i]) != 0:
+            if time.time() - t0 > 1.0:
+                cs_pin(CS_PINS[i], True)
+                results.append(None)
+                break
+        else:
+            data = spi.xfer2([0x00, 0x00, 0x00])
             cs_pin(CS_PINS[i], True)
-            return None
-    data = spi.xfer2([0x00, 0x00, 0x00])
-    cs_pin(CS_PINS[i], True)
-    raw = (data[0] << 16) | (data[1] << 8) | data[2]
-    if raw & (1 << 23):
-        raw -= (1 << 24)
-    return (raw / FULL_SCALE) * VREF
+            raw = (data[0] << 16) | (data[1] << 8) | data[2]
+            if raw & (1 << 23):
+                raw -= (1 << 24)
+            results.append((raw / FULL_SCALE) * VREF)
+    labels = ["ENZ", "ENN", "ENE"]
+    for i, v in enumerate(results):
+        print(f"  {labels[i]}: {v:.4f}V" if v is not None else f"  {labels[i]}: DRDY TIMEOUT")
 
-print("--- ADXL354 Standby Toggle Test ---")
-print("1. Waking up ADXL354 (STBY = HIGH)")
+# -----------------------------------------------------------------
+# TEST FLOW
+# config.txt must have: gpio=25=op,dl  (STBY = LOW at boot)
+# This script takes over and manually controls the wake/sleep cycle.
+# -----------------------------------------------------------------
+
+print("=" * 50)
+print("ADXL354 Standby Toggle Test")
+print("Expected boot state: STBY = LOW (gpio=25=op,dl)")
+print("=" * 50)
+
+# -- STEP 1: Confirm clean standby --------------------------------
+print("\n[STEP 1] Explicitly holding STBY = LOW for 500ms (clean standby)")
+lgpio.gpio_write(h, STBY, 0)   # Force LOW -- sensor in standby
+time.sleep(0.5)
+
+print("Reading while in Standby (all channels should be ~0.003V):")
+init_adcs()
+read_once()
+
+# -- STEP 2: Wake the sensor --------------------------------------
+print("\n[STEP 2] Driving STBY = HIGH (entering measurement mode)")
 lgpio.gpio_write(h, STBY, 1)
-time.sleep(1) # Give it time to wake up
+print("Waiting 500ms for VREFOUT to stabilise...")
+time.sleep(0.5)
+
+print("Re-initialising ADCs after wake...")
 init_adcs()
 
-print("\nReading ADCs in Measurement Mode:")
-for i in range(3):
-    v = read_adc(i)
-    print(f"  ADC {i}: {v:.4f}V" if v is not None else f"  ADC {i}: TIMEOUT")
+print("Reading in Measurement Mode (should be ~1.3V / 0.88V / 0.90V):")
+read_once()
 
-print("\n2. Putting ADXL354 in Standby Mode (STBY = LOW)")
+# -- STEP 3: Back to standby -------------------------------------
+print("\n[STEP 3] Driving STBY = LOW again (back to standby)")
 lgpio.gpio_write(h, STBY, 0)
-time.sleep(1) # Allow it to power down VREFOUT
+time.sleep(0.5)
 
-print("\nReading ADCs in Standby Mode (Expected: ~0.003V or Timeout):")
-for i in range(3):
-    v = read_adc(i)
-    print(f"  ADC {i}: {v:.4f}V" if v is not None else f"  ADC {i}: TIMEOUT")
+print("Reading in Standby again (should be ~0.003V):")
+init_adcs()
+read_once()
 
-print("\n3. Waking up ADXL354 again (STBY = HIGH)")
+# -- STEP 4: Wake again ------------------------------------------
+print("\n[STEP 4] Driving STBY = HIGH again (second recovery test)")
 lgpio.gpio_write(h, STBY, 1)
-time.sleep(1) # Give it time to wake up VREFOUT
-init_adcs() # Re-init ADCs just in case
+time.sleep(0.5)
+init_adcs()
 
-print("\nReading ADCs in Measurement Mode (Should recover):")
-for i in range(3):
-    v = read_adc(i)
-    print(f"  ADC {i}: {v:.4f}V" if v is not None else f"  ADC {i}: TIMEOUT")
+print("Reading in Measurement Mode again (should recover to ~1.3V):")
+read_once()
 
+print("\nDone.")
+spi.close()
 lgpio.gpiochip_close(h)
 spi.close()
