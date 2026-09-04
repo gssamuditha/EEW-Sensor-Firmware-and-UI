@@ -70,7 +70,7 @@ logger = logging.getLogger(__name__)
 # ZeroTier example:  "http://172.24.0.1:8080"
 # HTTPS example:     "https://172.24.0.1:8443"
 # Leave as None to disable publishing entirely (safe for development).
-CENTRAL_SERVER_URL: str | None = "http://127.0.0.1:8080"   # TODO: set before deployment
+CENTRAL_SERVER_URL: str | None = "https://server.terrasense.org.lk"   # TODO: set before deployment
 
 # No API key — authentication is handled by the ZeroTier controller.
 # Only nodes explicitly authorised in the ZeroTier network can reach this server.
@@ -253,14 +253,14 @@ class HttpsPublisher:
             while not self._metadata_queue.empty():
                 try:
                     payload = self._metadata_queue.get_nowait()
-                    self._post("/api/ingest/metadata", payload)
+                    self._post("/api/v1/ingestion/metadata", payload)
                 except queue.Empty:
                     break
 
             # ---- Priority 2: periodic telemetry heartbeat ----
             if now >= next_telemetry_at:
                 telemetry = self._build_telemetry_payload()
-                success = self._post("/api/ingest/telemetry", telemetry)
+                success = self._post("/api/v1/ingestion/telemetry", telemetry)
                 next_telemetry_at = time.monotonic() + TELEMETRY_INTERVAL_SEC
 
                 # ---- Priority 3: one-time startup metadata ----
@@ -323,7 +323,7 @@ class HttpsPublisher:
                 "floor":        int(s.get("floor_unit",  0)),
                 "total_floors": int(s.get("total_floors", 1)),
             }
-            self._post("/api/ingest/metadata", payload)
+            self._post("/api/v1/ingestion/metadata", payload)
         except Exception as e:
             logger.error(f"https_publisher: startup metadata failed: {e}")
 
