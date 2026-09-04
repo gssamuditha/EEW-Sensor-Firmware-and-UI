@@ -85,9 +85,6 @@ export default function AuthModal({ isOpen, onSuccess, onCancel }) {
               <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 tracking-wide leading-tight">
                 Admin Authentication
               </h3>
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
-                Required for critical changes
-              </p>
             </div>
           </div>
           <button
@@ -153,14 +150,11 @@ export default function AuthModal({ isOpen, onSuccess, onCancel }) {
               ) : (
                 <LockClosedIcon className="w-4 h-4" />
               )}
-              {loading ? 'Verifying…' : 'Unlock'}
+              {loading ? 'Verifying…' : 'Authenticate'}
             </button>
           </div>
         </form>
 
-        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono text-center mt-4">
-          Default: <span className="font-bold">cl123</span> — change it in Settings → System → Admin Password
-        </p>
       </div>
     </div>
   );

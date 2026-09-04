@@ -851,12 +851,8 @@ export default function Settings() {
               {/* ── Admin Password ─────────────────────────────────────────── */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0 gap-2">
-                  <Lock className="w-4 h-4" /> Admin Password
+                  Admin Password
                 </h3>
-                <p className="text-[11px] text-slate-400 dark:text-slate-400 font-mono mb-4 leading-relaxed">
-                  Required to authorise critical changes (data forwarding, Wi-Fi, targets, calibration, shutdown).
-                  Default: <span className="font-bold text-slate-600 dark:text-slate-300">cl123</span> — change on first use.
-                </p>
                 <div className="space-y-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Current Password</label>
@@ -910,7 +906,7 @@ export default function Settings() {
                     onClick={handleChangePassword}
                     className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest py-2 rounded-lg shadow-md flex items-center justify-center gap-2 hover:bg-opacity-90 transition-all text-sm"
                   >
-                    <Lock className="w-4 h-4" /> Update Password
+                    Update Password
                   </button>
                 </div>
               </div>
