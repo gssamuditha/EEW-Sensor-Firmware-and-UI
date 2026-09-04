@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowDownOnSquareIcon as Save, PlusIcon as Plus, XMarkIcon as X, WifiIcon as Wifi, PowerIcon as Power, MapPinIcon as MapPin, ComputerDesktopIcon as Monitor, Cog6ToothIcon as SettingsIcon, ChartBarIcon as Activity, EyeIcon as Eye, EyeSlashIcon as EyeOff, ArrowPathIcon as Loader2, TrashIcon as Trash2, SunIcon as Sun, MoonIcon as Moon, PaintBrushIcon as Palette, CircleStackIcon as Database } from '@heroicons/react/24/solid';
+import { ArrowDownOnSquareIcon as Save, PlusIcon as Plus, XMarkIcon as X, WifiIcon as Wifi, PowerIcon as Power, MapPinIcon as MapPin, ComputerDesktopIcon as Monitor, Cog6ToothIcon as SettingsIcon, ChartBarIcon as Activity, EyeIcon as Eye, EyeSlashIcon as EyeOff, ArrowPathIcon as Loader2, TrashIcon as Trash2, SunIcon as Sun, MoonIcon as Moon, PaintBrushIcon as Palette, CircleStackIcon as Database, LockClosedIcon as Lock } from '@heroicons/react/24/solid';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -14,6 +14,8 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 import { useTheme } from '../ThemeContext';
+import AuthModal from '../components/AuthModal';
+import { useAuth } from '../components/useAuth';
 
 function LocationMarker({ position, setPosition }) {
   useMapEvents({
@@ -29,6 +31,18 @@ function LocationMarker({ position, setPosition }) {
 
 export default function Settings() {
   const { theme, toggleTheme } = useTheme();
+
+  // ── Auth ────────────────────────────────────────────────────────────────────
+  const { requireAuth, showAuthModal, handleAuthSuccess, handleAuthCancel } = useAuth();
+
+  // ── Change-password form state ───────────────────────────────────────────────
+  const [currentPassword,  setCurrentPassword]  = useState('');
+  const [newPassword,      setNewPassword]      = useState('');
+  const [confirmPassword,  setConfirmPassword]  = useState('');
+  const [passwordStatus,   setPasswordStatus]   = useState(null);
+  const [showCurrentPw,    setShowCurrentPw]    = useState(false);
+  const [showNewPw,        setShowNewPw]        = useState(false);
+
   const [targets, setTargets] = useState([{ name: 'Main Server', ip: '127.0.0.1', port: 2098, format: 'corrected' }]);
   const [newName, setNewName] = useState('');
   const [newIp, setNewIp] = useState('');
@@ -132,36 +146,42 @@ export default function Settings() {
     setTargets(targets.filter((_, i) => i !== index));
   };
 
-  const handleSaveSettings = async () => {
-    try {
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          targets,
-          latitude: parseFloat(lat),
-          longitude: parseFloat(lon),
-          elevation: parseFloat(elevation),
-          floor_unit: parseInt(floorUnit),
-          total_floors: parseInt(totalFloors),
-          device_name: deviceName,
-          device_id: deviceId,
-          owner_name: ownerName,
-          owner_email: ownerEmail,
-          calibration_time: parseInt(calibrationTime),
-          retention_days: parseInt(retentionDays),
-          data_forwarding: dataForwarding
-        })
-      });
-      if (res.ok) {
-        showStatus('Configuration saved successfully.');
-      } else {
+  // Protected: opens auth modal then fires the fetch once token is available
+  const handleSaveSettings = () => {
+    requireAuth(async (authToken) => {
+      try {
+        const res = await fetch('/api/settings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Auth-Token': authToken,
+          },
+          body: JSON.stringify({
+            targets,
+            latitude: parseFloat(lat),
+            longitude: parseFloat(lon),
+            elevation: parseFloat(elevation),
+            floor_unit: parseInt(floorUnit),
+            total_floors: parseInt(totalFloors),
+            device_name: deviceName,
+            device_id: deviceId,
+            owner_name: ownerName,
+            owner_email: ownerEmail,
+            calibration_time: parseInt(calibrationTime),
+            retention_days: parseInt(retentionDays),
+            data_forwarding: dataForwarding
+          })
+        });
+        if (res.ok) {
+          showStatus('Configuration saved successfully.');
+        } else {
+          showStatus('Error saving configuration.', true);
+        }
+      } catch (e) {
+        console.error(e);
         showStatus('Error saving configuration.', true);
       }
-    } catch (e) {
-      console.error(e);
-      showStatus('Error saving configuration.', true);
-    }
+    });
   };
 
   const handleWifiConnect = async () => {
@@ -215,31 +235,36 @@ export default function Settings() {
     }
   };
 
-  const handleWifiToggle = async (enabled) => {
-    if (!enabled) {
-      const confirm = window.confirm("Warning: Disabling Wi-Fi will disconnect you immediately if you are currently accessing the dashboard over Wi-Fi. Continue?");
-      if (!confirm) return;
-    }
-    
-    setWifiEnabled(enabled);
-    if (!enabled) setWifiStatus('');
-    
-    try {
-      const res = await fetch('/api/wifi/toggle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled })
-      });
-      const data = await res.json();
-      if (data.status !== 'ok') {
-        setWifiEnabled(!enabled);
-        showWifiStatus('Failed to toggle Wi-Fi: ' + data.message, true);
+  // Protected: auth modal → confirmation (for disable) → API call
+  const handleWifiToggle = (enabled) => {
+    requireAuth(async (authToken) => {
+      if (!enabled) {
+        const confirmed = window.confirm(
+          'Warning: Disabling Wi-Fi will disconnect you immediately if you are currently accessing the dashboard over Wi-Fi. Continue?'
+        );
+        if (!confirmed) return;
       }
-    } catch (e) {
-      console.error(e);
-      setWifiEnabled(!enabled);
-      showWifiStatus('Error toggling Wi-Fi', true);
-    }
+
+      setWifiEnabled(enabled);
+      if (!enabled) setWifiStatus('');
+
+      try {
+        const res = await fetch('/api/wifi/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Auth-Token': authToken },
+          body: JSON.stringify({ enabled })
+        });
+        const data = await res.json();
+        if (data.status !== 'ok') {
+          setWifiEnabled(!enabled);
+          showWifiStatus('Failed to toggle Wi-Fi: ' + data.message, true);
+        }
+      } catch (e) {
+        console.error(e);
+        setWifiEnabled(!enabled);
+        showWifiStatus('Error toggling Wi-Fi', true);
+      }
+    });
   };
 
   const handleForgetNetwork = async (targetSsid) => {
@@ -263,16 +288,56 @@ export default function Settings() {
     }
   };
 
-  const handleSystemActionConfirm = async () => {
-    const endpoint = confirmModal === 'shutdown' ? '/api/system/shutdown' : '/api/system/restart';
-    const successMsg = confirmModal === 'shutdown' ? 'Shutting down Pi...' : 'System is restarting...';
+  // Protected: confirm modal closes first, then auth modal, then API call
+  const handleSystemActionConfirm = () => {
+    const action = confirmModal; // capture before closing
     setConfirmModal(null);
+    requireAuth(async (authToken) => {
+      const endpoint   = action === 'shutdown' ? '/api/system/shutdown' : '/api/system/restart';
+      const successMsg = action === 'shutdown' ? 'Shutting down Pi…'    : 'System is restarting…';
+      try {
+        await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'X-Auth-Token': authToken },
+        });
+        showStatus(successMsg);
+      } catch (e) {
+        console.error(e);
+        showStatus('Failed to trigger action.', true);
+      }
+    });
+  };
+
+  // Change-password form handler (uses its own credential verification, no session token needed)
+  const handleChangePassword = async () => {
+    if (!newPassword) {
+      setPasswordStatus({ msg: 'New password is required.', isError: true }); return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordStatus({ msg: 'Passwords do not match.', isError: true }); return;
+    }
+    if (newPassword.length < 4) {
+      setPasswordStatus({ msg: 'Password must be at least 4 characters.', isError: true }); return;
+    }
     try {
-      await fetch(endpoint, { method: 'POST' });
-      showStatus(successMsg);
-    } catch (e) {
-      console.error(e);
-      showStatus('Failed to trigger action.', true);
+      const res  = await fetch('/api/auth/set_password', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          current_password: currentPassword || undefined,
+          new_password:     newPassword,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPasswordStatus({ msg: 'Password updated successfully.', isError: false });
+        setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+        setTimeout(() => setPasswordStatus(null), 4000);
+      } else {
+        setPasswordStatus({ msg: data.detail || 'Failed to update password.', isError: true });
+      }
+    } catch {
+      setPasswordStatus({ msg: 'Network error.', isError: true });
     }
   };
 
@@ -782,6 +847,73 @@ export default function Settings() {
                   </button>
                 </div>
               </div>
+
+              {/* ── Admin Password ─────────────────────────────────────────── */}
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0 gap-2">
+                  <Lock className="w-4 h-4" /> Admin Password
+                </h3>
+                <p className="text-[11px] text-slate-400 dark:text-slate-400 font-mono mb-4 leading-relaxed">
+                  Required to authorise critical changes (data forwarding, Wi-Fi, targets, calibration, shutdown).
+                  Default: <span className="font-bold text-slate-600 dark:text-slate-300">cl123</span> — change on first use.
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Current Password</label>
+                    <div className="relative">
+                      <input
+                        type={showCurrentPw ? 'text' : 'password'}
+                        value={currentPassword}
+                        onChange={e => setCurrentPassword(e.target.value)}
+                        placeholder="Current password"
+                        className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none font-mono text-sm pr-10"
+                      />
+                      <button type="button" onClick={() => setShowCurrentPw(v => !v)} className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                        {showCurrentPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">New Password</label>
+                    <div className="relative">
+                      <input
+                        type={showNewPw ? 'text' : 'password'}
+                        value={newPassword}
+                        onChange={e => setNewPassword(e.target.value)}
+                        placeholder="New password (min. 4 chars)"
+                        className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none font-mono text-sm pr-10"
+                      />
+                      <button type="button" onClick={() => setShowNewPw(v => !v)} className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                        {showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Confirm New Password</label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm new password"
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none font-mono text-sm"
+                    />
+                  </div>
+
+                  {passwordStatus && (
+                    <p className={`text-xs font-bold font-mono ${passwordStatus.isError ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-500'}`}>
+                      {passwordStatus.isError ? '⚠ ' : '✓ '}{passwordStatus.msg}
+                    </p>
+                  )}
+
+                  <button
+                    id="change-password-btn"
+                    onClick={handleChangePassword}
+                    className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest py-2 rounded-lg shadow-md flex items-center justify-center gap-2 hover:bg-opacity-90 transition-all text-sm"
+                  >
+                    <Lock className="w-4 h-4" /> Update Password
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Right Column: Calibration Settings & System Actions */}
@@ -903,6 +1035,13 @@ export default function Settings() {
           </div>
         </div>
       )}
+
+      {/* Auth modal — rendered last so it sits above all other overlays */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onSuccess={handleAuthSuccess}
+        onCancel={handleAuthCancel}
+      />
     </div>
   );
 }

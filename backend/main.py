@@ -9,8 +9,12 @@ import uuid
 import sys
 import subprocess
 import threading
+import bcrypt
+import hmac
+import hashlib
+import secrets
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request, Depends, Header
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
@@ -123,6 +127,94 @@ class FilterModel(BaseModel):
         if v > 50.0:
             raise ValueError('high_hz must be <= 50.0')
         return v
+
+
+# ---------------------------------------------------------------------------
+# Authentication system
+# ---------------------------------------------------------------------------
+
+# Ephemeral per-boot secret — all active browser sessions are cleared on service
+# restart, which is intentional for an embedded sensor device.
+_SESSION_SECRET = secrets.token_bytes(32)
+_SESSION_TTL    = 600  # 10-minute session window
+
+
+class AuthVerifyModel(BaseModel):
+    password: str
+
+
+class AuthSetPasswordModel(BaseModel):
+    new_password: str
+    current_password: str | None = None
+
+
+def _generate_session_token() -> str:
+    """Create a self-contained HMAC-signed token encoding the expiry timestamp."""
+    expiry  = int(time.time()) + _SESSION_TTL
+    payload = str(expiry)
+    sig     = hmac.new(_SESSION_SECRET, payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}.{sig}"
+
+
+def _verify_session_token(token: str) -> bool:
+    """Validate token signature and check it has not expired."""
+    try:
+        payload, sig = token.rsplit(".", 1)
+        expiry       = int(payload)
+        expected     = hmac.new(_SESSION_SECRET, payload.encode(), hashlib.sha256).hexdigest()
+        # Use constant-time comparison to resist timing attacks
+        if not hmac.compare_digest(sig, expected):
+            return False
+        return time.time() < expiry
+    except Exception:
+        return False
+
+
+def require_auth(x_auth_token: str = Header(default="")) -> None:
+    """FastAPI dependency — raises 401 if no valid session token is present in the X-Auth-Token header."""
+    if not _verify_session_token(x_auth_token):
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required — enter admin password"
+        )
+
+
+@app.get("/api/auth/status")
+def api_auth_status():
+    """Return whether an admin password has been configured on this sensor."""
+    s = get_settings()
+    return {"configured": bool(s.get("admin_password_hash", ""))}
+
+
+@app.post("/api/auth/verify")
+def api_auth_verify(body: AuthVerifyModel):
+    """Verify the admin password and return a short-lived HMAC session token."""
+    s           = get_settings()
+    stored_hash = s.get("admin_password_hash", "")
+    if not stored_hash:
+        raise HTTPException(status_code=503, detail="Admin password not configured")
+    if not bcrypt.checkpw(body.password.encode(), stored_hash.encode()):
+        raise HTTPException(status_code=401, detail="Incorrect password")
+    return {"status": "ok", "token": _generate_session_token(), "ttl": _SESSION_TTL}
+
+
+@app.post("/api/auth/set_password")
+def api_auth_set_password(body: AuthSetPasswordModel):
+    """Change the admin password. Requires the current password if one is already set."""
+    s           = get_settings()
+    stored_hash = s.get("admin_password_hash", "")
+    # If a password is already configured, verify it before allowing a change
+    if stored_hash:
+        if not body.current_password:
+            raise HTTPException(status_code=400, detail="Current password is required")
+        if not bcrypt.checkpw(body.current_password.encode(), stored_hash.encode()):
+            raise HTTPException(status_code=401, detail="Current password is incorrect")
+    if not body.new_password or len(body.new_password) < 4:
+        raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
+    new_hash = bcrypt.hashpw(body.new_password.encode(), bcrypt.gensalt()).decode()
+    update_settings({"admin_password_hash": new_hash})
+    return {"status": "ok", "message": "Password updated successfully"}
+
 
 
 # ---------------------------------------------------------------------------
@@ -240,7 +332,7 @@ def api_wifi_networks():
     networks, active_ssid = _get_saved_networks()
     return {"networks": networks, "active_ssid": active_ssid, "wifi_enabled": wifi_enabled}
 
-@app.post("/api/wifi/toggle")
+@app.post("/api/wifi/toggle", dependencies=[Depends(require_auth)])
 def api_wifi_toggle(toggle: WifiToggleModel):
     """Enable or disable the Wi-Fi radio."""
     if sys.platform == 'win32':
@@ -308,12 +400,12 @@ def api_wifi_forget(wifi: WifiActionModel):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-@app.post("/api/system/restart")
+@app.post("/api/system/restart", dependencies=[Depends(require_auth)])
 def api_system_restart():
     subprocess.Popen(["sudo", "/sbin/reboot"])
     return {"status": "ok"}
 
-@app.post("/api/system/shutdown")
+@app.post("/api/system/shutdown", dependencies=[Depends(require_auth)])
 def api_system_shutdown():
     subprocess.Popen(["sudo", "/sbin/poweroff"])
     return {"status": "ok"}
@@ -358,7 +450,7 @@ def api_get_settings():
         "channel_units": {ch: CHANNEL_UNITS[i] for i, ch in enumerate(CHANNEL_NAMES)},
     }
 
-@app.post("/api/settings")
+@app.post("/api/settings", dependencies=[Depends(require_auth)])
 def api_set_settings(settings: SettingsModel):
     targets_json = json.dumps([
         {"name": t.name, "ip": t.ip, "port": t.port, "format": t.format}

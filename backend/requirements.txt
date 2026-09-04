@@ -11,3 +11,4 @@ numpy
 obspy
 pamela
 httpx
+bcrypt
