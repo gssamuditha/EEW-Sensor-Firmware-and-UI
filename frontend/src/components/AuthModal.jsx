@@ -132,7 +132,7 @@ export default function AuthModal({ isOpen, onSuccess, onCancel }) {
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold uppercase tracking-wider py-2 rounded-lg transition-colors text-sm"
+              className="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold tracking-wider py-2 rounded-lg transition-colors text-sm"
             >
               Cancel
             </button>
@@ -140,15 +140,13 @@ export default function AuthModal({ isOpen, onSuccess, onCancel }) {
               type="submit"
               id="auth-unlock-btn"
               disabled={loading || !password}
-              className="flex-1 bg-[#1a4162] dark:bg-sky-600 hover:bg-[#1a4162]/90 dark:hover:bg-sky-700 text-white font-bold uppercase tracking-wider py-2 rounded-lg transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 bg-[#1a4162] dark:bg-sky-600 hover:bg-[#1a4162]/90 dark:hover:bg-sky-700 text-white font-bold tracking-wider py-2 rounded-lg transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {loading ? (
+              {loading && (
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                 </svg>
-              ) : (
-                <LockClosedIcon className="w-4 h-4" />
               )}
               {loading ? 'Verifying…' : 'Authenticate'}
             </button>
