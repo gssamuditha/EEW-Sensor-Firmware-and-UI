@@ -13,18 +13,22 @@ if [ ! -d "$REPO_DIR/backend" ] || [ ! -d "$REPO_DIR/frontend" ]; then
     exit 1
 fi
 
-# Ensure the virtual environment exists and install dependencies
+# Create the virtual environment on first run only
 if [ ! -d "$VENV_DIR" ]; then
     echo "Virtual environment not found. Installing system dependencies and creating venv..."
     sudo apt-get update -qq
     sudo apt-get install -y --no-install-recommends \
         python3-venv python3-pip sqlite3 python3-dev build-essential swig liblgpio-dev
-    
     python3 -m venv "$VENV_DIR"
-    source "$VENV_DIR/bin/activate"
-    echo "Installing Python requirements..."
-    pip install -r "$REPO_DIR/backend/requirements.txt"
 fi
+
+# Always sync Python packages — picks up any new/changed dependencies in requirements.txt
+# pip is smart: already-satisfied packages are skipped instantly.
+echo "Syncing Python dependencies from requirements.txt..."
+source "$VENV_DIR/bin/activate"
+pip install -q --upgrade pip
+pip install -q -r "$REPO_DIR/backend/requirements.txt"
+echo "  -> Dependencies up to date."
 
 SERVICE_FILE=/etc/systemd/system/eew-sensor-dev.service
 
