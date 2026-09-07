@@ -668,7 +668,7 @@ export default function Settings() {
                     Data Forwarding
                   </span>
                   <button
-                    onClick={() => setDataForwarding(!dataForwarding)}
+                    onClick={() => requireAuth(() => setDataForwarding(!dataForwarding))}
                     className={`w-12 h-6 rounded-full p-1 transition-colors flex items-center ${dataForwarding ? 'bg-[#10B981]' : 'bg-gray-300'}`}
                   >
                     <div className={`bg-white dark:bg-slate-800 w-4 h-4 rounded-full shadow-md transform transition-transform ${dataForwarding ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -950,14 +950,14 @@ export default function Settings() {
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
                   <button
-                    onClick={() => openConfirmModal('restart')}
+                    onClick={() => requireAuth(() => openConfirmModal('restart'))}
                     className="bg-red-500 text-white font-bold tracking-widest px-4 py-4 flex flex-col items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
                   >
                     <Power className="w-5 h-5" />
                     <span className="text-xs">Restart Sensor</span>
                   </button>
                   <button
-                    onClick={() => openConfirmModal('shutdown')}
+                    onClick={() => requireAuth(() => openConfirmModal('shutdown'))}
                     className="bg-red-500 text-white font-bold tracking-widest px-4 py-4 flex flex-col items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
                   >
                     <Power className="w-5 h-5" />

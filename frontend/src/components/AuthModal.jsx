@@ -148,7 +148,7 @@ export default function AuthModal({ isOpen, onSuccess, onCancel }) {
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                 </svg>
               )}
-              {loading ? 'Verifying…' : 'Authenticate'}
+              {loading ? 'Verifying…' : 'Confirm'}
             </button>
           </div>
         </form>
