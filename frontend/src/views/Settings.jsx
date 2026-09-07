@@ -948,17 +948,17 @@ export default function Settings() {
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                   System Actions
                 </h3>
-                <div className="flex justify-center gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => requireAuth(() => openConfirmModal('restart'))}
-                    className="bg-red-500 text-white font-bold tracking-widest px-5 py-3 flex flex-row items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
+                    className="bg-red-500 text-white font-bold tracking-widest px-4 py-3 flex flex-row items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
                   >
                     <Power className="w-4 h-4" />
                     <span className="text-xs">Restart Sensor</span>
                   </button>
                   <button
                     onClick={() => requireAuth(() => openConfirmModal('shutdown'))}
-                    className="bg-red-500 text-white font-bold tracking-widest px-5 py-3 flex flex-row items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
+                    className="bg-red-500 text-white font-bold tracking-widest px-4 py-3 flex flex-row items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
                   >
                     <Power className="w-4 h-4" />
                     <span className="text-xs">Shutdown Sensor</span>
