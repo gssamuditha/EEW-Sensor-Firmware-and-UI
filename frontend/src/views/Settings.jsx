@@ -982,8 +982,8 @@ export default function Settings() {
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 font-mono mb-6 leading-relaxed">
               {confirmModal === 'shutdown'
-                ? 'Are you sure you want to gracefully power off the Raspberry Pi?'
-                : 'Are you sure you want to reboot the Raspberry Pi? Telemetry will be temporarily unavailable.'}
+                ? 'Are you sure you want to power off the Sensor?'
+                : 'Are you sure you want to reboot the Sensor? Telemetry will be temporarily unavailable.'}
             </p>
             <div className="flex space-x-3">
               <button
