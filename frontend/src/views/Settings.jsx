@@ -36,12 +36,12 @@ export default function Settings() {
   const { requireAuth, showAuthModal, handleAuthSuccess, handleAuthCancel } = useAuth();
 
   // ── Change-password form state ───────────────────────────────────────────────
-  const [currentPassword,  setCurrentPassword]  = useState('');
-  const [newPassword,      setNewPassword]      = useState('');
-  const [confirmPassword,  setConfirmPassword]  = useState('');
-  const [passwordStatus,   setPasswordStatus]   = useState(null);
-  const [showCurrentPw,    setShowCurrentPw]    = useState(false);
-  const [showNewPw,        setShowNewPw]        = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordStatus, setPasswordStatus] = useState(null);
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
 
   const [targets, setTargets] = useState([{ name: 'Main Server', ip: '127.0.0.1', port: 2098, format: 'corrected' }]);
   const [newName, setNewName] = useState('');
@@ -293,8 +293,8 @@ export default function Settings() {
     const action = confirmModal; // capture before closing
     setConfirmModal(null);
     requireAuth(async (authToken) => {
-      const endpoint   = action === 'shutdown' ? '/api/system/shutdown' : '/api/system/restart';
-      const successMsg = action === 'shutdown' ? 'Shutting down Pi…'    : 'System is restarting…';
+      const endpoint = action === 'shutdown' ? '/api/system/shutdown' : '/api/system/restart';
+      const successMsg = action === 'shutdown' ? 'Shutting down Pi…' : 'System is restarting…';
       try {
         await fetch(endpoint, {
           method: 'POST',
@@ -320,12 +320,12 @@ export default function Settings() {
       setPasswordStatus({ msg: 'Password must be at least 4 characters.', isError: true }); return;
     }
     try {
-      const res  = await fetch('/api/auth/set_password', {
-        method:  'POST',
+      const res = await fetch('/api/auth/set_password', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
+        body: JSON.stringify({
           current_password: currentPassword || undefined,
-          new_password:     newPassword,
+          new_password: newPassword,
         }),
       });
       const data = await res.json();
@@ -539,119 +539,119 @@ export default function Settings() {
                   <div className={`bg-white dark:bg-slate-800 w-4 h-4 rounded-full shadow-md transform transition-transform ${wifiEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
                 </button>
               </div>
-              
+
               {!wifiEnabled && (
                 <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-700">
                   <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Wi-Fi is currently disabled.</p>
                 </div>
               )}
               {wifiEnabled && (
-              <div className="space-y-4">
+                <div className="space-y-4">
 
-                {/* Active Connection Indicator */}
-                <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm px-4 py-2">
-                  <div className={`w-2 h-2 rounded-full ${activeWifi ? 'bg-emerald-500' : 'bg-gray-400'}`}></div>
-                  <span className="text-xs font-bold text-[#1a4162] dark:text-sky-300 font-mono tracking-wide">
-                    {activeWifi ? `CONNECTED TO: ${activeWifi}` : 'NOT CONNECTED'}
-                  </span>
-                </div>
+                  {/* Active Connection Indicator */}
+                  <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm px-4 py-2">
+                    <div className={`w-2 h-2 rounded-full ${activeWifi ? 'bg-emerald-500' : 'bg-gray-400'}`}></div>
+                    <span className="text-xs font-bold text-[#1a4162] dark:text-sky-300 font-mono tracking-wide">
+                      {activeWifi ? `CONNECTED TO: ${activeWifi}` : 'NOT CONNECTED'}
+                    </span>
+                  </div>
 
-                {/* Saved Networks List — TOP */}
-                <div>
-                  <h4 className="text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Saved Networks</h4>
-                  {savedNetworks.length === 0 ? (
-                    <p className="text-xs text-slate-400 dark:text-slate-400 font-mono italic py-2">No saved Wi-Fi networks.</p>
-                  ) : (
-                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                      {savedNetworks.map((net, idx) => {
-                        const isActive = net.is_active || activeWifi === net.ssid;
-                        return (
-                          <div key={idx} className={`flex items-center justify-between px-3 py-2 border ${isActive ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800' : 'bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-700'}`}>
-                            <div className="flex items-center space-x-2 min-w-0">
-                              <div className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
-                              <span className={`text-sm font-bold truncate ${isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-700 dark:text-slate-200'}`}>{net.ssid}</span>
-                              {isActive && <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider shrink-0">Active</span>}
-                            </div>
-                            <div className="flex items-center space-x-1.5 shrink-0 ml-2">
-                              {!isActive && (
+                  {/* Saved Networks List — TOP */}
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Saved Networks</h4>
+                    {savedNetworks.length === 0 ? (
+                      <p className="text-xs text-slate-400 dark:text-slate-400 font-mono italic py-2">No saved Wi-Fi networks.</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                        {savedNetworks.map((net, idx) => {
+                          const isActive = net.is_active || activeWifi === net.ssid;
+                          return (
+                            <div key={idx} className={`flex items-center justify-between px-3 py-2 border ${isActive ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800' : 'bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-700'}`}>
+                              <div className="flex items-center space-x-2 min-w-0">
+                                <div className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
+                                <span className={`text-sm font-bold truncate ${isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-700 dark:text-slate-200'}`}>{net.ssid}</span>
+                                {isActive && <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider shrink-0">Active</span>}
+                              </div>
+                              <div className="flex items-center space-x-1.5 shrink-0 ml-2">
+                                {!isActive && (
+                                  <button
+                                    onClick={() => handleConnectSaved(net.ssid)}
+                                    disabled={wifiLoading}
+                                    className="px-2.5 py-1 text-xs font-bold uppercase bg-primary dark:bg-sky-600 text-white rounded-md hover:bg-opacity-90 transition-all shadow-sm disabled:opacity-50"
+                                  >
+                                    Connect
+                                  </button>
+                                )}
                                 <button
-                                  onClick={() => handleConnectSaved(net.ssid)}
+                                  onClick={() => handleForgetNetwork(net.ssid)}
                                   disabled={wifiLoading}
-                                  className="px-2.5 py-1 text-xs font-bold uppercase bg-primary dark:bg-sky-600 text-white rounded-md hover:bg-opacity-90 transition-all shadow-sm disabled:opacity-50"
+                                  className="p-1 text-slate-400 dark:text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                                  title="Forget network"
                                 >
-                                  Connect
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
-                              )}
-                              <button
-                                onClick={() => handleForgetNetwork(net.ssid)}
-                                disabled={wifiLoading}
-                                className="p-1 text-slate-400 dark:text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
-                                title="Forget network"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add New Network — BELOW */}
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                    <h4 className="text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-3">Add New Network</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1">SSID</label>
+                        <input
+                          type="text"
+                          value={ssid}
+                          onChange={e => setSsid(e.target.value)}
+                          placeholder="Enter network name"
+                          className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Password</label>
+                        <div className="relative">
+                          <input
+                            type={showPassword ? "text" : "password"}
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            placeholder="Enter password"
+                            className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:text-slate-200 focus:outline-none transition-colors"
+                          >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleWifiConnect}
+                        disabled={wifiLoading}
+                        className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity disabled:opacity-50"
+                      >
+                        {wifiLoading ? (
+                          <><Loader2 className="w-4 h-4 animate-spin" /><span>Connecting...</span></>
+                        ) : (
+                          <><Wifi className="w-4 h-4" /><span>Connect & Save</span></>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Status Message */}
+                  {wifiStatus && (
+                    <div className={`p-2 text-xs font-bold font-mono ${wifiStatus.isError ? 'text-red-600' : 'text-emerald-600 dark:text-emerald-500'}`}>
+                      {wifiStatus.msg}
                     </div>
                   )}
                 </div>
-
-                {/* Add New Network — BELOW */}
-                <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50">
-                  <h4 className="text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-3">Add New Network</h4>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1">SSID</label>
-                      <input
-                        type="text"
-                        value={ssid}
-                        onChange={e => setSsid(e.target.value)}
-                        placeholder="Enter network name"
-                        className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Password</label>
-                      <div className="relative">
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          value={password}
-                          onChange={e => setPassword(e.target.value)}
-                          placeholder="Enter password"
-                          className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm pr-10"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:text-slate-200 focus:outline-none transition-colors"
-                        >
-                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleWifiConnect}
-                      disabled={wifiLoading}
-                      className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity disabled:opacity-50"
-                    >
-                      {wifiLoading ? (
-                        <><Loader2 className="w-4 h-4 animate-spin" /><span>Connecting...</span></>
-                      ) : (
-                        <><Wifi className="w-4 h-4" /><span>Connect & Save</span></>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Status Message */}
-                {wifiStatus && (
-                  <div className={`p-2 text-xs font-bold font-mono ${wifiStatus.isError ? 'text-red-600' : 'text-emerald-600 dark:text-emerald-500'}`}>
-                    {wifiStatus.msg}
-                  </div>
-                )}
-              </div>
               )}
             </div>
 
@@ -961,7 +961,7 @@ export default function Settings() {
                     className="bg-red-500 text-white font-bold tracking-widest px-4 py-4 flex flex-col items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
                   >
                     <Power className="w-5 h-5" />
-                    <span className="text-xs">Shutdown Pi</span>
+                    <span className="text-xs">Shutdown Sensor</span>
                   </button>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-mono text-center mt-4">This will disrupt telemetry until the system reboots.</p>
@@ -976,9 +976,9 @@ export default function Settings() {
       {confirmModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-800 p-6 max-w-sm w-full shadow-lg border border-slate-100 dark:border-slate-700 rounded-xl">
-            <h3 className={`text-lg font-bold mb-1 uppercase tracking-wide flex items-center ${confirmModal === 'shutdown' ? 'text-amber-600' : 'text-red-600'}`}>
+            <h3 className="text-lg font-bold mb-1 tracking-wide flex items-center text-red-600">
               <Power className="w-5 h-5 mr-2" />
-              {confirmModal === 'shutdown' ? 'Shutdown Pi' : 'Restart Sensor'}
+              {confirmModal === 'shutdown' ? 'Shutdown Sensor' : 'Restart Sensor'}
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 font-mono mb-6 leading-relaxed">
               {confirmModal === 'shutdown'
@@ -988,13 +988,13 @@ export default function Settings() {
             <div className="flex space-x-3">
               <button
                 onClick={closeConfirmModal}
-                className="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold uppercase tracking-wider py-2 rounded-lg transition-colors text-sm"
+                className="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold tracking-wider py-2 rounded-lg transition-colors text-sm"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSystemActionConfirm}
-                className={`flex-1 font-bold uppercase tracking-wider py-2 rounded-lg transition-colors text-sm text-white flex items-center justify-center gap-2 ${confirmModal === 'shutdown' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-red-600 hover:bg-red-700'}`}
+                className="flex-1 font-bold tracking-wider py-2 rounded-lg transition-colors text-sm text-white flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700"
               >
                 {confirmModal === 'shutdown' ? 'Confirm Shutdown' : 'Confirm Restart'}
               </button>
