@@ -951,16 +951,16 @@ export default function Settings() {
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => requireAuth(() => openConfirmModal('restart'))}
-                    className="bg-red-500 text-white font-bold tracking-widest px-4 py-4 flex flex-col items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
+                    className="bg-red-500 text-white font-bold tracking-widest px-4 py-2 flex flex-row items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
                   >
-                    <Power className="w-5 h-5" />
+                    <Power className="w-4 h-4" />
                     <span className="text-xs">Restart Sensor</span>
                   </button>
                   <button
                     onClick={() => requireAuth(() => openConfirmModal('shutdown'))}
-                    className="bg-red-500 text-white font-bold tracking-widest px-4 py-4 flex flex-col items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
+                    className="bg-red-500 text-white font-bold tracking-widest px-4 py-2 flex flex-row items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
                   >
-                    <Power className="w-5 h-5" />
+                    <Power className="w-4 h-4" />
                     <span className="text-xs">Shutdown Sensor</span>
                   </button>
                 </div>
