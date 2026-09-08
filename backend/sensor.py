@@ -670,9 +670,22 @@ class SensorManager:
         b0, b1, b2 = 0.29289322, 0.58578644, 0.29289322
         a1, a2     = 0.0, 0.17157288
 
-        # Per-channel IIR filter state: dict keyed by channel name
-        x_hist = {ch: [0.0, 0.0] for ch in CHANNEL_NAMES}
-        y_hist = {ch: [0.0, 0.0] for ch in CHANNEL_NAMES}
+        # Per-channel IIR filter state — pre-warmed to the calibrated DC bias so
+        # the very first real sample produces no step transient in the output.
+        # RAW_COUNTS_ZERO is guaranteed to be filled by calibrate() before _hw_loop
+        # is started.  On mock / Windows the zeros default is fine because the mock
+        # sensor already returns zero-centred values.
+        _dc = [float(RAW_COUNTS_ZERO[i]) for i in range(N_CHANNELS)]
+        x_hist = {ch: [_dc[i], _dc[i]] for i, ch in enumerate(CHANNEL_NAMES)}
+        y_hist = {ch: [_dc[i], _dc[i]] for i, ch in enumerate(CHANNEL_NAMES)}
+
+        # Startup blanking: discard first N decimated samples from the miniSEED
+        # archive only.  Even with a pre-warmed IIR the ADC itself may need 1-2
+        # samples to settle after power-up.  100 ms (10 samples @ 100 SPS) is
+        # imperceptible on the archive timeline but eliminates any residual glitch.
+        # All other paths (UDP, analytics queue, SPS tracking) are unaffected.
+        STARTUP_BLANK_SAMPLES = 10
+        _startup_blanked = 0
 
         decimate_flag = False
 
@@ -758,7 +771,13 @@ class SensorManager:
                     ]
 
                     # 1. miniSEED archive (raw int32 counts)
-                    mseed_writer.enqueue(t, [int(round(f)) for f in filtered_counts])
+                    # Skip the first STARTUP_BLANK_SAMPLES to keep the archive
+                    # free of ADC/IIR startup transients.  The raw count format
+                    # and all subsequent enqueue calls are completely unchanged.
+                    if _startup_blanked < STARTUP_BLANK_SAMPLES:
+                        _startup_blanked += 1
+                    else:
+                        mseed_writer.enqueue(t, [int(round(f)) for f in filtered_counts])
 
                     # 2. Analytics WebSocket (non-blocking)
                     record = (t,) + tuple(phys_values)
@@ -842,6 +861,11 @@ class SensorManager:
         settings_refresh_time = 0
         last_print_time = 0
         batch_records = []
+        # Track whether the analytics bandpass filters have been pre-warmed.
+        # On the first batch we prime each channel's filter to its DC level so
+        # the IIR state starts at steady-state instead of zero — this prevents
+        # the transient ring visible in the analysis window at startup.
+        _analytics_primed = False
 
         while self.running:
             try:
@@ -879,6 +903,14 @@ class SensorManager:
                     }
 
                     with self._filter_lock:
+                        # Prime the analytics filters once with the first batch's
+                        # per-channel mean so the IIR starts at steady-state.
+                        if not _analytics_primed:
+                            for i, ch in enumerate(CHANNEL_NAMES):
+                                dc = float(np.mean(raw[ch]))
+                                self._filters[ch].prime(dc)
+                            _analytics_primed = True
+
                         filtered = {}
                         for ch in CHANNEL_NAMES:
                             filtered[ch] = self._filters[ch].apply_batch_realtime(raw[ch]).tolist()

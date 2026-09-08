@@ -154,6 +154,21 @@ class BandpassFilter:
         filtered, self._zi = sosfilt(self._sos, samples, zi=self._zi)
         return filtered
 
+    def prime(self, dc_value: float):
+        """
+        Pre-warm the filter state to a known DC level.
+
+        Call this once with the first physical sample value before starting the
+        real-time filter loop.  Initialising the state to a steady-state value
+        (rather than zero) prevents the IIR from producing a startup ring when
+        the first sample carries a non-zero mean.
+
+        Parameters
+        ----------
+        dc_value : The DC level (physical units) to pre-warm to.
+        """
+        self._zi = sosfilt_zi(self._sos) * dc_value
+
     @property
     def params(self) -> dict:
         """Return current filter parameters as a serialisable dict."""
