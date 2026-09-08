@@ -43,6 +43,14 @@ export default function Settings() {
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
 
+  // ── Recovery form state ──────────────────────────────────────────────────────
+  const [recoveryAuthPw, setRecoveryAuthPw] = useState('');
+  const [recoveryQ1, setRecoveryQ1] = useState('What city were you born in?');
+  const [recoveryA1, setRecoveryA1] = useState('');
+  const [recoveryQ2, setRecoveryQ2] = useState('What was the name of your first pet?');
+  const [recoveryA2, setRecoveryA2] = useState('');
+  const [recoveryStatus, setRecoveryStatus] = useState(null);
+
   const [targets, setTargets] = useState([{ name: 'Main Server', ip: '127.0.0.1', port: 2098, format: 'corrected' }]);
   const [newName, setNewName] = useState('');
   const [newIp, setNewIp] = useState('');
@@ -340,6 +348,39 @@ export default function Settings() {
       setPasswordStatus({ msg: 'Network error.', isError: true });
     }
   };
+
+  const handleRecoverySetup = async () => {
+    if (!recoveryAuthPw) {
+      setRecoveryStatus({ msg: 'Admin password required.', isError: true }); return;
+    }
+    if (!recoveryQ1 || !recoveryA1 || !recoveryQ2 || !recoveryA2) {
+      setRecoveryStatus({ msg: 'Please provide both questions and answers.', isError: true }); return;
+    }
+    try {
+      const res = await fetch('/api/auth/recovery/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          current_password: recoveryAuthPw,
+          q1: recoveryQ1,
+          a1: recoveryA1,
+          q2: recoveryQ2,
+          a2: recoveryA2
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRecoveryStatus({ msg: 'Recovery questions saved successfully.', isError: false });
+        setRecoveryAuthPw(''); setRecoveryA1(''); setRecoveryA2('');
+        setTimeout(() => setRecoveryStatus(null), 4000);
+      } else {
+        setRecoveryStatus({ msg: data.detail || 'Failed to set recovery questions.', isError: true });
+      }
+    } catch {
+      setRecoveryStatus({ msg: 'Network error.', isError: true });
+    }
+  };
+
 
   const tabs = [
     { id: 'general', label: 'General' },
@@ -972,6 +1013,70 @@ export default function Settings() {
                     className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest py-2 rounded-lg shadow-md flex items-center justify-center gap-2 hover:bg-opacity-90 transition-all text-sm"
                   >
                     Update Password
+                  </button>
+                </div>
+              </div>
+              
+              {/* ── Password Recovery ─────────────────────────────────────────── */}
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0 gap-2">
+                  Password Recovery Questions
+                </h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Current Admin Password</label>
+                    <input
+                      type="password"
+                      value={recoveryAuthPw}
+                      onChange={e => setRecoveryAuthPw(e.target.value)}
+                      placeholder="Required to set recovery questions"
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Question 1</label>
+                    <input
+                      type="text"
+                      value={recoveryQ1}
+                      onChange={e => setRecoveryQ1(e.target.value)}
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none text-sm mb-2"
+                    />
+                    <input
+                      type="text"
+                      value={recoveryA1}
+                      onChange={e => setRecoveryA1(e.target.value)}
+                      placeholder="Answer 1"
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Question 2</label>
+                    <input
+                      type="text"
+                      value={recoveryQ2}
+                      onChange={e => setRecoveryQ2(e.target.value)}
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none text-sm mb-2"
+                    />
+                    <input
+                      type="text"
+                      value={recoveryA2}
+                      onChange={e => setRecoveryA2(e.target.value)}
+                      placeholder="Answer 2"
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none font-mono text-sm"
+                    />
+                  </div>
+
+                  {recoveryStatus && (
+                    <p className={`text-xs font-bold font-mono ${recoveryStatus.isError ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-500'}`}>
+                      {recoveryStatus.isError ? '⚠ ' : '✓ '}{recoveryStatus.msg}
+                    </p>
+                  )}
+
+                  <button
+                    onClick={handleRecoverySetup}
+                    className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest py-2 rounded-lg shadow-md flex items-center justify-center gap-2 hover:bg-opacity-90 transition-all text-sm mt-2"
+                  >
+                    Save Recovery Questions
                   </button>
                 </div>
               </div>

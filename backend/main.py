@@ -148,6 +148,20 @@ class AuthSetPasswordModel(BaseModel):
     current_password: str | None = None
 
 
+class RecoverySetupModel(BaseModel):
+    current_password: str
+    q1: str
+    a1: str
+    q2: str
+    a2: str
+
+
+class RecoveryVerifyModel(BaseModel):
+    a1: str
+    a2: str
+    new_password: str
+
+
 def _generate_session_token() -> str:
     """Create a self-contained HMAC-signed token encoding the expiry timestamp."""
     expiry  = int(time.time()) + _SESSION_TTL
@@ -214,6 +228,61 @@ def api_auth_set_password(body: AuthSetPasswordModel):
     new_hash = bcrypt.hashpw(body.new_password.encode(), bcrypt.gensalt()).decode()
     update_settings({"admin_password_hash": new_hash})
     return {"status": "ok", "message": "Password updated successfully"}
+
+
+@app.post("/api/auth/recovery/setup")
+def api_auth_recovery_setup(body: RecoverySetupModel):
+    s = get_settings()
+    stored_hash = s.get("admin_password_hash", "")
+    if stored_hash and not body.current_password:
+        raise HTTPException(status_code=400, detail="Current password is required")
+    if stored_hash and not bcrypt.checkpw(body.current_password.encode(), stored_hash.encode()):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+    
+    if not body.q1 or not body.a1 or not body.q2 or not body.a2:
+        raise HTTPException(status_code=400, detail="Both questions and answers are required")
+        
+    a1_hash = bcrypt.hashpw(body.a1.lower().strip().encode(), bcrypt.gensalt()).decode()
+    a2_hash = bcrypt.hashpw(body.a2.lower().strip().encode(), bcrypt.gensalt()).decode()
+    
+    update_settings({
+        "recovery_q1": body.q1,
+        "recovery_a1_hash": a1_hash,
+        "recovery_q2": body.q2,
+        "recovery_a2_hash": a2_hash
+    })
+    return {"status": "ok", "message": "Recovery questions updated successfully"}
+
+
+@app.get("/api/auth/recovery/questions")
+def api_auth_recovery_questions():
+    s = get_settings()
+    q1 = s.get("recovery_q1", "")
+    q2 = s.get("recovery_q2", "")
+    if not q1 or not q2:
+        raise HTTPException(status_code=404, detail="Recovery questions not configured")
+    return {"q1": q1, "q2": q2}
+
+
+@app.post("/api/auth/recovery/verify")
+def api_auth_recovery_verify(body: RecoveryVerifyModel):
+    s = get_settings()
+    a1_hash = s.get("recovery_a1_hash", "")
+    a2_hash = s.get("recovery_a2_hash", "")
+    
+    if not a1_hash or not a2_hash:
+        raise HTTPException(status_code=400, detail="Recovery questions not configured")
+        
+    if not bcrypt.checkpw(body.a1.lower().strip().encode(), a1_hash.encode()) or \
+       not bcrypt.checkpw(body.a2.lower().strip().encode(), a2_hash.encode()):
+        raise HTTPException(status_code=401, detail="Incorrect answers")
+        
+    if not body.new_password or len(body.new_password) < 4:
+        raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
+        
+    new_hash = bcrypt.hashpw(body.new_password.encode(), bcrypt.gensalt()).decode()
+    update_settings({"admin_password_hash": new_hash})
+    return {"status": "ok", "message": "Password reset successfully", "token": _generate_session_token(), "ttl": _SESSION_TTL}
 
 
 
