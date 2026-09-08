@@ -50,6 +50,7 @@ export default function Settings() {
   const [recoveryQ2, setRecoveryQ2] = useState('What was the name of your first pet?');
   const [recoveryA2, setRecoveryA2] = useState('');
   const [recoveryStatus, setRecoveryStatus] = useState(null);
+  const [isRecoveryConfigured, setIsRecoveryConfigured] = useState(false);
 
   const [targets, setTargets] = useState([{ name: 'Main Server', ip: '127.0.0.1', port: 2098, format: 'corrected' }]);
   const [newName, setNewName] = useState('');
@@ -122,6 +123,12 @@ export default function Settings() {
         if (data.networks) setSavedNetworks(data.networks);
         if (data.active_ssid) setActiveWifi(data.active_ssid);
         if (data.wifi_enabled !== undefined) setWifiEnabled(data.wifi_enabled);
+      })
+      .catch(console.error);
+
+    fetch('/api/auth/recovery/questions')
+      .then(res => {
+        if (res.ok) setIsRecoveryConfigured(true);
       })
       .catch(console.error);
   }, []);
@@ -371,6 +378,7 @@ export default function Settings() {
       const data = await res.json();
       if (res.ok) {
         setRecoveryStatus({ msg: 'Recovery questions saved successfully.', isError: false });
+        setIsRecoveryConfigured(true);
         setRecoveryAuthPw(''); setRecoveryA1(''); setRecoveryA2('');
         setTimeout(() => setRecoveryStatus(null), 4000);
       } else {
@@ -1016,12 +1024,28 @@ export default function Settings() {
                   </button>
                 </div>
               </div>
-              
+            </div>
+            
+            {/* Right Column */}
+            <div className="space-y-6">
               {/* ── Password Recovery ─────────────────────────────────────────── */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0 gap-2">
                   Password Recovery Questions
                 </h3>
+                
+                {isRecoveryConfigured ? (
+                  <div className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 p-3 rounded-lg text-xs mb-4 flex items-start gap-2 border border-emerald-200 dark:border-emerald-800/50">
+                    <span className="text-sm mt-0.5">✅</span>
+                    <p>Password recovery is configured. You can update your questions below.</p>
+                  </div>
+                ) : (
+                  <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 p-3 rounded-lg text-xs mb-4 flex items-start gap-2 border border-amber-200 dark:border-amber-800/50">
+                    <span className="text-sm mt-0.5">⚠</span>
+                    <p>Password recovery is not configured. Please set it up below to prevent getting locked out.</p>
+                  </div>
+                )}
+
                 <div className="space-y-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Current Admin Password</label>
