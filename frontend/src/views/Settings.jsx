@@ -990,7 +990,7 @@ export default function Settings() {
                         type={showNewPw ? 'text' : 'password'}
                         value={newPassword}
                         onChange={e => setNewPassword(e.target.value)}
-                        placeholder="New password (min. 4 chars)"
+                        placeholder="New password (minimum 4 characters)"
                         className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none font-mono text-sm pr-10"
                       />
                       <button type="button" onClick={() => setShowNewPw(v => !v)} className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
@@ -1025,7 +1025,7 @@ export default function Settings() {
                 </div>
               </div>
             </div>
-            
+
             {/* Right Column */}
             <div className="space-y-6">
               {/* ── Password Recovery ─────────────────────────────────────────── */}
@@ -1033,12 +1033,11 @@ export default function Settings() {
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0 gap-2">
                   Password Recovery Questions
                 </h3>
-                
+
                 {isRecoveryConfigured ? (
-                  <div className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 p-3 rounded-lg text-xs mb-4 flex items-start gap-2 border border-emerald-200 dark:border-emerald-800/50">
-                    <span className="text-sm mt-0.5">✅</span>
-                    <p>Password recovery is configured. You can update your questions below.</p>
-                  </div>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-bold tracking-wide mb-4">
+                    Password recovery is configured. You can update your questions below.
+                  </p>
                 ) : (
                   <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 p-3 rounded-lg text-xs mb-4 flex items-start gap-2 border border-amber-200 dark:border-amber-800/50">
                     <span className="text-sm mt-0.5">⚠</span>
@@ -1059,35 +1058,39 @@ export default function Settings() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Question 1</label>
-                    <input
-                      type="text"
-                      value={recoveryQ1}
-                      onChange={e => setRecoveryQ1(e.target.value)}
-                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none text-sm mb-2"
-                    />
-                    <input
-                      type="text"
-                      value={recoveryA1}
-                      onChange={e => setRecoveryA1(e.target.value)}
-                      placeholder="Answer 1"
-                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none font-mono text-sm"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={recoveryQ1}
+                        onChange={e => setRecoveryQ1(e.target.value)}
+                        className="flex-1 bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none text-sm"
+                      />
+                      <input
+                        type="text"
+                        value={recoveryA1}
+                        onChange={e => setRecoveryA1(e.target.value)}
+                        placeholder="Answer 1"
+                        className="flex-1 bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none font-mono text-sm"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Question 2</label>
-                    <input
-                      type="text"
-                      value={recoveryQ2}
-                      onChange={e => setRecoveryQ2(e.target.value)}
-                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none text-sm mb-2"
-                    />
-                    <input
-                      type="text"
-                      value={recoveryA2}
-                      onChange={e => setRecoveryA2(e.target.value)}
-                      placeholder="Answer 2"
-                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none font-mono text-sm"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={recoveryQ2}
+                        onChange={e => setRecoveryQ2(e.target.value)}
+                        className="flex-1 bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none text-sm"
+                      />
+                      <input
+                        type="text"
+                        value={recoveryA2}
+                        onChange={e => setRecoveryA2(e.target.value)}
+                        placeholder="Answer 2"
+                        className="flex-1 bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none font-mono text-sm"
+                      />
+                    </div>
                   </div>
 
                   {recoveryStatus && (
