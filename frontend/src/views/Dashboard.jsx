@@ -204,7 +204,7 @@ export default function Dashboard() {
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between text-xs font-bold font-mono text-slate-400 mb-1">
-                  <span>Cpu Usage</span>
+                  <span>CPU Usage</span>
                   <span>{systemStats.cpu_percent.toFixed(1)}%</span>
                 </div>
                 <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
@@ -213,7 +213,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <div className="flex justify-between text-xs font-bold font-mono text-slate-400 mb-1">
-                  <span>Ram Usage</span>
+                  <span>RAM Usage</span>
                   <span>{systemStats.ram_percent.toFixed(1)}%</span>
                 </div>
                 <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
@@ -222,7 +222,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <div className="flex justify-between text-xs font-bold font-mono text-slate-400 mb-1">
-                  <span>Disk Usage</span>
+                  <span>Disk Storage Usage</span>
                   <span>{systemStats.disk_percent.toFixed(1)}%</span>
                 </div>
                 <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">

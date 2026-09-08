@@ -1,0 +1,299 @@
+import { useState, useEffect, useRef } from 'react';
+import { LockClosedIcon, EyeIcon, EyeSlashIcon, XMarkIcon } from '@heroicons/react/24/solid';
+
+/**
+ * AuthModal — Password prompt for protected EEW sensor operations.
+ *
+ * Props:
+ *   isOpen    {bool}  — controls modal visibility
+ *   onSuccess {fn}    — called with (token, ttl) after correct password
+ *   onCancel  {fn}    — called when user dismisses the modal
+ */
+export default function AuthModal({ isOpen, onSuccess, onCancel }) {
+  const [password, setPassword] = useState('');
+  const [showPw, setShowPw]     = useState(false);
+  const [error, setError]       = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [shake, setShake]       = useState(false);
+  const inputRef                = useRef(null);
+  
+  // Recovery Mode State
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
+  const [q1, setQ1] = useState('');
+  const [q2, setQ2] = useState('');
+  const [a1, setA1] = useState('');
+  const [a2, setA2] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+
+  // Focus the input whenever the modal opens; reset state on close
+  useEffect(() => {
+    if (isOpen) {
+      setPassword('');
+      setError('');
+      setLoading(false);
+      setShake(false);
+      setShowPw(false);
+      setIsRecoveryMode(false);
+      setA1('');
+      setA2('');
+      setNewPassword('');
+      setTimeout(() => inputRef.current?.focus(), 60);
+    }
+  }, [isOpen]);
+
+  const triggerShake = () => {
+    setShake(true);
+    setTimeout(() => setShake(false), 600);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!password || loading) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const res  = await fetch('/api/auth/verify', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ password }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        onSuccess(data.token, data.ttl);
+        setPassword('');
+      } else {
+        setError(data.detail || 'Incorrect password');
+        triggerShake();
+        setPassword('');
+        setTimeout(() => inputRef.current?.focus(), 50);
+      }
+    } catch {
+      setError('Network error — check connection');
+      triggerShake();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/auth/recovery/questions');
+      const data = await res.json();
+      if (res.ok) {
+        setQ1(data.q1);
+        setQ2(data.q2);
+        setIsRecoveryMode(true);
+      } else {
+        setError(data.detail || 'Recovery questions not configured');
+        triggerShake();
+      }
+    } catch {
+      setError('Network error — check connection');
+      triggerShake();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRecoverySubmit = async (e) => {
+    e.preventDefault();
+    if (!a1 || !a2 || !newPassword || loading) return;
+    
+    setLoading(true);
+    setError('');
+    
+    try {
+      const res = await fetch('/api/auth/recovery/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ a1, a2, new_password: newPassword })
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        onSuccess(data.token, data.ttl);
+        setIsRecoveryMode(false);
+      } else {
+        setError(data.detail || 'Incorrect answers');
+        triggerShake();
+      }
+    } catch {
+      setError('Network error — check connection');
+      triggerShake();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      <div className={`bg-white dark:bg-slate-800 p-6 max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-700 rounded-xl ${shake ? 'animate-shake' : ''}`}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-[#1a4162]/10 dark:bg-sky-900/40 flex items-center justify-center shrink-0">
+              <LockClosedIcon className="w-4 h-4 text-[#1a4162] dark:text-sky-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 tracking-wide leading-tight">
+                {isRecoveryMode ? 'Password Recovery' : 'Admin Authentication'}
+              </h3>
+            </div>
+          </div>
+          <button
+            onClick={onCancel}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
+            aria-label="Cancel"
+          >
+            <XMarkIcon className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Form */}
+        {!isRecoveryMode ? (
+          <form onSubmit={handleSubmit}>
+            <div className="relative mb-2">
+              <input
+                ref={inputRef}
+                id="auth-password-input"
+                type={showPw ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter admin password"
+                autoComplete="current-password"
+                className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-lg px-4 py-2.5 pr-10 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[#1a4162]/30 dark:focus:ring-sky-500/40 placeholder:text-slate-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw((v) => !v)}
+                className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                tabIndex={-1}
+                aria-label={showPw ? 'Hide password' : 'Show password'}
+              >
+                {showPw
+                  ? <EyeSlashIcon className="w-4 h-4" />
+                  : <EyeIcon       className="w-4 h-4" />}
+              </button>
+            </div>
+            
+            <div className="flex justify-end mb-3">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="text-xs text-sky-600 dark:text-sky-400 font-bold hover:underline"
+              >
+                Forgot Password?
+              </button>
+            </div>
+
+            {error && (
+              <p className="text-xs font-bold text-red-600 dark:text-red-400 font-mono mb-3 flex items-center gap-1">
+                <span aria-hidden="true">⚠</span> {error}
+              </p>
+            )}
+
+            <div className="flex gap-3 mt-4">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold tracking-wider py-2 rounded-lg transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                id="auth-unlock-btn"
+                disabled={loading || !password}
+                className="flex-1 bg-[#1a4162] dark:bg-sky-600 hover:bg-[#1a4162]/90 dark:hover:bg-sky-700 text-white font-bold tracking-wider py-2 rounded-lg transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {loading && (
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                )}
+                {loading ? 'Verifying…' : 'Confirm'}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={handleRecoverySubmit}>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">{q1}</label>
+                <input
+                  type="text"
+                  value={a1}
+                  onChange={(e) => setA1(e.target.value)}
+                  placeholder="Answer"
+                  className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-lg px-4 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[#1a4162]/30 dark:focus:ring-sky-500/40"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">{q2}</label>
+                <input
+                  type="text"
+                  value={a2}
+                  onChange={(e) => setA2(e.target.value)}
+                  placeholder="Answer"
+                  className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-lg px-4 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[#1a4162]/30 dark:focus:ring-sky-500/40"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">New Password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="New password (min. 4 chars)"
+                  className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-lg px-4 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[#1a4162]/30 dark:focus:ring-sky-500/40"
+                />
+              </div>
+            </div>
+
+            {error && (
+              <p className="text-xs font-bold text-red-600 dark:text-red-400 font-mono mb-3 flex items-center gap-1">
+                <span aria-hidden="true">⚠</span> {error}
+              </p>
+            )}
+
+            <div className="flex gap-3 mt-4">
+              <button
+                type="button"
+                onClick={() => { setIsRecoveryMode(false); setError(''); }}
+                className="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold tracking-wider py-2 rounded-lg transition-colors text-sm"
+              >
+                Back
+              </button>
+              <button
+                type="submit"
+                disabled={loading || !a1 || !a2 || newPassword.length < 4}
+                className="flex-1 bg-[#1a4162] dark:bg-sky-600 hover:bg-[#1a4162]/90 dark:hover:bg-sky-700 text-white font-bold tracking-wider py-2 rounded-lg transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {loading && (
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                )}
+                {loading ? 'Verifying…' : 'Reset'}
+              </button>
+            </div>
+          </form>
+        )}
+
+      </div>
+    </div>
+  );
+}

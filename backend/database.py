@@ -75,6 +75,21 @@ def init_db():
             # NOTE: INSERT OR IGNORE preserves any user-configured values
             # (e.g. archive_root, device_id) across service restarts and OTA updates.
 
+            # ------------------------------------------------------------------
+            # Default admin password — set to 'cl123' on first boot only.
+            # The hash is generated at runtime so it is never stored as plaintext.
+            # Users should change this via the web UI Settings → Admin Password.
+            # ------------------------------------------------------------------
+            c.execute("SELECT value FROM settings WHERE key='admin_password_hash'")
+            row = c.fetchone()
+            if row is None or not row[0]:
+                import bcrypt as _bcrypt_init
+                _default_hash = _bcrypt_init.hashpw(b'cl123', _bcrypt_init.gensalt()).decode()
+                c.execute(
+                    "REPLACE INTO settings (key, value) VALUES ('admin_password_hash', ?)",
+                    (_default_hash,)
+                )
+
             # ----------------------------------------------------------------
             # event_log — anomaly event metadata
             # Stores timestamps only — waveforms are in miniSEED files.

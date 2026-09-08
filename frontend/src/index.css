@@ -12,6 +12,10 @@
     @apply bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-50 antialiased font-sans transition-colors duration-200;
   }
   
+  ::placeholder {
+    @apply text-slate-400 dark:text-slate-400 opacity-100;
+  }
+  
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -25,4 +29,18 @@
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-slate-400 dark:bg-slate-500;
   }
+}
+
+/* Auth modal shake animation on incorrect password */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15%       { transform: translateX(-7px); }
+  30%       { transform: translateX(7px); }
+  45%       { transform: translateX(-5px); }
+  60%       { transform: translateX(5px); }
+  75%       { transform: translateX(-2px); }
+  90%       { transform: translateX(2px); }
+}
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
 }

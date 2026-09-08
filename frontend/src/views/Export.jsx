@@ -104,8 +104,8 @@ export default function Export() {
                 onClick={handleExport}
                 className="w-full bg-primary dark:bg-sky-600 hover:bg-opacity-90 text-white font-bold tracking-wider text-xs py-2.5 rounded-lg shadow-sm flex items-center justify-center space-x-2 transition-all"
               >
-                <Download fill="currentColor" className="w-3.5 h-3.5" />
-                <span>EXPORT DATA</span>
+                <Download fill="currentColor" className="w-4 h-4" />
+                <span>Export Data</span>
               </button>
             </div>
           </div>
@@ -124,7 +124,7 @@ export default function Export() {
                 className="w-full mt-auto bg-amber-600 hover:bg-amber-700 text-white font-bold tracking-wider text-xs py-2.5 rounded-lg shadow-sm flex items-center justify-center space-x-2 transition-all"
               >
                 <Download fill="currentColor" className="w-4 h-4" />
-                <span>DOWNLOAD ARCHIVE (ZIP)</span>
+                <span>Download Archive (ZIP)</span>
               </button>
             </div>
 
@@ -142,8 +142,8 @@ export default function Export() {
                 download
                 className="w-full mt-auto bg-slate-700 dark:bg-sky-600 hover:bg-slate-800 dark:hover:bg-sky-500 text-white font-bold tracking-wider text-xs py-2.5 rounded-lg shadow-sm flex items-center justify-center space-x-2 transition-all"
               >
-                <Save fill="currentColor" className="w-3.5 h-3.5" />
-                <span>DOWNLOAD STATIONXML</span>
+                <Download fill="currentColor" className="w-4 h-4" />
+                <span>Download StationXML</span>
               </a>
             </div>
           </div>
