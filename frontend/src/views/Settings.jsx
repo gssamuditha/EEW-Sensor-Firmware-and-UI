@@ -344,7 +344,8 @@ export default function Settings() {
   const tabs = [
     { id: 'general', label: 'General' },
     { id: 'network', label: 'Network' },
-    { id: 'system', label: 'System' }
+    { id: 'system', label: 'System' },
+    { id: 'security', label: 'Security' }
   ];
 
   return (
@@ -847,7 +848,71 @@ export default function Settings() {
                   </button>
                 </div>
               </div>
+            </div>
 
+            {/* Right Column: Calibration Settings & System Actions */}
+            <div className="space-y-6">
+              {/* Calibration Settings */}
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
+                  Calibration Settings
+                </h3>
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Calibration Time (seconds)</label>
+                    <input
+                      type="number"
+                      value={calibrationTime}
+                      onChange={e => setCalibrationTime(e.target.value)}
+                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                    />
+                    <p className="text-xs text-slate-400 dark:text-slate-400 mt-2 font-mono">Recommended: 60 seconds</p>
+                  </div>
+
+                  <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                    <button
+                      onClick={handleSaveSettings}
+                      className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Save Calibration</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* System Actions */}
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
+                  System Actions
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => requireAuth(() => openConfirmModal('restart'))}
+                    className="bg-red-500 text-white font-bold tracking-widest px-4 py-3 flex flex-row items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
+                  >
+                    <Power className="w-4 h-4" />
+                    <span className="text-xs">Restart Sensor</span>
+                  </button>
+                  <button
+                    onClick={() => requireAuth(() => openConfirmModal('shutdown'))}
+                    className="bg-red-500 text-white font-bold tracking-widest px-4 py-3 flex flex-row items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
+                  >
+                    <Power className="w-4 h-4" />
+                    <span className="text-xs">Shutdown Sensor</span>
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-mono text-center mt-4">This will disrupt telemetry until the system reboots.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tab 4: Security */}
+        <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'security' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full overflow-y-auto p-1 pb-6">
+            {/* Left Column */}
+            <div className="space-y-6">
               {/* ── Admin Password ─────────────────────────────────────────── */}
               <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0 gap-2">
@@ -909,62 +974,6 @@ export default function Settings() {
                     Update Password
                   </button>
                 </div>
-              </div>
-            </div>
-
-            {/* Right Column: Calibration Settings & System Actions */}
-            <div className="space-y-6">
-              {/* Calibration Settings */}
-              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  Calibration Settings
-                </h3>
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Calibration Time (seconds)</label>
-                    <input
-                      type="number"
-                      value={calibrationTime}
-                      onChange={e => setCalibrationTime(e.target.value)}
-                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
-                    />
-                    <p className="text-xs text-slate-400 dark:text-slate-400 mt-2 font-mono">Recommended: 60 seconds</p>
-                  </div>
-
-                  <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
-                    <button
-                      onClick={handleSaveSettings}
-                      className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
-                    >
-                      <Save className="w-4 h-4" />
-                      <span>Save Calibration</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* System Actions */}
-              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
-                  System Actions
-                </h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => requireAuth(() => openConfirmModal('restart'))}
-                    className="bg-red-500 text-white font-bold tracking-widest px-4 py-3 flex flex-row items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
-                  >
-                    <Power className="w-4 h-4" />
-                    <span className="text-xs">Restart Sensor</span>
-                  </button>
-                  <button
-                    onClick={() => requireAuth(() => openConfirmModal('shutdown'))}
-                    className="bg-red-500 text-white font-bold tracking-widest px-4 py-3 flex flex-row items-center justify-center gap-2 hover:bg-red-700 transition-colors rounded-lg shadow-sm"
-                  >
-                    <Power className="w-4 h-4" />
-                    <span className="text-xs">Shutdown Sensor</span>
-                  </button>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-mono text-center mt-4">This will disrupt telemetry until the system reboots.</p>
               </div>
             </div>
           </div>
