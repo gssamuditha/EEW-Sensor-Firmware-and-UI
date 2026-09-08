@@ -33,7 +33,18 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
         }
 
     from obspy import UTCDateTime
-    st.trim(starttime=UTCDateTime(start_time), endtime=UTCDateTime(end_time), pad=True, fill_value=0)
+    # --- KEY FIX: do NOT pad with zeros ---
+    # pad=True + fill_value=0 (the previous code) wrote literal 0-count samples at
+    # the edges of every window that starts before the first recorded sample (e.g.
+    # after a sensor restart mid-window).  This creates a massive step from 0 →
+    # real-signal that sosfiltfilt then amplifies into a spike.  The spike amplitude
+    # and position depend on exactly how many zero samples are prepended, which
+    # changes with every different window request — explaining the "random" appearance.
+    #
+    # With pad=False ObsPy simply returns the actual recorded samples only.
+    # sosfiltfilt handles the shortened array cleanly via its built-in odd-reflection
+    # edge padding, producing no step artifact.
+    st.trim(starttime=UTCDateTime(start_time), endtime=UTCDateTime(end_time), pad=False)
 
     raw = {}
     timestamps = None
@@ -43,17 +54,26 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
         # channel codes in miniSEED are usually 3 chars (e.g. ENZ)
         tr = st.select(channel=ch)
         if len(tr) > 0:
-            # Merge in case there are gaps
+            # Merge gaps using interpolation so internal gaps don't create steps
             tr.merge(method=1, fill_value='interpolate')
             t_obj = tr[0]
 
-            # Extract raw counts and timestamps
-            counts = t_obj.data.astype(np.float64)
+            # Extract raw counts — may be a numpy MaskedArray if residual gaps remain
+            counts = t_obj.data
+            if hasattr(counts, 'filled'):
+                # Fill any remaining masked samples with the median of valid data so
+                # there is no step from zero into the real signal around gap edges.
+                valid = counts[~counts.mask] if counts.mask.any() else counts.data
+                fill_val = float(np.median(valid)) if len(valid) > 0 else 0.0
+                counts = counts.filled(fill_val)
+            counts = counts.astype(np.float64)
+
             # Ensure timestamps aligns with the longest trace
             if timestamps is None or len(t_obj.times('timestamp')) > len(timestamps):
                 timestamps = t_obj.times('timestamp')
 
-            # Detrend (remove mean) to bypass need for exact RAW_COUNTS_ZERO at boot
+            # Detrend: remove mean of VALID data only.
+            # With pad=False every sample here is real, so np.mean is correct.
             if len(counts) > 0:
                 counts = counts - np.mean(counts)
 
@@ -78,8 +98,23 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
         if len(raw[ch]) < 13:
             filtered[ch] = raw[ch]
         else:
+            # Apply a short cosine taper (5 %) at both ends of the data before
+            # zero-phase filtering.  sosfiltfilt bootstraps itself by reflecting
+            # the edge samples — if those samples have high variance (e.g. the
+            # very first sample after a restart or a gap), the reflection amplifies
+            # into a small transient.  A 5 % taper smoothly ramps the signal to
+            # zero at both edges, so the reflected portion is always near-zero,
+            # producing a clean filter startup.  The taper affects at most 5 % of
+            # the data at each end; for a 30-minute window (180,000 samples) this
+            # is ≤ 9,000 samples (90 s), but for typical EEW display windows of
+            # 30–300 s the taper is < 15 s and is imperceptible on the plot.
+            d = raw[ch].copy()
+            n_taper = max(1, int(len(d) * 0.05))
+            taper = 0.5 * (1.0 - np.cos(np.pi * np.arange(n_taper) / n_taper))
+            d[:n_taper]  *= taper
+            d[-n_taper:] *= taper[::-1]
             filt = BandpassFilter(low_hz=low_hz, high_hz=high_hz, fs=100.0, order=4)
-            filtered[ch] = filt.apply_zerophase(raw[ch])
+            filtered[ch] = filt.apply_zerophase(d)
 
     result_samples = {}
     out_t = []
