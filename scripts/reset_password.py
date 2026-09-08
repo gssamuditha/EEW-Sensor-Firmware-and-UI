@@ -14,6 +14,8 @@ BACKEND_DIR = os.path.join(os.path.dirname(SCRIPT_DIR), 'backend')
 sys.path.insert(0, BACKEND_DIR)
 
 try:
+    # Change working directory so relative DB paths in database.py work
+    os.chdir(BACKEND_DIR)
     from database import update_settings, get_settings
 except ImportError as e:
     print(f"Error importing database module: {e}")
