@@ -47,7 +47,7 @@ export default function Export() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto pr-2 pb-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-6xl">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
           {/* Custom Range Export Widget */}
           <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
