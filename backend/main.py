@@ -498,12 +498,12 @@ def api_wifi_forget(wifi: WifiActionModel):
 
 @app.post("/api/system/restart", dependencies=[Depends(require_auth)])
 def api_system_restart():
-    subprocess.Popen(["sudo", "/sbin/reboot"])
+    subprocess.Popen(["sudo", "-n", "/sbin/reboot"])
     return {"status": "ok"}
 
 @app.post("/api/system/shutdown", dependencies=[Depends(require_auth)])
 def api_system_shutdown():
-    subprocess.Popen(["sudo", "/sbin/poweroff"])
+    subprocess.Popen(["sudo", "-n", "/sbin/poweroff"])
     return {"status": "ok"}
 
 @app.get("/api/settings")
