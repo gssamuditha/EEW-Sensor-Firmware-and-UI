@@ -70,7 +70,7 @@ logger = logging.getLogger(__name__)
 # ZeroTier example:  "http://172.24.0.1:8080"
 # HTTPS example:     "https://172.24.0.1:8443"
 # Leave as None to disable publishing entirely (safe for development).
-CENTRAL_SERVER_URL: str | None = "http://10.82.183.1:8000/api/v1/ingestion/telemetry"   # TODO: set before deployment
+CENTRAL_SERVER_URL: str | None = "http://10.82.183.1:8000"   # TODO: set before deployment
 
 # No API key — authentication is handled by the ZeroTier controller.
 # Only nodes explicitly authorised in the ZeroTier network can reach this server.
