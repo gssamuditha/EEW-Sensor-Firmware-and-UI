@@ -712,12 +712,12 @@ export default function Settings() {
                       <button
                         onClick={handleWifiConnect}
                         disabled={wifiLoading}
-                        className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity disabled:opacity-50"
+                        className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity disabled:opacity-50"
                       >
                         {wifiLoading ? (
                           <><Loader2 className="w-4 h-4 animate-spin" /><span>Connecting...</span></>
                         ) : (
-                          <><Wifi className="w-4 h-4" /><span>Connect & Save</span></>
+                          <span>Connect & Save</span>
                         )}
                       </button>
                     </div>
@@ -860,7 +860,6 @@ export default function Settings() {
                         : 'bg-primary dark:bg-sky-600 hover:bg-opacity-90 hover:shadow'
                     }`}
                   >
-                    <Save className="w-4 h-4" />
                     <span>Save Targets</span>
                   </button>
                 </div>

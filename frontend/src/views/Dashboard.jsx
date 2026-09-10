@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import LiveChart from '../components/LiveChart';
 import { useTimeZone } from '../TimeZoneContext';
-import { ServerStackIcon, ChartBarIcon } from '@heroicons/react/24/solid';
+import { ServerStackIcon, ChartBarIcon, BookOpenIcon } from '@heroicons/react/24/solid';
 
 export default function Dashboard() {
   const { timeZone, setTimeZone, TIMEZONES } = useTimeZone();
@@ -236,13 +236,13 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md flex-1 flex flex-col shrink-0">
             <div className="text-[13px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">Server Actions</div>
             <div className="flex flex-col gap-3 h-full">
-              <a href="#station" className="flex items-center justify-center border border-slate-200 dark:border-slate-600 dark:bg-slate-700 rounded-lg p-3 hover:bg-slate-50 transition-all shadow-md hover:shadow-lg text-slate-600 dark:text-slate-200 hover:text-primary hover:dark:text-amber-400 cursor-pointer">
+              <a href="https://terrasense.org.lk/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center border border-slate-200 dark:border-slate-600 dark:bg-slate-700 rounded-lg p-3 hover:bg-slate-50 transition-all shadow-md hover:shadow-lg text-slate-600 dark:text-slate-200 hover:text-primary hover:dark:text-amber-400 cursor-pointer">
                 <ServerStackIcon className="w-5 h-5 mr-2 shrink-0" />
-                <span className="text-xs font-bold">Station View</span>
+                <span className="text-xs font-bold">Sensor Platform</span>
               </a>
               <a href="#data" className="flex items-center justify-center border border-slate-200 dark:border-slate-600 dark:bg-slate-700 rounded-lg p-3 hover:bg-slate-50 transition-all shadow-md hover:shadow-lg text-slate-600 dark:text-slate-200 hover:text-primary hover:dark:text-amber-400 cursor-pointer">
-                <ChartBarIcon className="w-5 h-5 mr-2 shrink-0" />
-                <span className="text-xs font-bold">Data View</span>
+                <BookOpenIcon className="w-5 h-5 mr-2 shrink-0" />
+                <span className="text-xs font-bold">Manual</span>
               </a>
             </div>
           </div>
