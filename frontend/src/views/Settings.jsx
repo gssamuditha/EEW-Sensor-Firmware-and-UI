@@ -54,6 +54,7 @@ export default function Settings() {
 
   const [targets, setTargets] = useState([{ name: 'Main Server', ip: '127.0.0.1', port: 2098, format: 'corrected' }]);
   const [hasUnsavedTargets, setHasUnsavedTargets] = useState(false);
+  const [targetError, setTargetError] = useState('');
   const [newName, setNewName] = useState('');
   const [newIp, setNewIp] = useState('');
   const [newPort, setNewPort] = useState(2098);
@@ -145,8 +146,23 @@ export default function Settings() {
   };
 
   const handleAddTarget = () => {
-    if (!newIp || !newName) return;
-    setTargets([...targets, { name: newName, ip: newIp, port: parseInt(newPort), format: newFormat }]);
+    if (!newIp || !newName) {
+      setTargetError('Name and IP are required.');
+      return;
+    }
+    const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (!ipv4Regex.test(newIp) || newIp.split('.').some(p => parseInt(p) > 255)) {
+      setTargetError('Invalid IPv4 address format.');
+      return;
+    }
+    const port = parseInt(newPort);
+    if (isNaN(port) || port < 1 || port > 65535) {
+      setTargetError('Port must be between 1 and 65535.');
+      return;
+    }
+
+    setTargetError('');
+    setTargets([...targets, { name: newName, ip: newIp, port, format: newFormat }]);
     setNewName('');
     setNewIp('');
     setNewFormat('corrected');
@@ -834,6 +850,7 @@ export default function Settings() {
                       <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
+                  {targetError && <p className="text-[10px] font-bold text-red-500 font-mono mt-1">{targetError}</p>}
 
                   <button
                     onClick={handleSaveSettings}
