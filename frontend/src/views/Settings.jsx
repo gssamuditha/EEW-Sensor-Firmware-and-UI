@@ -74,6 +74,8 @@ export default function Settings() {
   const [ssid, setSsid] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [scannedNetworks, setScannedNetworks] = useState([]);
+  const [isScanning, setIsScanning] = useState(false);
 
   const [dataForwarding, setDataForwarding] = useState(true);
   const [wifiEnabled, setWifiEnabled] = useState(true);
@@ -218,6 +220,27 @@ export default function Settings() {
         showStatus('Error saving configuration.', true);
       }
     });
+  };
+
+  const handleScanWifi = async () => {
+    setIsScanning(true);
+    showWifiStatus('Scanning for networks...');
+    try {
+      const res = await fetch('/api/wifi/scan');
+      const data = await res.json();
+      if (data.networks) {
+        setScannedNetworks(data.networks);
+        if (data.networks.length === 0) showWifiStatus('No networks found.', true);
+        else showWifiStatus(`Found ${data.networks.length} networks.`);
+      } else if (data.error) {
+        showWifiStatus(`Scan failed: ${data.error}`, true);
+      }
+    } catch (e) {
+      console.error(e);
+      showWifiStatus('Error scanning networks.', true);
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const handleWifiConnect = async () => {
@@ -682,13 +705,27 @@ export default function Settings() {
                     <div className="space-y-3">
                       <div>
                         <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1">SSID</label>
-                        <input
-                          type="text"
-                          value={ssid}
-                          onChange={e => setSsid(e.target.value)}
-                          placeholder="Enter network name"
-                          className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
-                        />
+                        <div className="flex space-x-2">
+                          <input
+                            type="text"
+                            list="wifi-networks"
+                            value={ssid}
+                            onChange={e => setSsid(e.target.value)}
+                            placeholder="Enter network name"
+                            className="flex-1 min-w-0 bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                          />
+                          <datalist id="wifi-networks">
+                            {scannedNetworks.map(net => <option key={net} value={net} />)}
+                          </datalist>
+                          <button
+                            onClick={handleScanWifi}
+                            disabled={isScanning}
+                            className="bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 px-3 rounded-md flex items-center justify-center transition-colors disabled:opacity-50 text-slate-600 dark:text-slate-300"
+                            title="Scan for networks"
+                          >
+                            <Loader2 className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
+                          </button>
+                        </div>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Password</label>

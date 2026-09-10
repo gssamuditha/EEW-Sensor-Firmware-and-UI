@@ -401,6 +401,33 @@ def api_wifi_networks():
     networks, active_ssid = _get_saved_networks()
     return {"networks": networks, "active_ssid": active_ssid, "wifi_enabled": wifi_enabled}
 
+@app.get("/api/wifi/scan")
+def api_wifi_scan():
+    """Scan for available Wi-Fi networks using nmcli."""
+    if sys.platform == 'win32':
+        return {"networks": ["Test Network 1", "Test Network 2", "Guest Wi-Fi"]}
+    
+    try:
+        # Ask NetworkManager to rescan
+        subprocess.run(["sudo", "/usr/bin/nmcli", "dev", "wifi", "rescan"], capture_output=True, timeout=10)
+        # Fetch the list
+        result = subprocess.run(
+            ["sudo", "/usr/bin/nmcli", "-t", "-f", "SSID", "dev", "wifi"],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode == 0:
+            lines = result.stdout.splitlines()
+            networks = []
+            for line in lines:
+                ssid = line.strip()
+                if ssid and ssid not in networks:
+                    networks.append(ssid)
+            return {"networks": networks}
+        else:
+            return {"networks": [], "error": result.stderr}
+    except Exception as e:
+        return {"networks": [], "error": str(e)}
+
 @app.post("/api/wifi/toggle", dependencies=[Depends(require_auth)])
 def api_wifi_toggle(toggle: WifiToggleModel):
     """Enable or disable the Wi-Fi radio."""
