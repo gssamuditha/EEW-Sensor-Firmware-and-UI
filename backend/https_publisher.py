@@ -277,30 +277,21 @@ class HttpsPublisher:
 
     def _build_telemetry_payload(self) -> dict:
         """
-        Collect system health metrics and return a telemetry dict.
-
-        Metrics:
-          cpu_temp_c        — SoC temperature (°C), None on non-Pi platforms
-          cpu_percent       — CPU utilisation (0–100), non-blocking snapshot
-          disk_percent      — root filesystem usage percentage
-          uptime_sec        — seconds since last boot
-          avg_sps           — rolling average sensor samples/sec
+        Collect system health metrics and return a telemetry dict matching
+        the central server's expected schema.
         """
-        with self._settings_lock:
-            device_id = self._device_id
-
-        disk = psutil.disk_usage('/')
         uptime_sec = int(time.time() - psutil.boot_time())
-
+        disk = psutil.disk_usage('/')
+        
         sm = self._sensor_manager
+        temp = _read_cpu_temp()
+        
         return {
-            "device_id":        device_id,
-            "ts":               time.time(),
-            "cpu_temp_c":       _read_cpu_temp(),
-            "cpu_percent":      psutil.cpu_percent(interval=None),
-            "disk_percent":     round(disk.percent, 1),
-            "uptime_sec":       uptime_sec,
-            "avg_sps":          sm.avg_sps if sm else None,
+            "temperature": temp if temp is not None else 0.0,
+            "cpuUsage":    psutil.cpu_percent(interval=None),
+            "uptime":      uptime_sec,
+            "sensorSps":   sm.avg_sps if (sm and sm.avg_sps is not None) else 0.0,
+            "memoryUsage": round(disk.percent, 1),
         }
 
     def _send_startup_metadata(self) -> None:
