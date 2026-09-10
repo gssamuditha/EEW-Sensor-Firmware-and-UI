@@ -53,6 +53,7 @@ export default function Settings() {
   const [isRecoveryConfigured, setIsRecoveryConfigured] = useState(false);
 
   const [targets, setTargets] = useState([{ name: 'Main Server', ip: '127.0.0.1', port: 2098, format: 'corrected' }]);
+  const [hasUnsavedTargets, setHasUnsavedTargets] = useState(false);
   const [newName, setNewName] = useState('');
   const [newIp, setNewIp] = useState('');
   const [newPort, setNewPort] = useState(2098);
@@ -149,16 +150,19 @@ export default function Settings() {
     setNewName('');
     setNewIp('');
     setNewFormat('corrected');
+    setHasUnsavedTargets(true);
   };
 
   const handleToggleFormat = (index) => {
     setTargets(targets.map((t, i) =>
       i === index ? { ...t, format: t.format === 'corrected' ? 'raw' : 'corrected' } : t
     ));
+    setHasUnsavedTargets(true);
   };
 
   const handleRemoveTarget = (index) => {
     setTargets(targets.filter((_, i) => i !== index));
+    setHasUnsavedTargets(true);
   };
 
   // Protected: opens auth modal then fires the fetch once token is available
@@ -189,6 +193,7 @@ export default function Settings() {
         });
         if (res.ok) {
           showStatus('Configuration saved successfully.');
+          setHasUnsavedTargets(false);
         } else {
           showStatus('Error saving configuration.', true);
         }
@@ -832,7 +837,11 @@ export default function Settings() {
 
                   <button
                     onClick={handleSaveSettings}
-                    className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                    className={`w-full text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 transition-all ${
+                      hasUnsavedTargets 
+                        ? 'bg-amber-500 hover:bg-amber-600 animate-pulse' 
+                        : 'bg-primary dark:bg-sky-600 hover:bg-opacity-90 hover:shadow'
+                    }`}
                   >
                     <Save className="w-4 h-4" />
                     <span>Save Targets</span>
