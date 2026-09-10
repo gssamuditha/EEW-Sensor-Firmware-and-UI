@@ -76,6 +76,7 @@ export default function Settings() {
   const [showPassword, setShowPassword] = useState(false);
   const [scannedNetworks, setScannedNetworks] = useState([]);
   const [isScanning, setIsScanning] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const [dataForwarding, setDataForwarding] = useState(true);
   const [wifiEnabled, setWifiEnabled] = useState(true);
@@ -706,17 +707,42 @@ export default function Settings() {
                       <div>
                         <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1">SSID</label>
                         <div className="flex space-x-2">
-                          <input
-                            type="text"
-                            list="wifi-networks"
-                            value={ssid}
-                            onChange={e => setSsid(e.target.value)}
-                            placeholder="Enter network name"
-                            className="flex-1 min-w-0 bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
-                          />
-                          <datalist id="wifi-networks">
-                            {scannedNetworks.map(net => <option key={net} value={net} />)}
-                          </datalist>
+                          <div className="relative flex-1 min-w-0">
+                            <input
+                              type="text"
+                              value={ssid}
+                              onChange={e => {
+                                setSsid(e.target.value);
+                                setShowDropdown(true);
+                              }}
+                              onFocus={() => setShowDropdown(true)}
+                              onBlur={() => setShowDropdown(false)}
+                              placeholder="Enter network name"
+                              className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                            />
+                            {showDropdown && scannedNetworks.length > 0 && (
+                              <div className="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md shadow-xl z-50 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600">
+                                {scannedNetworks
+                                  .filter(net => net.toLowerCase().includes(ssid.toLowerCase()))
+                                  .map(net => (
+                                    <div
+                                      key={net}
+                                      onMouseDown={(e) => {
+                                        e.preventDefault(); // Prevents input onBlur
+                                        setSsid(net);
+                                        setShowDropdown(false);
+                                      }}
+                                      className="px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer font-bold transition-colors"
+                                    >
+                                      {net}
+                                    </div>
+                                ))}
+                                {scannedNetworks.filter(net => net.toLowerCase().includes(ssid.toLowerCase())).length === 0 && (
+                                  <div className="px-4 py-2 text-sm text-slate-400 italic">No matches</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                           <button
                             onClick={handleScanWifi}
                             disabled={isScanning}
