@@ -238,7 +238,7 @@ export default function Dashboard() {
             <div className="flex flex-col gap-3 h-full">
               <a href="https://terrasense.org.lk/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center border border-slate-200 dark:border-slate-600 dark:bg-slate-700 rounded-lg p-3 hover:bg-slate-50 transition-all shadow-md hover:shadow-lg text-slate-600 dark:text-slate-200 hover:text-primary hover:dark:text-amber-400 cursor-pointer">
                 <ServerStackIcon className="w-5 h-5 mr-2 shrink-0" />
-                <span className="text-xs font-bold">Sensor Platform</span>
+                <span className="text-xs font-bold">Shakemap</span>
               </a>
               <a href="#data" className="flex items-center justify-center border border-slate-200 dark:border-slate-600 dark:bg-slate-700 rounded-lg p-3 hover:bg-slate-50 transition-all shadow-md hover:shadow-lg text-slate-600 dark:text-slate-200 hover:text-primary hover:dark:text-amber-400 cursor-pointer">
                 <BookOpenIcon className="w-5 h-5 mr-2 shrink-0" />
