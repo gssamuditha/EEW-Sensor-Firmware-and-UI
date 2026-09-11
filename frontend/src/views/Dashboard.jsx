@@ -121,45 +121,45 @@ export default function Dashboard() {
           <div>
             <div className="text-[15px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">Device Details</div>
             <div className="space-y-3 font-mono text-sm whitespace-nowrap pr-4">
-              <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
+              <div className="grid grid-cols-[100px_1fr] items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">Device ID</span>
-                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{sensorSettings.device_id}</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{sensorSettings.device_id}</span>
               </div>
-              <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
+              <div className="grid grid-cols-[100px_1fr] items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">Name</span>
-                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{sensorSettings.device_name}</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{sensorSettings.device_name}</span>
               </div>
-              <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
+              <div className="grid grid-cols-[100px_1fr] items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">Model</span>
-                <span className="text-primary dark:text-slate-100 font-bold col-span-2">Eew-Pi-4</span>
+                <span className="text-primary dark:text-slate-100 font-bold">Eew-Pi-4</span>
               </div>
-              <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
+              <div className="grid grid-cols-[100px_1fr] items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">Channels</span>
-                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{activeChannels.join(', ') || '-'}</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{activeChannels.join(', ') || '-'}</span>
               </div>
-              <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
+              <div className="grid grid-cols-[100px_1fr] items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">Local IP</span>
-                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{systemStats.local_ip}</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{systemStats.local_ip}</span>
               </div>
-              <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
+              <div className="grid grid-cols-[100px_1fr] items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">Mac Addr</span>
-                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{systemStats.mac_address}</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{systemStats.mac_address}</span>
               </div>
-              <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
+              <div className="grid grid-cols-[100px_1fr] items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">Latitude</span>
-                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{sensorSettings.latitude.toFixed(5)}</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{sensorSettings.latitude.toFixed(5)}</span>
               </div>
-              <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
+              <div className="grid grid-cols-[100px_1fr] items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">Longitude</span>
-                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{sensorSettings.longitude.toFixed(5)}</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{sensorSettings.longitude.toFixed(5)}</span>
               </div>
-              <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
+              <div className="grid grid-cols-[100px_1fr] items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">Elevation</span>
-                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{sensorSettings.elevation.toFixed(1)} m</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{sensorSettings.elevation.toFixed(1)} m</span>
               </div>
-              <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
+              <div className="grid grid-cols-[100px_1fr] items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">Uptime</span>
-                <span className="text-primary dark:text-slate-100 font-bold col-span-2">{systemStats.uptime}</span>
+                <span className="text-primary dark:text-slate-100 font-bold">{systemStats.uptime}</span>
               </div>
             </div>
           </div>
