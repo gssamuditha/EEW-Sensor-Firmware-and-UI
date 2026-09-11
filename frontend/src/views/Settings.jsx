@@ -1054,7 +1054,7 @@ export default function Settings() {
 
         {/* Tab 4: Security */}
         <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'security' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full overflow-y-auto p-1 pb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full overflow-y-auto p-1 pb-6 content-start">
             {/* Left Column */}
             <div className="h-full flex flex-col">
               {/* ── Admin Password ─────────────────────────────────────────── */}
