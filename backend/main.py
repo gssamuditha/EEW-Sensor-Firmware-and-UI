@@ -656,6 +656,29 @@ def _check_internet():
     _last_internet_check = time.time()
     return _cached_internet
 
+_cached_server = False
+_last_server_check = 0
+
+from config import SERVER_IP
+
+def _check_server(ip=SERVER_IP):
+    """Check if the server is reachable via ping (cached for 10s)."""
+    global _cached_server, _last_server_check
+    if time.time() - _last_server_check < 10:
+        return _cached_server
+        
+    try:
+        if sys.platform == "win32":
+            result = subprocess.run(["ping", "-n", "1", "-w", "1000", ip], capture_output=True, creationflags=0x08000000)
+        else:
+            result = subprocess.run(["ping", "-c", "1", "-W", "1", ip], capture_output=True)
+        _cached_server = (result.returncode == 0)
+    except Exception:
+        _cached_server = False
+        
+    _last_server_check = time.time()
+    return _cached_server
+
 # Cache MAC address exactly once per boot since it never changes
 MAC_ADDRESS = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
 
@@ -690,7 +713,7 @@ def api_system_status():
             "local_ip": ip,
             "mac_address": MAC_ADDRESS,
             "internet_status": _check_internet(),
-            "server_status": True,
+            "server_status": _check_server(),
             "hardware_sps": sensor_manager.hardware_sps,
             "avg_sps": sensor_manager.avg_sps
         }

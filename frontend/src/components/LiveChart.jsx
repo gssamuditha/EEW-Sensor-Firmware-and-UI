@@ -400,17 +400,17 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
       <div className="flex-shrink-0 mt-2 flex items-center gap-2">
         <button
           onClick={togglePause}
-          className="flex items-center space-x-1.5 bg-slate-500 dark:bg-slate-700 hover:bg-slate-600 dark:hover:bg-slate-600 text-white rounded-md font-bold transition-colors shadow-sm px-2 py-0.5 text-[10px]"
+          className="flex items-center space-x-1.5 bg-slate-500 dark:bg-slate-700 hover:bg-slate-600 dark:hover:bg-slate-600 text-white rounded-md font-bold transition-colors shadow-sm px-2 py-0.5 text-[12px]"
         >
           {isPaused ? (
             <>
               <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
-              <span>RESUME</span>
+              <span>Resume</span>
             </>
           ) : (
             <>
               <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-              <span>PAUSE</span>
+              <span>Pause</span>
             </>
           )}
         </button>
@@ -418,10 +418,10 @@ export default function LiveChart({ timeZone, updateSps, onClientSps, onChannels
         {!isExpanded && (
           <button
             onClick={() => window.open('/expanded', '_blank')}
-            className="flex items-center space-x-1.5 bg-slate-500 dark:bg-slate-700 hover:bg-slate-600 dark:hover:bg-slate-600 text-white rounded-md font-bold transition-colors shadow-sm px-2 py-0.5 text-[10px]"
+            className="flex items-center space-x-1.5 bg-slate-500 dark:bg-slate-700 hover:bg-slate-600 dark:hover:bg-slate-600 text-white rounded-md font-bold transition-colors shadow-sm px-2 py-0.5 text-[12px]"
           >
             <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
-            <span>VIEW EXPANDED</span>
+            <span>View Expanded</span>
           </button>
         )}
       </div>

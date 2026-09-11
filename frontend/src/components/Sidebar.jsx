@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ListBulletIcon, Squares2X2Icon as DashboardIcon, CircleStackIcon as DatabaseIcon, Cog8ToothIcon as Settings } from '@heroicons/react/24/solid';
+import { PanelLeftOpen, PanelLeftClose } from 'lucide-react';
 
 const WaveformCircleIcon = ({ className }) => (
   <svg
@@ -49,7 +50,7 @@ export default function Sidebar() {
           className="text-white/50 hover:text-white p-2 rounded-md hover:bg-white/10 transition-colors shrink-0"
           title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
         >
-          <ListBulletIcon className="w-6 h-6" />
+          {isCollapsed ? <PanelLeftOpen className="w-6 h-6" /> : <PanelLeftClose className="w-6 h-6" />}
         </button>
       </div>
       <nav className="tour-sidebar flex-1 flex flex-row md:flex-col justify-around md:justify-start items-center md:items-stretch px-2 md:px-3 py-0 md:py-2 space-x-0 md:space-x-0 md:space-y-2 overflow-x-auto md:overflow-x-hidden">

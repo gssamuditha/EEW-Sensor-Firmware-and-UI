@@ -62,25 +62,7 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Central Server Configuration
-# Set these values before deployment — not editable by end users.
-# ---------------------------------------------------------------------------
-
-# Base URL of the central EEW aggregation server.
-# ZeroTier example:  "http://172.24.0.1:8080"
-# HTTPS example:     "https://172.24.0.1:8443"
-# Leave as None to disable publishing entirely (safe for development).
-CENTRAL_SERVER_URL: str | None = "http://10.82.183.1:8000"   # TODO: set before deployment
-
-# No API key — authentication is handled by the ZeroTier controller.
-# Only nodes explicitly authorised in the ZeroTier network can reach this server.
-# The server identifies each sensor by its stable ZeroTier-assigned source IP.
-
-# TLS certificate verification.
-# False  → skip verification (appropriate for ZeroTier LAN + self-signed certs).
-# True   → full CA chain verification (requires a CA-signed server cert).
-# "path" → path to a custom CA bundle PEM file.
-TLS_VERIFY: bool | str = False
+from config import CENTRAL_SERVER_URL, TLS_VERIFY
 
 # ---------------------------------------------------------------------------
 # Tuning constants

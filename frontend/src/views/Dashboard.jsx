@@ -119,7 +119,7 @@ export default function Dashboard() {
         {/* Left Column: Widget 1 */}
         <div className="tour-device-details bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md flex flex-col justify-between">
           <div>
-            <div className="text-[13px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">Device Details</div>
+            <div className="text-[15px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">Device Details</div>
             <div className="space-y-3 font-mono text-sm">
               <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">Device ID</span>
@@ -175,7 +175,7 @@ export default function Dashboard() {
 
           {/* Widget 2: Network & Connections */}
           <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md shrink-0">
-            <div className="text-[13px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">Network</div>
+            <div className="text-[14px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">Network</div>
             <div className="space-y-3 font-mono text-sm">
               <div className="flex justify-between items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">Internet</span>
@@ -200,7 +200,7 @@ export default function Dashboard() {
 
           {/* Widget 4: System Status */}
           <div className="tour-system-status bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md shrink-0">
-            <div className="text-[13px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">System Status</div>
+            <div className="text-[14px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">System Status</div>
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between text-xs font-bold font-mono text-slate-400 mb-1">
@@ -234,7 +234,7 @@ export default function Dashboard() {
 
           {/* Widget 6: Server Actions */}
           <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md flex-1 flex flex-col shrink-0">
-            <div className="text-[13px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">Server Actions</div>
+            <div className="text-[14px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">Server Actions</div>
             <div className="flex flex-col gap-3 h-full">
               <a href="https://terrasense.org.lk/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center border border-slate-200 dark:border-slate-600 dark:bg-slate-700 rounded-lg p-3 hover:bg-slate-50 transition-all shadow-md hover:shadow-lg text-slate-600 dark:text-slate-200 hover:text-primary hover:dark:text-amber-400 cursor-pointer">
                 <ServerStackIcon className="w-5 h-5 mr-2 shrink-0" />
