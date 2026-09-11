@@ -128,7 +128,14 @@ function ChannelPlot({ channelName, channelUnit, timeZone, dataRef, latestValue,
 
     chartRef.current = chart;
 
+    const ro = new ResizeObserver(() => {
+      chart.updateCanvas();
+      chart.recompute();
+    });
+    ro.observe(containerRef.current);
+
     return () => {
+      ro.disconnect();
       // Unregister from cursor sync
       cursorSync.unregister(chart);
       // Clean up canvas and any plugin-created DOM elements (axis labels etc.)

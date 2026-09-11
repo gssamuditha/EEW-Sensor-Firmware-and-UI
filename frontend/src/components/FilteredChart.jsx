@@ -118,7 +118,14 @@ function AnalysisChannelPlot({ channelName, channelUnit, timeZone, dataRef, late
     chart.backgroundColour = themeRef.current === 'dark' ? '#1e293b' : '#ffffff';
     chartRef.current = chart;
 
+    const ro = new ResizeObserver(() => {
+      chart.updateCanvas();
+      chart.recompute();
+    });
+    ro.observe(containerRef.current);
+
     return () => {
+      ro.disconnect();
       analysisCursorSync.unregister(chart);
       if (containerRef.current) containerRef.current.innerHTML = '';
     };
