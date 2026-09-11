@@ -114,7 +114,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(320px,380px)_1fr_320px] gap-6 overflow-y-auto pb-4">
+      <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[clamp(280px,25%,380px)_1fr_clamp(260px,22%,320px)] gap-6 overflow-y-auto pb-4">
 
         {/* Left Column: Widget 1 */}
         <div className="tour-device-details bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md flex flex-col justify-between">
