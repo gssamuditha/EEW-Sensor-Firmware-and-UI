@@ -224,14 +224,10 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
   const [loading, setLoading] = useState(false);
   const reconnectDelayRef = useRef(1000);
   const lastMsgTimeRef = useRef(0);
-  const isPausedRef = useRef(false);
-  const [isPaused, setIsPaused] = useState(false);
 
   // Buffer to catch WS data arriving while historical fetch is running
   const isFetchingRef = useRef(false);
   const wsBufferRef = useRef({});
-
-  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
   // Update maxPoints when window changes
   useEffect(() => {
@@ -430,7 +426,7 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
 
     // UI render tick (250 ms) — triggers chart.recompute()
     const uiInterval = setInterval(() => {
-      if (!isPausedRef.current) setTick(t => t + 1);
+      setTick(t => t + 1);
     }, 250);
 
     // Heartbeat: detect silence (only in live mode)
@@ -493,25 +489,6 @@ export default function FilteredChart({ timeZone, startEpoch, endEpoch, isLive =
         ))}
       </div>
 
-      {/* Pause control */}
-      <div className="flex-shrink-0 mt-2 flex items-center gap-2">
-        <button
-          onClick={() => setIsPaused(!isPaused)}
-          className="flex items-center space-x-1.5 bg-slate-500 dark:bg-slate-700 hover:bg-slate-600 dark:hover:bg-slate-600 text-white rounded-md font-bold transition-colors shadow-sm px-2 py-0.5 text-[10px]"
-        >
-          {isPaused ? (
-            <>
-              <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
-              <span>RESUME</span>
-            </>
-          ) : (
-            <>
-              <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-              <span>PAUSE</span>
-            </>
-          )}
-        </button>
-      </div>
     </div>
   );
 }

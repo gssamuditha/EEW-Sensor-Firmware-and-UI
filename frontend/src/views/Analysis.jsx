@@ -375,14 +375,7 @@ export default function Analysis() {
 
         {/* Filtered Waveform Charts */}
         <div className="flex-1 min-h-0 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-4 shadow-md flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between mb-2 flex-shrink-0">
-            <div />
-            {availability?.earliest && (
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
-                Data from {new Date(availability.earliest * 1000).toLocaleDateString()}
-              </span>
-            )}
-          </div>
+
           {durationError ? (
             <div className="flex-1 flex items-center justify-center text-slate-400 dark:text-slate-400 text-sm">
               {durationError}. Adjust the time range above.
