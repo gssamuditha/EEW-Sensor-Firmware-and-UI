@@ -246,13 +246,13 @@ export default function Analysis() {
           <div className="flex flex-row items-center gap-3">
             <h1 className="text-3xl font-bold text-primary dark:text-sky-400 tracking-wide">Signal Analysis</h1>
             {activeFilter && filterStatus === 'active' && (
-              <div className="px-2 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 text-[10px] font-bold rounded-md border border-slate-100 dark:border-slate-700 shadow-sm flex items-center space-x-1.5">
+              <div className="px-2 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 text-xs font-bold rounded-md border border-slate-100 dark:border-slate-700 shadow-sm flex items-center space-x-1.5">
                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
                 <span>BANDPASS {activeFilter.low_hz}–{activeFilter.high_hz} Hz</span>
               </div>
             )}
             {filterStatus === 'updating' && (
-              <div className="px-2 py-1 bg-white dark:bg-slate-800 text-yellow-600 text-[10px] font-bold rounded border border-yellow-200 shadow-sm">
+              <div className="px-2 py-1 bg-white dark:bg-slate-800 text-yellow-600 text-xs font-bold rounded border border-yellow-200 shadow-sm">
                 Updating filter…
               </div>
             )}
@@ -267,13 +267,13 @@ export default function Analysis() {
           <div className="flex flex-row items-end gap-2 flex-wrap">
             <button
               onClick={toggleLive}
-              className={`h-7 px-2.5 rounded-md text-[9px] font-bold tracking-wider shadow-sm border ${isLive ? 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:text-emerald-600'
+              className={`h-7 px-2.5 rounded-md text-[10px] font-bold tracking-wider shadow-sm border ${isLive ? 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:text-emerald-600'
                 }`}
             >
               {isLive ? '● LIVE' : 'NOW'}
             </button>
             <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">
+              <label className="text-[9px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">
                 Start <span className="ml-0.5 text-slate-400 font-normal">({timeZone})</span>
               </label>
               <input
@@ -283,12 +283,12 @@ export default function Analysis() {
                 onClick={() => isLive && setIsLive(false)}
                 min={minDatetime}
                 max={maxDatetime}
-                className={`h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300 dark:[color-scheme:dark] ${isLive ? 'opacity-50 cursor-pointer' : ''}`}
+                className={`h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-xs font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300 dark:[color-scheme:dark] ${isLive ? 'opacity-50 cursor-pointer' : ''}`}
               />
             </div>
-            <span className="text-slate-300 font-bold text-[10px] pb-1.5">→</span>
+            <span className="text-slate-300 font-bold text-xs pb-1.5">→</span>
             <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">
+              <label className="text-[9px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">
                 End <span className="ml-0.5 text-slate-400 font-normal">({timeZone})</span>
               </label>
               <input
@@ -299,10 +299,10 @@ export default function Analysis() {
                 min={minDatetime}
                 max={maxDatetime}
                 readOnly={isLive}
-                className={`h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300 dark:[color-scheme:dark] ${isLive ? 'opacity-50 cursor-pointer' : ''}`}
+                className={`h-7 border-0 bg-white dark:bg-slate-700 rounded-md px-2 text-xs font-mono font-semibold text-slate-600 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-slate-300 dark:[color-scheme:dark] ${isLive ? 'opacity-50 cursor-pointer' : ''}`}
               />
             </div>
-            <div className={`h-7 flex items-center px-2 rounded-md text-[9px] font-bold font-mono border ${durationError ? 'bg-red-50 text-red-500 border-red-200' : 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700/50'
+            <div className={`h-7 flex items-center px-2 rounded-md text-[10px] font-bold font-mono border ${durationError ? 'bg-red-50 text-red-500 border-red-200' : 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700/50'
               }`}>
               {durationStr}
             </div>
@@ -310,7 +310,7 @@ export default function Analysis() {
               <button
                 key={opt.value}
                 onClick={() => quickSelect(opt.value)}
-                className="h-7 px-2 rounded-md text-[9px] font-bold text-slate-500 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 shadow-sm transition-colors"
+                className="h-7 px-2 rounded-md text-[10px] font-bold text-slate-500 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 shadow-sm transition-colors"
               >
                 {opt.label}
               </button>
@@ -321,11 +321,11 @@ export default function Analysis() {
           <div className="flex flex-row items-end gap-2 w-full justify-between flex-wrap mt-1">
             {Object.keys(presets).length > 0 && (
               <div className="flex flex-col flex-1 min-w-[120px] mr-2">
-                <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Preset</label>
+                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Preset</label>
                 <select
                   value={activePreset || ''}
                   onChange={(e) => applyPreset(e.target.value)}
-                  className="h-7 w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-2 text-[10px] font-bold text-slate-600 dark:text-slate-200 shadow-sm focus:ring-1 focus:ring-slate-300 cursor-pointer"
+                  className="h-7 w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-2 text-xs font-bold text-slate-600 dark:text-slate-200 shadow-sm focus:ring-1 focus:ring-slate-300 cursor-pointer"
                 >
                   <option value="" disabled>Custom</option>
                   {Object.entries(presets).map(([key, preset]) => (
@@ -338,24 +338,24 @@ export default function Analysis() {
             {/* Frequency Controls & Apply Button */}
             <div className="flex flex-row items-end gap-2 flex-wrap ml-auto">
               <div className="flex flex-col w-[130px]">
-                <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Low (Hz)</label>
+                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">Low (Hz)</label>
                 <div className="flex items-center space-x-1.5 w-full">
                   <input type="range" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
-                  <input type="number" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
+                  <input type="number" min="0.01" max="10" step="0.01" value={lowHz} onChange={e => { setLowHz(parseFloat(e.target.value) || 0.01); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-xs font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
                 </div>
               </div>
               <div className="flex flex-col w-[130px]">
-                <label className="text-[8px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">High (Hz)</label>
+                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-0.5">High (Hz)</label>
                 <div className="flex items-center space-x-1.5 w-full">
                   <input type="range" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value)); setActivePreset(null); }} className="flex-1 min-w-[80px] accent-primary" />
-                  <input type="number" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value) || 0.5); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-[10px] font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
+                  <input type="number" min="0.5" max="50" step="0.5" value={highHz} onChange={e => { setHighHz(parseFloat(e.target.value) || 0.5); setActivePreset(null); }} className="h-7 w-12 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md px-1 text-xs font-mono font-semibold text-center focus:ring-1 focus:outline-none focus:ring-slate-300 shadow-sm" />
                 </div>
               </div>
               <button
                 onClick={applyFilter}
                 className={isFilterDirty
-                  ? "h-7 bg-amber-500 hover:bg-amber-600 text-white rounded-md font-bold transition-all shadow-md px-4 text-[9px] tracking-wider shrink-0 animate-pulse border border-amber-400"
-                  : "h-7 bg-primary dark:bg-sky-600 hover:bg-opacity-90 text-white rounded-md font-bold transition-all shadow-md px-4 text-[9px] tracking-wider shrink-0"
+                  ? "h-7 bg-amber-500 hover:bg-amber-600 text-white rounded-md font-bold transition-all shadow-md px-4 text-[10px] tracking-wider shrink-0 animate-pulse border border-amber-400"
+                  : "h-7 bg-primary dark:bg-sky-600 hover:bg-opacity-90 text-white rounded-md font-bold transition-all shadow-md px-4 text-[10px] tracking-wider shrink-0"
                 }
               >
                 Apply Filter
@@ -364,7 +364,7 @@ export default function Analysis() {
           </div>
 
           {(errorMsg || durationError) && (
-            <div className="text-[9px] text-red-500 font-bold w-full text-right mt-[-4px]">
+            <div className="text-[10px] text-red-500 font-bold w-full text-right mt-[-4px]">
               {errorMsg} {durationError}
             </div>
           )}
@@ -378,8 +378,8 @@ export default function Analysis() {
           <div className="flex items-center justify-between mb-2 flex-shrink-0">
             <div />
             {availability?.earliest && (
-              <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">
-                Archive from {new Date(availability.earliest * 1000).toLocaleDateString()}
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                Data from {new Date(availability.earliest * 1000).toLocaleDateString()}
               </span>
             )}
           </div>
