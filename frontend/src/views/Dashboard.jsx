@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import LiveChart from '../components/LiveChart';
 import { useTimeZone } from '../TimeZoneContext';
-import { ServerStackIcon, ChartBarIcon, BookOpenIcon } from '@heroicons/react/24/solid';
+import { GlobeAmericasIcon, ChartBarIcon, BookOpenIcon } from '@heroicons/react/24/solid';
 
 export default function Dashboard() {
   const { timeZone, setTimeZone, TIMEZONES } = useTimeZone();
@@ -114,13 +114,13 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 overflow-y-auto pb-4">
+      <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[max-content_1fr_320px] gap-6 overflow-y-auto pb-4">
 
         {/* Left Column: Widget 1 */}
         <div className="tour-device-details bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-5 shadow-md flex flex-col justify-between">
           <div>
             <div className="text-[15px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">Device Details</div>
-            <div className="space-y-3 font-mono text-sm">
+            <div className="space-y-3 font-mono text-sm whitespace-nowrap pr-4">
               <div className="grid grid-cols-3 items-center border-b border-slate-50 dark:border-slate-700/50 pb-2">
                 <span className="font-bold text-slate-400">Device ID</span>
                 <span className="text-primary dark:text-slate-100 font-bold col-span-2">{sensorSettings.device_id}</span>
@@ -166,7 +166,7 @@ export default function Dashboard() {
         </div>
 
         {/* Middle Column: Widget 3 */}
-        <div className="tour-live-chart md:col-span-2 xl:col-span-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-4 shadow-md flex flex-col min-h-0 overflow-hidden min-h-[250px] md:min-h-[300px]">
+        <div className="tour-live-chart md:col-span-2 xl:col-span-1 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl p-4 shadow-md flex flex-col min-h-0 overflow-hidden min-h-[250px] md:min-h-[300px]">
           <LiveChart timeZone={timeZone} updateSps={updateSps} onClientSps={handleClientSps} onChannelsFound={handleChannelsFound} />
         </div>
 
@@ -237,7 +237,7 @@ export default function Dashboard() {
             <div className="text-[14px] font-bold text-slate-400 dark:text-slate-200 tracking-widest mb-4">Server Actions</div>
             <div className="flex flex-col gap-3 h-full">
               <a href="https://terrasense.org.lk/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center border border-slate-200 dark:border-slate-600 dark:bg-slate-700 rounded-lg p-3 hover:bg-slate-50 transition-all shadow-md hover:shadow-lg text-slate-600 dark:text-slate-200 hover:text-primary hover:dark:text-amber-400 cursor-pointer">
-                <ServerStackIcon className="w-5 h-5 mr-2 shrink-0" />
+                <GlobeAmericasIcon className="w-5 h-5 mr-2 shrink-0" />
                 <span className="text-xs font-bold">Shakemap</span>
               </a>
               <a href="#data" className="flex items-center justify-center border border-slate-200 dark:border-slate-600 dark:bg-slate-700 rounded-lg p-3 hover:bg-slate-50 transition-all shadow-md hover:shadow-lg text-slate-600 dark:text-slate-200 hover:text-primary hover:dark:text-amber-400 cursor-pointer">

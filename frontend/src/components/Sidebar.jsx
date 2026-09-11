@@ -35,7 +35,7 @@ export default function Sidebar() {
     <div className={`
       bg-primary dark:bg-slate-950 text-white font-sans transition-all duration-300 ease-in-out relative shrink-0
       flex flex-row md:flex-col w-full h-16 md:h-screen z-50
-      ${isCollapsed ? 'md:w-[72px]' : 'md:w-64'}
+      ${isCollapsed ? 'md:w-[72px]' : 'md:w-56'}
     `}>
       <div className={`hidden md:flex p-6 border-b border-white/10 items-center h-24 shrink-0 transition-all duration-300 ${isCollapsed ? 'justify-center px-2' : 'space-x-4'}`}>
         <img src="/logo1.png" alt="Logo" className="h-10 w-10 object-contain shrink-0" onError={(e) => e.target.style.display = 'none'} />
