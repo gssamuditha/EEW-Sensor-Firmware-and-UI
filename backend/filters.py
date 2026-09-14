@@ -1,10 +1,10 @@
 """
-filters.py — Digital Signal Processing module for EEW Sensor Analysis.
+filters.py - Digital Signal Processing module for EEW Sensor Analysis.
 
 Provides a real-time IIR Butterworth bandpass filter suitable for seismic
 signal analysis.  Designed to run on Raspberry Pi 3 with minimal CPU overhead.
 
-Typical earthquake frequency band: 0.1 Hz – 20 Hz.
+Typical earthquake frequency band: 0.1 Hz - 20 Hz.
 """
 
 import numpy as np
@@ -41,7 +41,7 @@ class BandpassFilter:
         low_hz  : Lower cutoff frequency in Hz (e.g. 0.1)
         high_hz : Upper cutoff frequency in Hz (e.g. 20.0)
         fs      : Sampling rate in Hz (default 100)
-        order   : Filter order (default 4 — standard for seismic analysis)
+        order   : Filter order (default 4)
         """
         self.fs = fs
         self.order = order
@@ -82,7 +82,7 @@ class BandpassFilter:
 
     def apply(self, data: np.ndarray) -> np.ndarray:
         """
-        Stateless causal batch filter — apply bandpass to an entire array.
+        Stateless causal batch filter - apply bandpass to an entire array.
         Does NOT affect the real-time filter state.
 
         Parameters
@@ -180,9 +180,7 @@ def minmax_downsample(timestamps: np.ndarray, data: np.ndarray,
     Min-max envelope downsampling for seismic waveform visualisation.
 
     For each pixel-width bucket, keeps both the minimum and maximum value.
-    This guarantees that no peak or trough (e.g. P-wave first arrival,
-    maximum ground acceleration) is hidden by the downsampling — unlike
-    simple stride decimation which can miss peaks between strides.
+    This guarantees that no peak or trough
 
     Parameters
     ----------
@@ -192,7 +190,7 @@ def minmax_downsample(timestamps: np.ndarray, data: np.ndarray,
 
     Returns
     -------
-    (out_timestamps, out_data) — both 1-D numpy arrays, length ≤ target_points
+    (out_timestamps, out_data)  both 1-D numpy arrays, length ≤ target_points
     """
     n = len(data)
     if n <= target_points:

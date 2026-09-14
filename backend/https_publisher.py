@@ -1,21 +1,21 @@
 """
-https_publisher.py — HTTPS Telemetry & Metadata Publisher
-==========================================================
+https_publisher.py - HTTPS Telemetry & Metadata Publisher
+
 Pushes two types of JSON payloads to the central EEW aggregation server
 via HTTPS POST:
 
-  1. Telemetry  — system health snapshot every TELEMETRY_INTERVAL_SEC seconds
+  1. Telemetry  - system health snapshot every TELEMETRY_INTERVAL_SEC seconds
                   { cpu_temp_c, cpu_percent, disk_*, uptime_sec, avg_sps, ... }
 
-  2. Metadata   — device identity payload
+  2. Metadata   - device identity payload
                   { device_id, owner, lat/lon, elevation, floor info }
                   Sent once automatically at node startup (after first
                   successful telemetry push) and once on every settings save.
 
 Transport Design
 ----------------
-* HTTPS POST with JSON body — no application-level API key.
-* Uses httpx.Client (synchronous) inside a dedicated daemon thread —
+* HTTPS POST with JSON body - no application-level API key.
+* Uses httpx.Client (synchronous) inside a dedicated daemon thread -
   completely isolated from the FastAPI asyncio event loop and the sensor
   hardware thread (zero timing impact on waveform acquisition).
 * Connection pooling: TLS handshake is performed once per session, not
@@ -26,27 +26,13 @@ Transport Design
     - HTTP 5xx / timeout→ retry up to MAX_RETRIES with RETRY_BACKOFF_SEC
     - Connection error  → retry with exponential backoff (5 s → 15 s → 60 s)
 
-Authentication & Security
---------------------------
-No application-level API key is used. Authentication is handled entirely
-by the ZeroTier overlay network:
-  * Only nodes explicitly authorised in the ZeroTier controller can reach
-    the server's IP at all — unauthorised devices cannot route packets to it.
-  * The server can identify each sensor by its stable ZeroTier-assigned IP
-    address (plus the device_id field in the JSON payload for semantics).
-  * ZeroTier encrypts all traffic in transit, so a self-signed TLS cert
-    (or even plain HTTP over the ZeroTier interface) is acceptable.
 
 ZeroTier LAN Deployment
 ------------------------
-TLS_VERIFY is False by default — self-signed certs are the norm on private
+TLS_VERIFY is False by default - self-signed certs are the norm on private
 ZeroTier networks and ZeroTier already handles link-layer encryption.
 Set TLS_VERIFY = True (or a CA bundle path) for CA-signed server certs.
 
-Configuration
--------------
-All server config is hardcoded here — NOT exposed in the frontend UI.
-Set CENTRAL_SERVER_URL before deployment.
 """
 
 import json
@@ -195,7 +181,7 @@ class HttpsPublisher:
             self._metadata_queue.put_nowait(payload)
         except queue.Full:
             logger.warning(
-                "https_publisher: metadata queue is full — payload dropped. "
+                "https_publisher: metadata queue is full - payload dropped. "
                 "This should not happen under normal usage."
             )
 
@@ -283,7 +269,7 @@ class HttpsPublisher:
             payload = {
                 "device_id":    s.get("device_id",      "UNKNW"),
                 "ts":           time.time(),
-                "device_name":  s.get("device_name",    "CRISIS-NODE-01"),
+                "device_name":  s.get("device_name",    "CRISIS-NODE"),
                 "owner_name":   s.get("owner_name",     ""),
                 "owner_email":  s.get("owner_email",    ""),
                 "latitude":     float(s.get("latitude",  0.0)),
@@ -303,13 +289,6 @@ class HttpsPublisher:
     def _post(self, endpoint: str, payload: dict) -> bool:
         """
         POST a JSON payload to the central server.
-
-        Retry policy:
-          - HTTP 2xx          → return True (success)
-          - HTTP 4xx          → log error, return False (do NOT retry —
-                                likely a config error, retrying won't help)
-          - HTTP 5xx / timeout→ retry up to MAX_RETRIES with RETRY_BACKOFF_SEC
-          - Connection error  → retry with RETRY_BACKOFF_SEC
 
         Returns True if the server acknowledged the payload, False otherwise.
         """
@@ -365,12 +344,12 @@ class HttpsPublisher:
     # ------------------------------------------------------------------
 
     def _refresh_settings(self) -> None:
-        """No-op — device_id is read directly from DB at payload build time."""
+        """No-op - device_id is read directly from DB at payload build time."""
         pass
 
 
 # ---------------------------------------------------------------------------
-# Singleton instance — imported by main.py
+# Singleton instance - imported by main.py
 # ---------------------------------------------------------------------------
 
 https_publisher = HttpsPublisher()

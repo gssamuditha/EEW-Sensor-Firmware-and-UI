@@ -9,11 +9,6 @@ settings      Key-value store for all user/device configuration.
 event_log     Anomaly event metadata (timestamps, max amplitude).
               Only timestamps are stored — waveform data lives in miniSEED.
 
-Design decisions
-----------------
-* Waveform data is NOT stored here — that lives in the miniSEED SDS archive
-  managed by mseed_writer.py and retention.py.
-* SQLite is config/events only: fast reads, tiny file, no retention issues.
 """
 
 import sqlite3
