@@ -1,6 +1,7 @@
 import asyncio
 import csv
 import io
+import os
 import time
 import json
 import psutil
@@ -16,6 +17,8 @@ import secrets
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request, Depends, Header
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
@@ -24,6 +27,7 @@ from sensor import sensor_manager, process_historical_data_task, CHANNEL_NAMES, 
 from mseed_writer import mseed_writer
 from filters import FILTER_PRESETS
 from https_publisher import https_publisher
+from metadata import build_stationxml
 from concurrent.futures import ProcessPoolExecutor
 
 # Use a ProcessPool to run heavy numpy/scipy operations entirely out-of-process, bypassing the GIL.
@@ -57,7 +61,8 @@ async def lifespan(app: FastAPI):
     # Start HTTPS telemetry / metadata publisher (non-blocking daemon thread)
     https_publisher.start(sensor_manager)
     
-    # Background task for miniSEED retention
+    # Background task for miniSEED retention.
+    # Imported here (not at module top) to avoid a circular import during module load.
     from retention import run_retention_task
     retention_task = asyncio.create_task(run_retention_task(3600))
     
@@ -602,7 +607,7 @@ def api_set_settings(settings: SettingsModel):
 # Device Metadata / Instrument Response endpoint
 # ---------------------------------------------------------------------------
 
-from metadata import build_stationxml
+
 
 @app.get("/api/metadata/stationxml")
 def api_metadata_stationxml():
@@ -799,7 +804,6 @@ def api_export(start: float, end: float, format: str = "csv"):
 @app.get("/api/export/all")
 def api_export_all():
     """Stream the entire SDS archive as a single ZIP file."""
-    from database import get_settings
     s = get_settings()
     archive_root = s.get('archive_root', '/home/crisislab/data/archive')
     
@@ -869,8 +873,7 @@ async def api_analysis_window(request: Request, start: float = None, end: float 
     
     Max window: 3600 seconds (1 hour).
     """
-    import time as _time
-    now = _time.time()
+    now = time.time()
 
     if seconds is not None:
         # Backward-compatible mode: 'last N seconds'
@@ -894,11 +897,10 @@ async def api_analysis_window(request: Request, start: float = None, end: float 
 
     # Run in a separate PROCESS — entirely bypasses Python GIL so the 
     # sensor reading hardware thread is completely uninterrupted.
-    with sensor_manager._filter_lock:
-        high_hz = sensor_manager._filters[CHANNEL_NAMES[0]].high_hz
-        low_hz = sensor_manager._filters[CHANNEL_NAMES[0]].low_hz
-        
-    from database import get_settings
+    params  = sensor_manager.get_filter_params()
+    low_hz  = params['low_hz']
+    high_hz = params['high_hz']
+
     settings_snapshot = get_settings()
     
     # Check if client disconnected before starting heavy task
@@ -907,7 +909,6 @@ async def api_analysis_window(request: Request, start: float = None, end: float 
 
     # Flush the RAM buffer to SD card immediately so the subprocess
     # can read data right up to the exact millisecond of this request.
-    from mseed_writer import mseed_writer
     await asyncio.to_thread(mseed_writer.flush)
         
     loop = asyncio.get_running_loop()
@@ -948,21 +949,7 @@ async def websocket_analysis(websocket: WebSocket):
 @app.get("/api/stream/stats")
 def api_stream_stats():
     """Returns WebSocket batch delivery stats for client-side health monitoring."""
-    total = sensor_manager._ws_batches_sent + sensor_manager._ws_batches_dropped
-    drop_rate = (
-        sensor_manager._ws_batches_dropped / total * 100 if total > 0 else 0.0
-    )
-    return {
-        "batches_sent": sensor_manager._ws_batches_sent,
-        "batches_dropped": sensor_manager._ws_batches_dropped,
-        "drop_rate_pct": round(drop_rate, 2),
-        "hardware_sps": sensor_manager.hardware_sps,
-        "avg_sps": sensor_manager.avg_sps,
-    }
-
-import os
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+    return sensor_manager.get_stream_stats()
 
 # Serve the compiled React frontend directly from FastAPI.
 # In production the systemd service sets EEW_FRONTEND_DIST=/opt/eew-sensor/frontend.

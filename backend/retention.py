@@ -18,7 +18,10 @@ FastAPI lifespan background task and from the standalone cron script.
 import os
 import sys
 import time
+import asyncio
 from pathlib import Path
+
+from database import get_settings
 
 try:
     from obspy import UTCDateTime
@@ -119,10 +122,8 @@ async def run_retention_task(interval_seconds: int = 3600):
     Async wrapper for use as a FastAPI lifespan background task.
     Runs delete_old_mseed_files() immediately on startup, then every interval_seconds.
     """
-    import asyncio
     while True:
         try:
-            from database import get_settings
             s = get_settings()
             root           = s.get('archive_root',  '/home/crisislab/data/archive')
             retention_days = int(s.get('retention_days', 7))
@@ -131,4 +132,5 @@ async def run_retention_task(interval_seconds: int = 3600):
 
         await asyncio.to_thread(delete_old_mseed_files, root, retention_days)
         await asyncio.sleep(interval_seconds)
+
 

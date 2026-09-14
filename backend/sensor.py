@@ -280,9 +280,6 @@ N_CHANNELS:     int  = len(CHANNEL_NAMES)
 # Instrument sensitivity (m/s² or m/s per count) — used for analytics/UDP
 INSTRUMENT_SENSITIVITY_PER_COUNT: list = _cfg['sensitivity_per_count']
 
-# Legacy alias kept for metadata.py compatibility
-INSTRUMENT_SENSITIVITY_MS2_PER_COUNT: float = _acc_sensitivity(VREF_ADCS[0] if SENSOR_VARIANT in ('3CH', '3CH_V2') else 1.8)
-
 # Zero-level calibration per channel (filled by RealSensor.calibrate)
 RAW_COUNTS_ZERO: list = [0] * N_CHANNELS
 
@@ -467,7 +464,7 @@ class RealSensor:
                 
                 raise TimeoutError(f"Timeout waiting for DRDY on {DRDY_PINS}")
 
-    def _read_adc_raw(self, i: int, return_raw: bool = True) -> int:
+    def _read_adc_raw(self, i: int) -> int:
         """Read 24-bit signed ADC count from channel index i (DRDY must be low)."""
         self._gpio_out(CS_PINS[i], False)
         data = self.spi.xfer2([0x00, 0x00, 0x00])
@@ -544,7 +541,7 @@ class SensorManager:
         self._sub_lock = threading.Lock()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.hardware_sps = 0
-        self.avg_sps = 0
+        self.avg_sps = 0.0
         self._ws_batches_sent = 0
         self._ws_batches_dropped = 0
 
@@ -556,7 +553,6 @@ class SensorManager:
             ch: BandpassFilter(low_hz=0.1, high_hz=20.0, fs=100.0, order=4)
             for ch in CHANNEL_NAMES
         }
-        self.avg_sps = 0.0
 
         self._loop = None
         self._hw_thread = None
@@ -568,6 +564,7 @@ class SensorManager:
         self._cached_targets = []
         self._cached_data_forwarding = True
         self._filter_lock = threading.Lock()
+
 
     def start(self, loop=None):
         if self.running:
@@ -628,16 +625,17 @@ class SensorManager:
         with self._filter_lock:
             return self._filters[CHANNEL_NAMES[0]].params
 
-    def get_historical_filtered(self, start_time: float, end_time: float,
-                                target_display_points: int = 4000) -> dict:
-        """
-        Backward compatible call. For true non-blocking, use ProcessPoolExecutor
-        with process_historical_data_task directly.
-        """
-        with self._filter_lock:
-            high_hz = self._filters[CHANNEL_NAMES[0]].high_hz
-            low_hz = self._filters[CHANNEL_NAMES[0]].low_hz
-        return process_historical_data_task(start_time, end_time, low_hz, high_hz, target_display_points)
+    def get_stream_stats(self) -> dict:
+        """Return WebSocket batch delivery stats."""
+        total = self._ws_batches_sent + self._ws_batches_dropped
+        drop_rate = (self._ws_batches_dropped / total * 100 if total > 0 else 0.0)
+        return {
+            "batches_sent":    self._ws_batches_sent,
+            "batches_dropped": self._ws_batches_dropped,
+            "drop_rate_pct":   round(drop_rate, 2),
+            "hardware_sps":    self.hardware_sps,
+            "avg_sps":         self.avg_sps,
+        }
 
     def _hw_loop(self):
         """
@@ -970,15 +968,10 @@ class SensorManager:
 
                     now_mono = time.monotonic()
                     if now_mono - last_print_time >= 5.0:
-                        print(f"Per-Channel Sample Rates:")
+                        print(f"Per-Channel Sample Rates:", file=sys.stderr)
                         for name in CHANNEL_NAMES:
-                            print(f"   {name}: {self.hardware_sps:.2f} sps (current), {self.avg_sps:.2f} sps (avg)")
+                            print(f"   {name}: {self.hardware_sps:.2f} sps (current), {self.avg_sps:.2f} sps (avg)", file=sys.stderr)
                         last_print_time = now_mono
-
-                    # To test printing 4 times per second (every batch), comment out the 6 lines above and uncomment this block:
-                    # print(f"Per-Channel Sample Rates:")
-                    # for name in CHANNEL_NAMES:
-                    #     print(f"   {name}: {self.hardware_sps:.2f} sps (current), {self.avg_sps:.2f} sps (avg)")
 
                     # Thread-safe asyncio put
                     if self._loop and self._loop.is_running():

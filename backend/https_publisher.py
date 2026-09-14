@@ -118,10 +118,6 @@ class HttpsPublisher:
         # Thread-safe queue for on-demand metadata pushes
         self._metadata_queue: queue.Queue = queue.Queue(maxsize=10)
 
-        # Cached device_id — updated from DB by refresh_settings()
-        self._device_id: str = "UNKNW"
-        self._settings_lock = threading.Lock()
-
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -273,7 +269,7 @@ class HttpsPublisher:
             "cpuUsage":    psutil.cpu_percent(interval=None),
             "uptime":      uptime_sec,
             "sensorSps":   sm.avg_sps if (sm and sm.avg_sps is not None) else 0.0,
-            "memoryUsage": round(disk.percent, 1),
+            "diskUsage":   round(disk.percent, 1),
         }
 
     def _send_startup_metadata(self) -> None:
@@ -369,14 +365,8 @@ class HttpsPublisher:
     # ------------------------------------------------------------------
 
     def _refresh_settings(self) -> None:
-        """Pull the current device_id from the SQLite settings table."""
-        try:
-            from database import get_settings
-            s = get_settings()
-            with self._settings_lock:
-                self._device_id = s.get("device_id", "UNKNW")
-        except Exception as e:
-            logger.warning(f"https_publisher: settings refresh error: {e}")
+        """No-op — device_id is read directly from DB at payload build time."""
+        pass
 
 
 # ---------------------------------------------------------------------------

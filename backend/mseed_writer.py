@@ -34,6 +34,7 @@ Data Integrity
 """
 
 import os
+import io
 import queue
 import threading
 import time
@@ -349,7 +350,6 @@ class MiniSEEDWriter:
         tr.stats.starttime     = starttime
 
         # Serialize to in-memory miniSEED bytes
-        import io
         buf = io.BytesIO()
         try:
             tr.write(buf, format='MSEED', encoding='INT32', reclen=MSEED_RECLEN)

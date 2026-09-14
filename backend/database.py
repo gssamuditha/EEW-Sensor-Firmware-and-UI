@@ -21,6 +21,7 @@ import time
 from threading import Lock
 import random
 import string
+import bcrypt
 
 def _generate_device_id():
     chars = string.ascii_uppercase + string.digits
@@ -83,8 +84,7 @@ def init_db():
             c.execute("SELECT value FROM settings WHERE key='admin_password_hash'")
             row = c.fetchone()
             if row is None or not row[0]:
-                import bcrypt as _bcrypt_init
-                _default_hash = _bcrypt_init.hashpw(b'cl123', _bcrypt_init.gensalt()).decode()
+                _default_hash = bcrypt.hashpw(b'cl123', bcrypt.gensalt()).decode()
                 c.execute(
                     "REPLACE INTO settings (key, value) VALUES ('admin_password_hash', ?)",
                     (_default_hash,)
@@ -144,7 +144,7 @@ def get_events(start_time: float = None, end_time: float = None, limit: int = 10
     with db_lock:
         with sqlite3.connect(DB_PATH) as conn:
             c = conn.cursor()
-            if start_time and end_time:
+            if start_time is not None and end_time is not None:
                 c.execute(
                     'SELECT * FROM event_log WHERE start_time >= ? AND start_time <= ? '
                     'ORDER BY detected_at DESC LIMIT ?',

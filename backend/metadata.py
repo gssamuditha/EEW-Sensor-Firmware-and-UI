@@ -57,6 +57,7 @@ References
 """
 
 from datetime import datetime, timezone
+import math
 
 import numpy as np
 from scipy.signal import butter
@@ -104,7 +105,6 @@ _DECIMATION_FACTOR: int = int(_HW_SPS / _OUT_SPS)  # = 2
 # ---------------------------------------------------------------------------
 # ADXL354BEZ sensor bandwidth pole
 # ---------------------------------------------------------------------------
-import math
 
 # The ADXL354BEZ has a -3 dB bandwidth of 1500 Hz (±2g range, datasheet Table 1).
 # This is modelled as a single real pole in the Laplace domain:
