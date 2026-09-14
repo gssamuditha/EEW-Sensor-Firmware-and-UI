@@ -401,6 +401,33 @@ def api_wifi_networks():
     networks, active_ssid = _get_saved_networks()
     return {"networks": networks, "active_ssid": active_ssid, "wifi_enabled": wifi_enabled}
 
+@app.get("/api/wifi/scan")
+def api_wifi_scan():
+    """Scan for available Wi-Fi networks using nmcli."""
+    if sys.platform == 'win32':
+        return {"networks": ["Test Network 1", "Test Network 2", "Guest Wi-Fi"]}
+    
+    try:
+        # Ask NetworkManager to rescan
+        subprocess.run(["sudo", "/usr/bin/nmcli", "dev", "wifi", "rescan"], capture_output=True, timeout=10)
+        # Fetch the list
+        result = subprocess.run(
+            ["sudo", "/usr/bin/nmcli", "-t", "-f", "SSID", "dev", "wifi"],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode == 0:
+            lines = result.stdout.splitlines()
+            networks = []
+            for line in lines:
+                ssid = line.strip()
+                if ssid and ssid not in networks:
+                    networks.append(ssid)
+            return {"networks": networks}
+        else:
+            return {"networks": [], "error": result.stderr}
+    except Exception as e:
+        return {"networks": [], "error": str(e)}
+
 @app.post("/api/wifi/toggle", dependencies=[Depends(require_auth)])
 def api_wifi_toggle(toggle: WifiToggleModel):
     """Enable or disable the Wi-Fi radio."""
@@ -471,12 +498,12 @@ def api_wifi_forget(wifi: WifiActionModel):
 
 @app.post("/api/system/restart", dependencies=[Depends(require_auth)])
 def api_system_restart():
-    subprocess.Popen(["sudo", "/sbin/reboot"])
+    subprocess.Popen(["sudo", "-n", "/sbin/reboot"])
     return {"status": "ok"}
 
 @app.post("/api/system/shutdown", dependencies=[Depends(require_auth)])
 def api_system_shutdown():
-    subprocess.Popen(["sudo", "/sbin/poweroff"])
+    subprocess.Popen(["sudo", "-n", "/sbin/poweroff"])
     return {"status": "ok"}
 
 @app.get("/api/settings")
@@ -629,6 +656,29 @@ def _check_internet():
     _last_internet_check = time.time()
     return _cached_internet
 
+_cached_server = False
+_last_server_check = 0
+
+from config import SERVER_IP
+
+def _check_server(ip=SERVER_IP):
+    """Check if the server is reachable via ping (cached for 10s)."""
+    global _cached_server, _last_server_check
+    if time.time() - _last_server_check < 10:
+        return _cached_server
+        
+    try:
+        if sys.platform == "win32":
+            result = subprocess.run(["ping", "-n", "1", "-w", "1000", ip], capture_output=True, creationflags=0x08000000)
+        else:
+            result = subprocess.run(["ping", "-c", "1", "-W", "1", ip], capture_output=True)
+        _cached_server = (result.returncode == 0)
+    except Exception:
+        _cached_server = False
+        
+    _last_server_check = time.time()
+    return _cached_server
+
 # Cache MAC address exactly once per boot since it never changes
 MAC_ADDRESS = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
 
@@ -663,7 +713,7 @@ def api_system_status():
             "local_ip": ip,
             "mac_address": MAC_ADDRESS,
             "internet_status": _check_internet(),
-            "server_status": True,
+            "server_status": _check_server(),
             "hardware_sps": sensor_manager.hardware_sps,
             "avg_sps": sensor_manager.avg_sps
         }

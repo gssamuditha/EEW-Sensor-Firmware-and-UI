@@ -62,25 +62,7 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Central Server Configuration
-# Set these values before deployment — not editable by end users.
-# ---------------------------------------------------------------------------
-
-# Base URL of the central EEW aggregation server.
-# ZeroTier example:  "http://172.24.0.1:8080"
-# HTTPS example:     "https://172.24.0.1:8443"
-# Leave as None to disable publishing entirely (safe for development).
-CENTRAL_SERVER_URL: str | None = "https://server.terrasense.org.lk"   # TODO: set before deployment
-
-# No API key — authentication is handled by the ZeroTier controller.
-# Only nodes explicitly authorised in the ZeroTier network can reach this server.
-# The server identifies each sensor by its stable ZeroTier-assigned source IP.
-
-# TLS certificate verification.
-# False  → skip verification (appropriate for ZeroTier LAN + self-signed certs).
-# True   → full CA chain verification (requires a CA-signed server cert).
-# "path" → path to a custom CA bundle PEM file.
-TLS_VERIFY: bool | str = False
+from config import CENTRAL_SERVER_URL, TLS_VERIFY
 
 # ---------------------------------------------------------------------------
 # Tuning constants
@@ -277,30 +259,21 @@ class HttpsPublisher:
 
     def _build_telemetry_payload(self) -> dict:
         """
-        Collect system health metrics and return a telemetry dict.
-
-        Metrics:
-          cpu_temp_c        — SoC temperature (°C), None on non-Pi platforms
-          cpu_percent       — CPU utilisation (0–100), non-blocking snapshot
-          disk_percent      — root filesystem usage percentage
-          uptime_sec        — seconds since last boot
-          avg_sps           — rolling average sensor samples/sec
+        Collect system health metrics and return a telemetry dict matching
+        the central server's expected schema.
         """
-        with self._settings_lock:
-            device_id = self._device_id
-
-        disk = psutil.disk_usage('/')
         uptime_sec = int(time.time() - psutil.boot_time())
-
+        disk = psutil.disk_usage('/')
+        
         sm = self._sensor_manager
+        temp = _read_cpu_temp()
+        
         return {
-            "device_id":        device_id,
-            "ts":               time.time(),
-            "cpu_temp_c":       _read_cpu_temp(),
-            "cpu_percent":      psutil.cpu_percent(interval=None),
-            "disk_percent":     round(disk.percent, 1),
-            "uptime_sec":       uptime_sec,
-            "avg_sps":          sm.avg_sps if sm else None,
+            "temperature": temp if temp is not None else 0.0,
+            "cpuUsage":    psutil.cpu_percent(interval=None),
+            "uptime":      uptime_sec,
+            "sensorSps":   sm.avg_sps if (sm and sm.avg_sps is not None) else 0.0,
+            "memoryUsage": round(disk.percent, 1),
         }
 
     def _send_startup_metadata(self) -> None:

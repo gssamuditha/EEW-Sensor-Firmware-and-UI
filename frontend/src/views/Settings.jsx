@@ -53,6 +53,8 @@ export default function Settings() {
   const [isRecoveryConfigured, setIsRecoveryConfigured] = useState(false);
 
   const [targets, setTargets] = useState([{ name: 'Main Server', ip: '127.0.0.1', port: 2098, format: 'corrected' }]);
+  const [hasUnsavedTargets, setHasUnsavedTargets] = useState(false);
+  const [targetError, setTargetError] = useState('');
   const [newName, setNewName] = useState('');
   const [newIp, setNewIp] = useState('');
   const [newPort, setNewPort] = useState(2098);
@@ -72,6 +74,9 @@ export default function Settings() {
   const [ssid, setSsid] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [scannedNetworks, setScannedNetworks] = useState([]);
+  const [isScanning, setIsScanning] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const [dataForwarding, setDataForwarding] = useState(true);
   const [wifiEnabled, setWifiEnabled] = useState(true);
@@ -144,21 +149,39 @@ export default function Settings() {
   };
 
   const handleAddTarget = () => {
-    if (!newIp || !newName) return;
-    setTargets([...targets, { name: newName, ip: newIp, port: parseInt(newPort), format: newFormat }]);
+    if (!newIp || !newName) {
+      setTargetError('Name and IP are required.');
+      return;
+    }
+    const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (!ipv4Regex.test(newIp) || newIp.split('.').some(p => parseInt(p) > 255)) {
+      setTargetError('Invalid IPv4 address format.');
+      return;
+    }
+    const port = parseInt(newPort);
+    if (isNaN(port) || port < 1 || port > 65535) {
+      setTargetError('Port must be between 1 and 65535.');
+      return;
+    }
+
+    setTargetError('');
+    setTargets([...targets, { name: newName, ip: newIp, port, format: newFormat }]);
     setNewName('');
     setNewIp('');
     setNewFormat('corrected');
+    setHasUnsavedTargets(true);
   };
 
   const handleToggleFormat = (index) => {
     setTargets(targets.map((t, i) =>
       i === index ? { ...t, format: t.format === 'corrected' ? 'raw' : 'corrected' } : t
     ));
+    setHasUnsavedTargets(true);
   };
 
   const handleRemoveTarget = (index) => {
     setTargets(targets.filter((_, i) => i !== index));
+    setHasUnsavedTargets(true);
   };
 
   // Protected: opens auth modal then fires the fetch once token is available
@@ -189,6 +212,7 @@ export default function Settings() {
         });
         if (res.ok) {
           showStatus('Configuration saved successfully.');
+          setHasUnsavedTargets(false);
         } else {
           showStatus('Error saving configuration.', true);
         }
@@ -197,6 +221,27 @@ export default function Settings() {
         showStatus('Error saving configuration.', true);
       }
     });
+  };
+
+  const handleScanWifi = async () => {
+    setIsScanning(true);
+    showWifiStatus('Scanning for networks...');
+    try {
+      const res = await fetch('/api/wifi/scan');
+      const data = await res.json();
+      if (data.networks) {
+        setScannedNetworks(data.networks);
+        if (data.networks.length === 0) showWifiStatus('No networks found.', true);
+        else showWifiStatus(`Found ${data.networks.length} networks.`);
+      } else if (data.error) {
+        showWifiStatus(`Scan failed: ${data.error}`, true);
+      }
+    } catch (e) {
+      console.error(e);
+      showWifiStatus('Error scanning networks.', true);
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const handleWifiConnect = async () => {
@@ -432,77 +477,80 @@ export default function Settings() {
       <div className="w-full flex-1 relative min-h-0">
 
         <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'general' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full overflow-y-auto p-1 pb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full overflow-y-auto p-1 pb-6 w-full">
 
-            {/* Left column: Device Details + Response File */}
-            <div className="flex flex-col gap-6">
+            {/* Widget 1: Station & Operator Details */}
+            <div className="lg:col-span-1 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
+                Station Details
+              </h3>
+              <div className="flex-1 flex flex-col space-y-4">
+                
+                {/* Column 1: Device Name */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Device Name</label>
+                  <input
+                    type="text"
+                    value={deviceName}
+                    onChange={e => setDeviceName(e.target.value)}
+                    placeholder="CRISIS-NODE-01"
+                    className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                  />
+                </div>
 
-              {/* Widget 1: Station & Operator Details */}
-              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
-                  Station Details
-                </h3>
-                <div className="flex-1 flex flex-col space-y-4">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Device Name</label>
-                    <input
-                      type="text"
-                      value={deviceName}
-                      onChange={e => setDeviceName(e.target.value)}
-                      placeholder="CRISIS-NODE-01"
-                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm mb-3"
-                    />
-                  </div>
+                {/* Column 2: Owner's Details */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Device Owner's Name</label>
+                  <input
+                    type="text"
+                    value={ownerName}
+                    onChange={e => setOwnerName(e.target.value)}
+                    placeholder="First Last"
+                    className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                  />
+                </div>
 
-                  <div className="border-t border-slate-100 dark:border-slate-700/50 pt-3">
-                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Device Owner's Name</label>
-                    <input
-                      type="text"
-                      value={ownerName}
-                      onChange={e => setOwnerName(e.target.value)}
-                      placeholder="First Last"
-                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm mb-3"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-2">Email</label>
-                    <input
-                      type="email"
-                      value={ownerEmail}
-                      onChange={e => setOwnerEmail(e.target.value)}
-                      placeholder="operator@example.com"
-                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
-                    />
-                  </div>
+                {/* Column 3: Email */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={ownerEmail}
+                    onChange={e => setOwnerEmail(e.target.value)}
+                    placeholder="operator@example.com"
+                    className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                  />
+                </div>
 
-                  <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
-                    <button
-                      onClick={handleSaveSettings}
-                      className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
-                    >
-                      <Save className="w-4 h-4" />
-                      <span>Save Details</span>
-                    </button>
-                  </div>
+                <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-700/50 shrink-0">
+                  <button
+                    onClick={handleSaveSettings}
+                    className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Save Details</span>
+                  </button>
                 </div>
               </div>
+            </div>
 
-
-            </div>{/* end left column */}
-
-            {/* Widget 3: Device Location — right column full height */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
+            {/* Widget 2: Device Location */}
+            <div className="lg:col-span-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full">
               <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0">
                 Device Location
               </h3>
-              <div className="flex-1 flex flex-col min-h-0">
-                <div className="flex-1 min-h-[350px] mb-4 border border-slate-100 dark:border-slate-700 z-0 relative rounded-md overflow-hidden">
+              
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
+                {/* Left Column: Map */}
+                <div className="lg:col-span-2 h-[300px] lg:h-full border border-slate-100 dark:border-slate-700 z-0 relative rounded-md overflow-hidden">
                   <MapContainer center={[lat || 0, lon || 0]} zoom={2} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <LocationMarker position={{ lat, lng: lon }} setPosition={(pos) => { setLat(pos.lat); setLon(pos.lng); }} />
                   </MapContainer>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 shrink-0 mb-4">
+
+                {/* Right Column: Inputs */}
+                <div className="flex flex-col h-full space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Latitude</label>
                     <input
@@ -512,6 +560,7 @@ export default function Settings() {
                       className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
                     />
                   </div>
+                  
                   <div>
                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Longitude</label>
                     <input
@@ -521,8 +570,7 @@ export default function Settings() {
                       className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
                     />
                   </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0 mb-4">
+                  
                   <div>
                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Elevation (m)</label>
                     <input
@@ -532,39 +580,43 @@ export default function Settings() {
                       className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Floor Unit</label>
-                    <input
-                      type="number"
-                      value={floorUnit}
-                      onChange={e => setFloorUnit(parseInt(e.target.value) || 0)}
-                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
-                    />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Floor Unit</label>
+                      <input
+                        type="number"
+                        value={floorUnit}
+                        onChange={e => setFloorUnit(parseInt(e.target.value) || 0)}
+                        className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Total Floors</label>
+                      <input
+                        type="number" min="1"
+                        value={totalFloors}
+                        onChange={e => setTotalFloors(parseInt(e.target.value) || 1)}
+                        className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Total Floors</label>
-                    <input
-                      type="number" min="1"
-                      value={totalFloors}
-                      onChange={e => setTotalFloors(parseInt(e.target.value) || 1)}
-                      className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-3 py-1.5 focus:outline-none focus:border-primary font-mono text-sm"
-                    />
+
+                  <div className="flex flex-col gap-1 px-1">
+                    <p className="text-[10px] text-slate-400 dark:text-slate-400 font-mono w-full">(Ground floor = 0, Basement = -1, First floor = 1)</p>
+                    <p className="text-[10px] text-slate-400 dark:text-emerald-500 font-bold tracking-wide w-full">* The sensor's exact location will not be revealed to the public.</p>
                   </div>
-                </div>
 
-                <div className="flex flex-col gap-1 mb-4 px-1">
-                  <p className="text-[10px] text-slate-400 dark:text-slate-400 font-mono w-full">(Ground floor = 0, Basement = -1, First floor = 1)</p>
-                  <p className="text-[10px] text-slate-400 dark:text-emerald-500 font-bold tracking-wide w-full">* The sensor's exact location will not be revealed to the public.</p>
-                </div>
-
-                <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50 shrink-0">
-                  <button
-                    onClick={handleSaveSettings}
-                    className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>Save Location</span>
-                  </button>
+                  <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50 mt-auto shrink-0">
+                    <button
+                      onClick={handleSaveSettings}
+                      className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Save Location</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -574,10 +626,10 @@ export default function Settings() {
 
         {/* Tab 2: Network */}
         <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'network' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full overflow-y-auto p-1 pb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 h-full overflow-y-auto p-1 pb-6">
 
             {/* Widget 1: Wi-Fi Manager */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
+            <div className="lg:col-span-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full">
               <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider">
                   Wi-Fi Configuration
@@ -596,7 +648,7 @@ export default function Settings() {
                 </div>
               )}
               {wifiEnabled && (
-                <div className="space-y-4">
+                <div className="space-y-4 flex-1 flex flex-col min-h-0">
 
                   {/* Active Connection Indicator */}
                   <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm px-4 py-2">
@@ -649,18 +701,57 @@ export default function Settings() {
                   </div>
 
                   {/* Add New Network — BELOW */}
-                  <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50 mt-auto shrink-0">
                     <h4 className="text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-3">Add New Network</h4>
                     <div className="space-y-3">
                       <div>
                         <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1">SSID</label>
-                        <input
-                          type="text"
-                          value={ssid}
-                          onChange={e => setSsid(e.target.value)}
-                          placeholder="Enter network name"
-                          className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
-                        />
+                        <div className="flex space-x-2">
+                          <div className="relative flex-1 min-w-0">
+                            <input
+                              type="text"
+                              value={ssid}
+                              onChange={e => {
+                                setSsid(e.target.value);
+                                setShowDropdown(true);
+                              }}
+                              onFocus={() => setShowDropdown(true)}
+                              onBlur={() => setShowDropdown(false)}
+                              placeholder="Enter network name"
+                              className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-4 py-2 focus:outline-none focus:border-primary font-mono text-sm"
+                            />
+                            {showDropdown && scannedNetworks.length > 0 && (
+                              <div className="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md shadow-xl z-50 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600">
+                                {scannedNetworks
+                                  .filter(net => net.toLowerCase().includes(ssid.toLowerCase()))
+                                  .map(net => (
+                                    <div
+                                      key={net}
+                                      onMouseDown={(e) => {
+                                        e.preventDefault(); // Prevents input onBlur
+                                        setSsid(net);
+                                        setShowDropdown(false);
+                                      }}
+                                      className="px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer font-bold transition-colors"
+                                    >
+                                      {net}
+                                    </div>
+                                ))}
+                                {scannedNetworks.filter(net => net.toLowerCase().includes(ssid.toLowerCase())).length === 0 && (
+                                  <div className="px-4 py-2 text-sm text-slate-400 italic">No matches</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            onClick={handleScanWifi}
+                            disabled={isScanning}
+                            className="bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 px-3 rounded-md flex items-center justify-center transition-colors disabled:opacity-50 text-slate-600 dark:text-slate-300"
+                            title="Scan for networks"
+                          >
+                            <Loader2 className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
+                          </button>
+                        </div>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Password</label>
@@ -684,12 +775,12 @@ export default function Settings() {
                       <button
                         onClick={handleWifiConnect}
                         disabled={wifiLoading}
-                        className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest py-2 flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity disabled:opacity-50"
+                        className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-opacity disabled:opacity-50"
                       >
                         {wifiLoading ? (
                           <><Loader2 className="w-4 h-4 animate-spin" /><span>Connecting...</span></>
                         ) : (
-                          <><Wifi className="w-4 h-4" /><span>Connect & Save</span></>
+                          <span>Connect & Save</span>
                         )}
                       </button>
                     </div>
@@ -706,7 +797,7 @@ export default function Settings() {
             </div>
 
             {/* Widget 2: Data Sharing (UDP Targets) */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
+            <div className="lg:col-span-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col">
               <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider">
                   Data Sharing
@@ -727,7 +818,7 @@ export default function Settings() {
               </div>
 
               <div className={`flex-1 flex flex-col min-h-0 transition-opacity ${!dataForwarding ? 'opacity-50 pointer-events-none' : ''}`}>
-                <h4 className="text-xs font-bold text-slate-400 dark:text-slate-400 tracking-widest mb-3 shrink-0">Data Cast IPs</h4>
+                <h4 className="text-xs font-bold text-slate-400 dark:text-slate-400 tracking-widest mb-3 shrink-0">Data Forwarding IPs</h4>
 
                 {/* Saved Targets List */}
                 <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2">
@@ -735,99 +826,103 @@ export default function Settings() {
                     <p className="text-sm text-slate-400 dark:text-slate-400 font-mono italic">No targets configured.</p>
                   ) : (
                     targets.map((t, i) => (
-                      <div key={i} className="flex flex-col border border-slate-100 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-900">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-bold text-primary dark:text-slate-300 text-sm uppercase tracking-wider">{t.name}</span>
+                      <div key={i} className="flex items-start justify-between border border-slate-100 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-900">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-primary dark:text-slate-300 text-sm uppercase tracking-wider mb-2 leading-none mt-1">{t.name}</span>
+                          <div className="font-mono text-xs text-slate-600 dark:text-slate-200 flex items-center mt-1">
+                            <span className="font-bold mr-2">IP:</span> {t.ip}
+                            <span className="mx-3 text-gray-300">|</span>
+                            <span className="font-bold mr-2">PORT:</span> {t.port}
+                          </div>
+                        </div>
+
+                        <div className="flex items-start space-x-3 mt-1">
+                          <div className="flex flex-col items-start mr-2">
+                            <span className="text-[9px] font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-2 uppercase leading-none">Data Format</span>
+                            <div className="flex items-center bg-gray-200 dark:bg-slate-700 rounded-sm overflow-hidden">
+                              <button
+                                onClick={() => t.format !== 'corrected' && handleToggleFormat(i)}
+                                className={`px-2.5 py-1 text-[10px] font-bold tracking-wider transition-colors ${t.format === 'corrected' || !t.format
+                                  ? 'bg-primary dark:bg-sky-600 text-white'
+                                  : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
+                                  }`}
+                              >
+                                m/s²
+                              </button>
+                              <button
+                                onClick={() => t.format !== 'raw' && handleToggleFormat(i)}
+                                className={`px-2.5 py-1 text-[10px] font-bold tracking-wider transition-colors ${t.format === 'raw'
+                                  ? 'bg-amber-600 text-white'
+                                  : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
+                                  }`}
+                              >
+                                Counts
+                              </button>
+                            </div>
+                          </div>
+
                           {t.ip !== '10.241.144.172' && (
-                            <button onClick={() => handleRemoveTarget(i)} className="text-slate-400 dark:text-slate-400 hover:text-red-600 transition-colors" title="Remove Target">
+                            <button onClick={() => handleRemoveTarget(i)} className="text-slate-400 dark:text-slate-400 hover:text-red-600 transition-colors -mt-0.5" title="Remove Target">
                               <X className="w-4 h-4" />
                             </button>
                           )}
                         </div>
-                        <div className="font-mono text-xs text-slate-600 dark:text-slate-200 flex items-center mb-2">
-                          <span className="font-bold mr-2">IP:</span> {t.ip}
-                          <span className="mx-3 text-gray-300">|</span>
-                          <span className="font-bold mr-2">PORT:</span> {t.port}
-                        </div>
-                        {/* Per-target format toggle */}
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700">
-                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-400 tracking-wider">Data Format</span>
-                          <div className="flex items-center bg-gray-200 dark:bg-slate-700 rounded-sm overflow-hidden">
-                            <button
-                              onClick={() => t.format !== 'corrected' && handleToggleFormat(i)}
-                              className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${t.format === 'corrected' || !t.format
-                                ? 'bg-primary dark:bg-sky-600 text-white'
-                                : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
-                                }`}
-                            >
-                              m/s²
-                            </button>
-                            <button
-                              onClick={() => t.format !== 'raw' && handleToggleFormat(i)}
-                              className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${t.format === 'raw'
-                                ? 'bg-amber-600 text-white'
-                                : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
-                                }`}
-                            >
-                              Raw Counts
-                            </button>
-                          </div>
-                        </div>
-                        {t.format === 'raw' && (
-                          <p className="text-[10px] text-amber-700 font-mono mt-1.5 leading-relaxed">
-                            ⚠ Server needs the StationXML response file to convert counts to m/s²
-                          </p>
-                        )}
                       </div>
                     ))
                   )}
                 </div>
 
                 {/* Add Target Form */}
-                <div className="shrink-0 space-y-4 pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                <div className="shrink-0 space-y-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 mt-auto">
+                  <h4 className="text-xs font-bold text-slate-400 dark:text-slate-400 tracking-widest mb-2 shrink-0">Add New Data Forwarding IP</h4>
                   <div className="flex space-x-2 items-end bg-slate-50 dark:bg-slate-900 p-3 border border-slate-100 dark:border-slate-700">
                     <div className="flex-1">
                       <label className="block text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-1">Name</label>
-                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Main Server" className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
+                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Main Server" className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs h-[30px]" />
                     </div>
                     <div className="flex-1">
                       <label className="block text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-1">IP Address</label>
-                      <input type="text" value={newIp} onChange={e => setNewIp(e.target.value)} placeholder="192.168.1.50" className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
+                      <input type="text" value={newIp} onChange={e => setNewIp(e.target.value)} placeholder="192.168.1.50" className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs h-[30px]" />
                     </div>
                     <div className="w-20">
                       <label className="block text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-1">Port</label>
-                      <input type="number" value={newPort} onChange={e => setNewPort(e.target.value)} className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs" />
+                      <input type="number" value={newPort} onChange={e => setNewPort(e.target.value)} className="w-full bg-slate-100 dark:bg-slate-700 border-0 rounded-md focus:ring-1 focus:ring-slate-300 shadow-sm px-2 py-1.5 focus:outline-none focus:border-primary font-mono text-xs h-[30px]" />
                     </div>
-                    <button onClick={handleAddTarget} className="bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-300 px-3 py-1.5 flex items-center font-bold text-xs uppercase transition-colors h-[30px]">
+                    
+                    <div className="flex-shrink-0">
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-1">Format</label>
+                      <div className="flex items-center bg-gray-200 dark:bg-slate-700 rounded-md overflow-hidden h-[30px]">
+                        <button
+                          onClick={() => setNewFormat('corrected')}
+                          className={`px-2 h-full text-[10px] font-bold tracking-wider transition-colors flex items-center justify-center ${newFormat === 'corrected' ? 'bg-primary dark:bg-sky-600 text-white' : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
+                            }`}
+                        >
+                          m/s²
+                        </button>
+                        <button
+                          onClick={() => setNewFormat('raw')}
+                          className={`px-2 h-full text-[10px] font-bold tracking-wider transition-colors flex items-center justify-center ${newFormat === 'raw' ? 'bg-amber-600 text-white' : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
+                            }`}
+                        >
+                          Counts
+                        </button>
+                      </div>
+                    </div>
+
+                    <button onClick={handleAddTarget} className="bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-300 px-3 flex items-center justify-center font-bold text-xs uppercase transition-colors h-[30px] rounded-md shrink-0">
                       <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  {/* Format selector for new target */}
-                  <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 px-3 py-2">
-                    <span className="text-xs font-bold text-slate-500 dark:text-slate-300 tracking-wider">New Target Format</span>
-                    <div className="flex items-center bg-gray-200 dark:bg-slate-700 rounded-sm overflow-hidden">
-                      <button
-                        onClick={() => setNewFormat('corrected')}
-                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${newFormat === 'corrected' ? 'bg-primary dark:bg-sky-600 text-white' : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
-                          }`}
-                      >
-                        Corrected m/s²
-                      </button>
-                      <button
-                        onClick={() => setNewFormat('raw')}
-                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${newFormat === 'raw' ? 'bg-amber-600 text-white' : 'text-slate-500 dark:text-slate-300 hover:text-gray-700 dark:text-slate-200'
-                          }`}
-                      >
-                        Raw Counts
-                      </button>
-                    </div>
-                  </div>
+                  {targetError && <p className="text-[10px] font-bold text-red-500 font-mono mt-1">{targetError}</p>}
 
                   <button
                     onClick={handleSaveSettings}
-                    className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 hover:bg-opacity-90 transition-all hover:shadow"
+                    className={`w-full text-white font-bold tracking-widest px-6 py-2 rounded-lg shadow-md flex items-center justify-center space-x-2 transition-all ${
+                      hasUnsavedTargets 
+                        ? 'bg-amber-500 hover:bg-amber-600 animate-pulse' 
+                        : 'bg-primary dark:bg-sky-600 hover:bg-opacity-90 hover:shadow'
+                    }`}
                   >
-                    <Save className="w-4 h-4" />
                     <span>Save Targets</span>
                   </button>
                 </div>
@@ -959,15 +1054,15 @@ export default function Settings() {
 
         {/* Tab 4: Security */}
         <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'security' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full overflow-y-auto p-1 pb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full overflow-y-auto p-1 pb-6 content-start">
             {/* Left Column */}
-            <div className="space-y-6">
+            <div className="h-full flex flex-col">
               {/* ── Admin Password ─────────────────────────────────────────── */}
-              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0 gap-2">
                   Admin Password
                 </h3>
-                <div className="space-y-3">
+                <div className="space-y-3 flex-1 flex flex-col">
                   <div>
                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Current Password</label>
                     <div className="relative">
@@ -1015,21 +1110,23 @@ export default function Settings() {
                     </p>
                   )}
 
-                  <button
-                    id="change-password-btn"
-                    onClick={handleChangePassword}
-                    className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest py-2 rounded-lg shadow-md flex items-center justify-center gap-2 hover:bg-opacity-90 transition-all text-sm"
-                  >
-                    Update Password
-                  </button>
+                  <div className="mt-auto pt-4 shrink-0">
+                    <button
+                      id="change-password-btn"
+                      onClick={handleChangePassword}
+                      className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest py-2 rounded-lg shadow-md flex items-center justify-center gap-2 hover:bg-opacity-90 transition-all text-sm"
+                    >
+                      Update Password
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Right Column */}
-            <div className="space-y-6">
+            <div className="h-full flex flex-col">
               {/* ── Password Recovery ─────────────────────────────────────────── */}
-              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-fit">
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-6 shadow-md rounded-xl flex flex-col h-full">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-300 tracking-wider mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50 flex items-center shrink-0 gap-2">
                   Password Recovery Questions
                 </h3>
@@ -1039,13 +1136,12 @@ export default function Settings() {
                     Password recovery is configured. You can update your questions below.
                   </p>
                 ) : (
-                  <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 p-3 rounded-lg text-xs mb-4 flex items-start gap-2 border border-amber-200 dark:border-amber-800/50">
-                    <span className="text-sm mt-0.5">⚠</span>
-                    <p>Password recovery is not configured. Please set it up below to prevent getting locked out.</p>
-                  </div>
+                  <p className="text-xs text-amber-600 dark:text-amber-500 font-bold tracking-wide mb-4">
+                    Password recovery is not configured. Please set it up below to prevent getting locked out.
+                  </p>
                 )}
 
-                <div className="space-y-3">
+                <div className="space-y-3 flex-1 flex flex-col">
                   <div>
                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-400 tracking-wider mb-1">Current Admin Password</label>
                     <input
@@ -1099,12 +1195,14 @@ export default function Settings() {
                     </p>
                   )}
 
-                  <button
-                    onClick={handleRecoverySetup}
-                    className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest py-2 rounded-lg shadow-md flex items-center justify-center gap-2 hover:bg-opacity-90 transition-all text-sm mt-2"
-                  >
-                    Save Recovery Questions
-                  </button>
+                  <div className="mt-auto pt-4 shrink-0">
+                    <button
+                      onClick={handleRecoverySetup}
+                      className="w-full bg-primary dark:bg-sky-600 text-white font-bold tracking-widest py-2 rounded-lg shadow-md flex items-center justify-center gap-2 hover:bg-opacity-90 transition-all text-sm"
+                    >
+                      Save Recovery Questions
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

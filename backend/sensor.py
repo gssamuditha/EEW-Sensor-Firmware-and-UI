@@ -33,7 +33,18 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
         }
 
     from obspy import UTCDateTime
-    st.trim(starttime=UTCDateTime(start_time), endtime=UTCDateTime(end_time), pad=True, fill_value=0)
+    # --- KEY FIX: do NOT pad with zeros ---
+    # pad=True + fill_value=0 (the previous code) wrote literal 0-count samples at
+    # the edges of every window that starts before the first recorded sample (e.g.
+    # after a sensor restart mid-window).  This creates a massive step from 0 →
+    # real-signal that sosfiltfilt then amplifies into a spike.  The spike amplitude
+    # and position depend on exactly how many zero samples are prepended, which
+    # changes with every different window request — explaining the "random" appearance.
+    #
+    # With pad=False ObsPy simply returns the actual recorded samples only.
+    # sosfiltfilt handles the shortened array cleanly via its built-in odd-reflection
+    # edge padding, producing no step artifact.
+    st.trim(starttime=UTCDateTime(start_time), endtime=UTCDateTime(end_time), pad=False)
 
     raw = {}
     timestamps = None
@@ -43,17 +54,26 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
         # channel codes in miniSEED are usually 3 chars (e.g. ENZ)
         tr = st.select(channel=ch)
         if len(tr) > 0:
-            # Merge in case there are gaps
+            # Merge gaps using interpolation so internal gaps don't create steps
             tr.merge(method=1, fill_value='interpolate')
             t_obj = tr[0]
 
-            # Extract raw counts and timestamps
-            counts = t_obj.data.astype(np.float64)
+            # Extract raw counts — may be a numpy MaskedArray if residual gaps remain
+            counts = t_obj.data
+            if hasattr(counts, 'filled'):
+                # Fill any remaining masked samples with the median of valid data so
+                # there is no step from zero into the real signal around gap edges.
+                valid = counts[~counts.mask] if counts.mask.any() else counts.data
+                fill_val = float(np.median(valid)) if len(valid) > 0 else 0.0
+                counts = counts.filled(fill_val)
+            counts = counts.astype(np.float64)
+
             # Ensure timestamps aligns with the longest trace
             if timestamps is None or len(t_obj.times('timestamp')) > len(timestamps):
                 timestamps = t_obj.times('timestamp')
 
-            # Detrend (remove mean) to bypass need for exact RAW_COUNTS_ZERO at boot
+            # Detrend: remove mean of VALID data only.
+            # With pad=False every sample here is real, so np.mean is correct.
             if len(counts) > 0:
                 counts = counts - np.mean(counts)
 
@@ -78,8 +98,23 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
         if len(raw[ch]) < 13:
             filtered[ch] = raw[ch]
         else:
+            # Apply a short cosine taper (5 %) at both ends of the data before
+            # zero-phase filtering.  sosfiltfilt bootstraps itself by reflecting
+            # the edge samples — if those samples have high variance (e.g. the
+            # very first sample after a restart or a gap), the reflection amplifies
+            # into a small transient.  A 5 % taper smoothly ramps the signal to
+            # zero at both edges, so the reflected portion is always near-zero,
+            # producing a clean filter startup.  The taper affects at most 5 % of
+            # the data at each end; for a 30-minute window (180,000 samples) this
+            # is ≤ 9,000 samples (90 s), but for typical EEW display windows of
+            # 30–300 s the taper is < 15 s and is imperceptible on the plot.
+            d = raw[ch].copy()
+            n_taper = max(1, int(len(d) * 0.05))
+            taper = 0.5 * (1.0 - np.cos(np.pi * np.arange(n_taper) / n_taper))
+            d[:n_taper]  *= taper
+            d[-n_taper:] *= taper[::-1]
             filt = BandpassFilter(low_hz=low_hz, high_hz=high_hz, fs=100.0, order=4)
-            filtered[ch] = filt.apply_zerophase(raw[ch])
+            filtered[ch] = filt.apply_zerophase(d)
 
     result_samples = {}
     out_t = []
@@ -670,9 +705,22 @@ class SensorManager:
         b0, b1, b2 = 0.29289322, 0.58578644, 0.29289322
         a1, a2     = 0.0, 0.17157288
 
-        # Per-channel IIR filter state: dict keyed by channel name
-        x_hist = {ch: [0.0, 0.0] for ch in CHANNEL_NAMES}
-        y_hist = {ch: [0.0, 0.0] for ch in CHANNEL_NAMES}
+        # Per-channel IIR filter state — pre-warmed to the calibrated DC bias so
+        # the very first real sample produces no step transient in the output.
+        # RAW_COUNTS_ZERO is guaranteed to be filled by calibrate() before _hw_loop
+        # is started.  On mock / Windows the zeros default is fine because the mock
+        # sensor already returns zero-centred values.
+        _dc = [float(RAW_COUNTS_ZERO[i]) for i in range(N_CHANNELS)]
+        x_hist = {ch: [_dc[i], _dc[i]] for i, ch in enumerate(CHANNEL_NAMES)}
+        y_hist = {ch: [_dc[i], _dc[i]] for i, ch in enumerate(CHANNEL_NAMES)}
+
+        # Startup blanking: discard first N decimated samples from the miniSEED
+        # archive only.  Even with a pre-warmed IIR the ADC itself may need 1-2
+        # samples to settle after power-up.  100 ms (10 samples @ 100 SPS) is
+        # imperceptible on the archive timeline but eliminates any residual glitch.
+        # All other paths (UDP, analytics queue, SPS tracking) are unaffected.
+        STARTUP_BLANK_SAMPLES = 10
+        _startup_blanked = 0
 
         decimate_flag = False
 
@@ -758,7 +806,13 @@ class SensorManager:
                     ]
 
                     # 1. miniSEED archive (raw int32 counts)
-                    mseed_writer.enqueue(t, [int(round(f)) for f in filtered_counts])
+                    # Skip the first STARTUP_BLANK_SAMPLES to keep the archive
+                    # free of ADC/IIR startup transients.  The raw count format
+                    # and all subsequent enqueue calls are completely unchanged.
+                    if _startup_blanked < STARTUP_BLANK_SAMPLES:
+                        _startup_blanked += 1
+                    else:
+                        mseed_writer.enqueue(t, [int(round(f)) for f in filtered_counts])
 
                     # 2. Analytics WebSocket (non-blocking)
                     record = (t,) + tuple(phys_values)
@@ -842,6 +896,11 @@ class SensorManager:
         settings_refresh_time = 0
         last_print_time = 0
         batch_records = []
+        # Track whether the analytics bandpass filters have been pre-warmed.
+        # On the first batch we prime each channel's filter to its DC level so
+        # the IIR state starts at steady-state instead of zero — this prevents
+        # the transient ring visible in the analysis window at startup.
+        _analytics_primed = False
 
         while self.running:
             try:
@@ -879,6 +938,14 @@ class SensorManager:
                     }
 
                     with self._filter_lock:
+                        # Prime the analytics filters once with the first batch's
+                        # per-channel mean so the IIR starts at steady-state.
+                        if not _analytics_primed:
+                            for i, ch in enumerate(CHANNEL_NAMES):
+                                dc = float(np.mean(raw[ch]))
+                                self._filters[ch].prime(dc)
+                            _analytics_primed = True
+
                         filtered = {}
                         for ch in CHANNEL_NAMES:
                             filtered[ch] = self._filters[ch].apply_batch_realtime(raw[ch]).tolist()

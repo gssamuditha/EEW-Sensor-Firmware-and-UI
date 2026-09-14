@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ListBulletIcon, Squares2X2Icon as DashboardIcon, CircleStackIcon as DatabaseIcon, Cog8ToothIcon as Settings } from '@heroicons/react/24/solid';
+import { PanelLeftOpen, PanelLeftClose } from 'lucide-react';
 
 const WaveformCircleIcon = ({ className }) => (
   <svg
@@ -34,7 +35,7 @@ export default function Sidebar() {
     <div className={`
       bg-primary dark:bg-slate-950 text-white font-sans transition-all duration-300 ease-in-out relative shrink-0
       flex flex-row md:flex-col w-full h-16 md:h-screen z-50
-      ${isCollapsed ? 'md:w-[72px]' : 'md:w-64'}
+      ${isCollapsed ? 'md:w-[72px]' : 'md:w-56'}
     `}>
       <div className={`hidden md:flex p-6 border-b border-white/10 items-center h-24 shrink-0 transition-all duration-300 ${isCollapsed ? 'justify-center px-2' : 'space-x-4'}`}>
         <img src="/logo1.png" alt="Logo" className="h-10 w-10 object-contain shrink-0" onError={(e) => e.target.style.display = 'none'} />
@@ -49,7 +50,7 @@ export default function Sidebar() {
           className="text-white/50 hover:text-white p-2 rounded-md hover:bg-white/10 transition-colors shrink-0"
           title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
         >
-          <ListBulletIcon className="w-6 h-6" />
+          {isCollapsed ? <PanelLeftOpen className="w-6 h-6" /> : <PanelLeftClose className="w-6 h-6" />}
         </button>
       </div>
       <nav className="tour-sidebar flex-1 flex flex-row md:flex-col justify-around md:justify-start items-center md:items-stretch px-2 md:px-3 py-0 md:py-2 space-x-0 md:space-x-0 md:space-y-2 overflow-x-auto md:overflow-x-hidden">
