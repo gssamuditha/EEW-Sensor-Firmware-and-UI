@@ -33,14 +33,6 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
         }
 
     from obspy import UTCDateTime
-    # --- KEY FIX: do NOT pad with zeros ---
-    # pad=True + fill_value=0 (the previous code) wrote literal 0-count samples at
-    # the edges of every window that starts before the first recorded sample (e.g.
-    # after a sensor restart mid-window).  This creates a massive step from 0 →
-    # real-signal that sosfiltfilt then amplifies into a spike.  The spike amplitude
-    # and position depend on exactly how many zero samples are prepended, which
-    # changes with every different window request — explaining the "random" appearance.
-    #
     # With pad=False ObsPy simply returns the actual recorded samples only.
     # sosfiltfilt handles the shortened array cleanly via its built-in odd-reflection
     # edge padding, producing no step artifact.

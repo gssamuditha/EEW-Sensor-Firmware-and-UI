@@ -1,5 +1,5 @@
 """
-metadata.py — FDSN StationXML v1.2 instrument response generator
+metadata.py - FDSN StationXML v1.2 instrument response generator
 =================================================================
 Generates a standards-compliant FDSN StationXML v1.2 document describing the
 EEW sensor hardware chain.
@@ -12,9 +12,9 @@ Hardware chain (M/S**2 → COUNTS):
                  + ×2 software decimation             (200 SPS → 100 SPS)
 
 Three-stage response (M/S**2 → COUNTS):
-    Stage 1 — PolesZeros      sensor output   M/S**2 → V
-    Stage 2 — Coefficients    ADC conversion  V      → COUNTS  (Factor=1, 200 SPS → 200 SPS)
-    Stage 3 — Coefficients    IIR anti-alias  COUNTS → COUNTS  (Factor=2, 200 SPS → 100 SPS)
+    Stage 1 - PolesZeros      sensor output   M/S**2 → V
+    Stage 2 - Coefficients    ADC conversion  V      → COUNTS  (Factor=1, 200 SPS → 200 SPS)
+    Stage 3 - Coefficients    IIR anti-alias  COUNTS → COUNTS  (Factor=2, 200 SPS → 100 SPS)
 
 NOTE: Stage 3 is a 2nd-order Butterworth IIR low-pass anti-aliasing filter (fc=50 Hz, fs=200 Hz)
 followed by stride-2 decimation. This is explicitly applied in the sensor's hardware loop.
@@ -24,7 +24,7 @@ as IIR numerator/denominator sections.
 Sensitivity derivation
 ----------------------
     VREF              = 1.8 V    (ADXL354 V1P8ANA rail = ADS1220 external Vref)
-    FULL_SCALE        = 2^23 − 1 = 8,388,607  (24-bit two's complement, positive FS)
+    FULL_SCALE        = 2^23 - 1 = 8,388,607  (24-bit two's complement, positive FS)
     SENSITIVITY       = 0.4 V/g  (ADXL354BEZ ±2 g range, typical, ratiometric)
     G_TO_MS2          = 9.80665 m/s²
 
@@ -130,7 +130,7 @@ NETWORK_CODE: str = "CL"
 _EPOCH_START: str = "2024-01-01T00:00:00.000000Z"
 
 # ---------------------------------------------------------------------------
-# Channel definitions — dynamic based on active hardware variant
+# Channel definitions - dynamic based on active hardware variant
 # ---------------------------------------------------------------------------
 # Tuple: (SEED_code, azimuth_deg, dip_deg, channel_unit)
 # channel_unit: 'ACC' = accelerometer (M/S**2), 'VEL' = geophone (M/S)
@@ -146,7 +146,7 @@ _CHANNELS = [_CHANNELS_ALL[ch] for ch in CHANNEL_NAMES if ch in _CHANNELS_ALL]
 
 
 # ---------------------------------------------------------------------------
-# Stage 3 — 2nd-order Butterworth IIR anti-alias (fc=50 Hz at 200 SPS)
+# Stage 3 - 2nd-order Butterworth IIR anti-alias (fc=50 Hz at 200 SPS)
 # ---------------------------------------------------------------------------
 # Compute actual scipy SOS coefficients once at import time and embed them in
 # the StationXML. This represents the explicit arithmetic low-pass filter
@@ -205,7 +205,7 @@ def _sos_to_xml_lines(sos: np.ndarray) -> str:
 _BUTTERWORTH_XML_LINES = _sos_to_xml_lines(_compute_butterworth_sos())
 
 # ===========================================================================
-# EHZ Channel XML — GeoPhone velocity response
+# EHZ Channel XML - GeoPhone velocity response
 # ===========================================================================
 
 _EHZ_SENSITIVITY         = 399_650_000.0   # counts / (m/s)
@@ -238,7 +238,7 @@ def _build_ehz_channel_xml(
         <ClockDrift unit="SECONDS/SAMPLE">0.0</ClockDrift>
         <Sensor resourceId="Sensor-EEW-GeoPhone-VEL">
           <Type>GeoPhone</Type>
-          <Description>Velocity — Vertical geophone (4.5 Hz)</Description>
+          <Description>Velocity - Vertical geophone (4.5 Hz)</Description>
           <Manufacturer>EEW Sensor</Manufacturer>
         </Sensor>
         <DataLogger resourceId="Datalogger-EEW-ADS1220-{int(_OUT_SPS)}hz"/>
@@ -510,7 +510,7 @@ def build_stationxml(
       <Longitude unit="DEGREES">{longitude:.9f}</Longitude>
       <Elevation>{elevation:.1f}</Elevation>
       <Site>
-        <Name>{device_name} — EEW Sensor Station</Name>
+        <Name>{device_name} - EEW Sensor Station</Name>
       </Site>
       <CreationDate>{start_date}</CreationDate>
 {channel_blocks}

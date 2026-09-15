@@ -1,18 +1,14 @@
 """
-retention.py — miniSEED Archive Retention Policy
-=================================================
-Deletes miniSEED files older than `retention_days` from the SDS archive to
+Deletes miniSEED files older than retention_days from the SDS archive to
 prevent the SD card from filling up.
 
-Strategy
---------
     * Walk the SDS archive directory tree.
     * Parse year + Julian day from each filename (NET.STA.LOC.CHAN.D.YYYY.JDAY).
     * Delete files whose day is strictly older than today - retention_days.
     * Remove any directories that become empty after deletion.
 
-This module is intentionally standalone — it can be called both from the
-FastAPI lifespan background task and from the standalone cron script.
+This module is standalone, it can be called both from the FastAPI lifespan 
+background task and from the standalone cron script.
 """
 
 import os
@@ -42,9 +38,9 @@ def delete_old_mseed_files(archive_root: str, retention_days: int) -> dict:
     Returns
     -------
     dict with keys:
-        deleted_files : int — number of files deleted
-        freed_bytes   : int — approximate bytes freed
-        errors        : list[str] — any file deletion errors
+        deleted_files : int - number of files deleted
+        freed_bytes   : int - approximate bytes freed
+        errors        : list[str] - any file deletion errors
     """
     if not os.path.isdir(archive_root):
         return {'deleted_files': 0, 'freed_bytes': 0, 'errors': []}

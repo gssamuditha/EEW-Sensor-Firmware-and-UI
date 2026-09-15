@@ -1,5 +1,5 @@
 """
-mseed_writer.py — SeisComP Data Structure (SDS) miniSEED Archive Writer
+mseed_writer.py - SeisComP Data Structure (SDS) miniSEED Archive Writer
 =========================================================================
 Buffers raw signed 32-bit ADC counts at 100 SPS and flushes them every
 FLUSH_INTERVAL seconds to daily miniSEED binary files on disk.
@@ -26,7 +26,7 @@ Usage
 
 Data Integrity
 --------------
-    * Uses open(path, 'ab') for atomic appends — never truncates existing data.
+    * Uses open(path, 'ab') for atomic appends - never truncates existing data.
     * Each flush creates a self-contained miniSEED record anchored to the exact
       first-sample timestamp of that batch.
     * SEED encoding: INT32 (Steim-1 compressed by ObsPy).
@@ -49,7 +49,7 @@ try:
     OBSPY_AVAILABLE = True
 except ImportError:
     OBSPY_AVAILABLE = False
-    print("WARNING: ObsPy not available — miniSEED writing disabled.", file=sys.stderr)
+    print("WARNING: ObsPy not available - miniSEED writing disabled.", file=sys.stderr)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -119,7 +119,7 @@ class MiniSEEDWriter:
     Thread-safe writer that buffers raw int32 ADC counts and flushes them
     to SDS miniSEED files every FLUSH_INTERVAL seconds.
 
-    The main hardware loop calls enqueue() — a non-blocking, lock-free
+    The main hardware loop calls enqueue() - a non-blocking, lock-free
     operation using a bounded Queue. The flush happens in a dedicated
     daemon thread so disk I/O never touches the sensor read loop.
     """
@@ -217,7 +217,7 @@ class MiniSEEDWriter:
                 self._drain_and_write()
                 next_flush = time.monotonic() + FLUSH_INTERVAL
 
-            time.sleep(1.0)   # 1-second polling — SD writes happen at flush time
+            time.sleep(1.0)   # 1-second polling - SD writes happen at flush time
 
         # Final flush on stop
         self._drain_and_write()
@@ -229,7 +229,7 @@ class MiniSEEDWriter:
     def _drain_and_write(self):
         """
         Drain the queue into per-channel NumPy arrays, then write miniSEED.
-        Handles day-boundary splits automatically — if the buffer spans
+        Handles day-boundary splits automatically, if the buffer spans
         midnight (UTC), it writes two separate records to the correct daily files.
         """
         with self._settings_lock:
@@ -237,7 +237,7 @@ class MiniSEEDWriter:
 
         with self._write_lock:
             if skip_writing:
-                # Discard without error — running in a no-ObsPy environment or device is unconfigured
+                # Discard without error - running in a no-ObsPy environment or device is unconfigured
                 while not self._queue.empty():
                     try:
                         self._queue.get_nowait()
@@ -384,7 +384,7 @@ class MiniSEEDWriter:
     def get_archive_availability(self) -> dict:
         """
         Scan the SDS archive and return the earliest and latest timestamps.
-        Reads file names only — no file I/O into miniSEED content.
+        Reads file names only, no file I/O into miniSEED content.
         Returns dict: {earliest: float|None, latest: float|None}
         """
         with self._settings_lock:
@@ -463,13 +463,13 @@ def read_waveform_range(t_start, t_end, settings: dict = None) -> object:
     Read a time-windowed waveform slice from the SDS archive using ObsPy.
 
     This function is designed to be called from a ProcessPoolExecutor
-    subprocess — it must be importable as a top-level function.
+    subprocess - it must be importable as a top-level function.
 
     Parameters
     ----------
     t_start  : obspy.UTCDateTime or float epoch
     t_end    : obspy.UTCDateTime or float epoch
-    settings : dict from get_settings_snapshot() — avoids DB call in subprocess
+    settings : dict from get_settings_snapshot() - avoids DB call in subprocess
 
     Returns
     -------
