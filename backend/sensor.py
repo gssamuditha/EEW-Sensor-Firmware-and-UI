@@ -1,3 +1,5 @@
+import os
+import queue
 import time
 import socket
 import threading
@@ -5,7 +7,6 @@ import asyncio
 import random
 import sys
 import json
-
 
 from filters import BandpassFilter, minmax_downsample, FILTER_PRESETS
 import numpy as np
@@ -24,7 +25,7 @@ def process_historical_data_task(start_time: float, end_time: float, low_hz: flo
     # ObsPy returns a Stream object with Traces
     st = read_waveform_range(start_time, end_time, settings=settings_snapshot)
 
-    if not st or len(st) == 0:
+    if not st:
         return {
             "timestamps": [],
             "samples": {ch: [] for ch in CHANNEL_NAMES},
@@ -286,8 +287,7 @@ from mseed_writer import mseed_writer
 
 class MockSensor:
     def __init__(self):
-        self.sample_interval = 0.01  # 100 sps
-        self.channels = CHANNEL_NAMES
+        pass  # No instance state; all config comes from module-level constants.
 
     def init_sensor(self):
         print("Mock sensor initialized")
@@ -450,9 +450,8 @@ class RealSensor:
                     if not ehz_ready and others_ready:
                         print("sensor: Geophone ADC not detected! Auto-downgrading to 3CH and restarting...", file=sys.stderr)
                         from database import update_settings
-                        import os
                         update_settings({'sensor_variant': '3CH'})
-                        os._exit(1) # Force systemd to restart the service to apply changes
+                        os._exit(1)  # Force systemd restart to apply the variant change.
                 
                 raise TimeoutError(f"Timeout waiting for DRDY on {DRDY_PINS}")
 
@@ -528,7 +527,6 @@ class SensorManager:
             self.sensor = RealSensor()
 
         self.running = False
-        self.thread = None
         self.subscribers = []  # asyncio queues (raw stream)
         self._sub_lock = threading.Lock()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -550,7 +548,6 @@ class SensorManager:
         self._hw_thread = None
         self._analytics_thread = None
 
-        import queue
         self._analytics_queue = queue.Queue(maxsize=1000)
         # _cached_targets: list of dicts with keys: ip, port, format ('corrected'|'raw')
         self._cached_targets = []
@@ -629,35 +626,46 @@ class SensorManager:
             "avg_sps":         self.avg_sps,
         }
 
+    def _apply_iir_per_channel(self, raw_counts, x_hist: dict, y_hist: dict,
+                                b0: float, b1: float, b2: float, a2: float) -> list:
+        """Per-channel 2nd-order IIR LP filter step (Direct Form II transposed). Updates history in-place."""
+        out = []
+        for i, ch in enumerate(CHANNEL_NAMES):
+            cnt = raw_counts[i]
+            f = b0*cnt + b1*x_hist[ch][0] + b2*x_hist[ch][1] - a2*y_hist[ch][1]
+            x_hist[ch] = [cnt, x_hist[ch][0]]
+            y_hist[ch] = [f,   y_hist[ch][0]]
+            out.append(f)
+        return out
+
+    def _flush_udp_buffers(self, udp_buffers: list, raw_buffers: list, timestamp: float) -> None:
+        """Send one full batch to each UDP target in Raspberry Shake Datacast format."""
+        if not (self._cached_targets and self._cached_data_forwarding):
+            return
+        for target in self._cached_targets:
+            fmt = target.get('format', 'corrected')
+            for i, name in enumerate(CHANNEL_NAMES):
+                samples = raw_buffers[i] if fmt == 'raw' else [round(v, 6) for v in udp_buffers[i]]
+                samples_str = ", ".join(str(s) for s in samples)
+                packet_str = "{'%s', %.6f, %s}" % (name, timestamp, samples_str)
+                try:
+                    self.sock.sendto(packet_str.encode('utf-8'), (target['ip'], target['port']))
+                except OSError as e:
+                    print(f"UDP send error → {target['ip']}:{target['port']}: {e}", file=sys.stderr)
+
     def _hw_loop(self):
         """
-        Strictly prioritized hardware loop for 100 SPS SPI reading and UDP sending.
+        Hardware acquisition loop at 200 Hz with 2:1 decimation to 100 SPS output.
 
-        TIMING ARCHITECTURE — Software PLL via chrony-disciplined UTC clock
-        -------------------------------------------------------------------
-        The loop schedules each iteration against time.time() (POSIX CLOCK_REALTIME).
-        On Raspberry Pi, the Linux kernel's chrony daemon continuously disciplines
-        CLOCK_REALTIME to NTP via *slewing* (adjusting the clock rate by ±500 ppm),
-        never by jumping.  This means time.time() IS the Software PLL output.
+        Timing accumulates against time.time() (chrony-disciplined POSIX UTC).
+        Sample timestamps use the pre-scheduled UTC instant, not the measured time,
+        eliminating per-sample syscall jitter.  Two NTP correction tiers:
+          Tier 1 — Hard re-anchor when time.time() jumps > 0.1 s (NTP makestep).
+          Tier 2 — Gentle ≤ 1 ms nudge every 10 s to correct frequency drift.
+        Rate-limiting spin-waits on time.monotonic() to avoid kernel context switches.
 
-        By accumulating next_loop_utc on time.time(), the loop speed is automatically
-        steered by chrony to match true UTC — no custom PLL code required.
-
-        Sample timestamp:
-            t = next_loop_utc   (the pre-computed UTC instant this iteration fires)
-        This is the actual UTC moment the ADC conversion was commanded, with no
-        per-sample syscall jitter because we use the *scheduled* time, not the
-        *measured* time.
-
-        Rate limiting:
-            The spin-wait uses time.monotonic() (fast VDSO, no kernel context switch).
-            We derive the equivalent monotonic target from a short-lived reference pair
-            (_utc_ref, _mono_ref), refreshed every iteration to stay accurate.
-
-        NTP step detection:
-            chrony slews by default; steps only occur for large errors (e.g. at boot).
-            If time.time() diverges from the expected monotonic-derived value by more
-            than NTP_STEP_THRESHOLD, we treat it as an NTP step and reset the anchor.
+        Per-iteration: ADC read → IIR anti-alias → 2:1 decimate → miniSEED archive,
+        analytics queue, UDP forwarding, and SPS tracking.
         """
         # ── Timing constants ───────────────────────────────────────────────────
         # Hard-reset threshold: only triggers for a genuine NTP makestep (e.g. boot).
@@ -691,9 +699,9 @@ class SensorManager:
         sps_mono_ref  = time.monotonic()
         sample_count  = 0
 
-        # 2nd-Order Butterworth Low-Pass (fc=50 Hz, fs=200 Hz) — Anti-Aliasing.
+        # Anti-alias: 2nd-order Butterworth LP, fc=50 Hz @ fs=200 Hz.
         b0, b1, b2 = 0.29289322, 0.58578644, 0.29289322
-        a1, a2     = 0.0, 0.17157288
+        a2         = 0.17157288
 
         # Per-channel IIR filter state — pre-warmed to the calibrated DC bias so
         # the very first real sample produces no step transient in the output.
@@ -773,15 +781,7 @@ class SensorManager:
                 raw_counts = self.sensor.read_all_raw()   # tuple of N int counts
 
                 # ── Anti-Aliasing IIR Filter (per channel) ────────────────────
-                filtered_counts = []
-                for i, ch in enumerate(CHANNEL_NAMES):
-                    cnt = raw_counts[i]
-                    f = (b0*cnt
-                         + b1*x_hist[ch][0] + b2*x_hist[ch][1]
-                         - a1*y_hist[ch][0] - a2*y_hist[ch][1])
-                    x_hist[ch] = [cnt, x_hist[ch][0]]
-                    y_hist[ch] = [f,   y_hist[ch][0]]
-                    filtered_counts.append(f)
+                filtered_counts = self._apply_iir_per_channel(raw_counts, x_hist, y_hist, b0, b1, b2, a2)
 
                 # ── Decimation: keep every 2nd → 100 SPS output ───────────────
                 decimate_flag = not decimate_flag
@@ -819,25 +819,7 @@ class SensorManager:
                         raw_buffers[i].append(int(round(filtered_counts[i])))
 
                     if len(udp_buffers[0]) >= SAMPLES_PER_PACKET:
-                        if self._cached_targets and self._cached_data_forwarding:
-                            for target in self._cached_targets:
-                                fmt = target.get('format', 'corrected')
-                                for i, name in enumerate(CHANNEL_NAMES):
-                                    if fmt == 'raw':
-                                        samples = raw_buffers[i]
-                                    else:
-                                        samples = [round(v, 6) for v in udp_buffers[i]]
-                                    samples_str = ", ".join(str(s) for s in samples)
-                                    # Raspberry Shake Datacast format
-                                    packet_str = ("{'%s', %.6f, %s}" % (name, timestamp, samples_str))
-                                    try:
-                                        self.sock.sendto(
-                                            packet_str.encode('utf-8'),
-                                            (target['ip'], target['port'])
-                                        )
-                                    except OSError as e:
-                                        print(f"UDP send error → {target['ip']}:{target['port']}: {e}",
-                                              file=sys.stderr)
+                        self._flush_udp_buffers(udp_buffers, raw_buffers, timestamp)
                         udp_buffers = [[] for _ in range(N_CHANNELS)]
                         raw_buffers = [[] for _ in range(N_CHANNELS)]
 
@@ -879,9 +861,8 @@ class SensorManager:
             pass
 
     def _analytics_loop(self):
-        """Secondary loop for DB settings, batch filtering, and WebSockets."""
+        """Refreshes DB settings every 5 s, runs batch bandpass filtering, and fans out to WebSocket subscribers."""
         from database import get_settings
-        import queue
 
         settings_refresh_time = 0
         last_print_time = 0
@@ -978,22 +959,16 @@ class SensorManager:
                     batch_records = []
 
             except Exception as e:
-                print(f"Analytics loop error: {e}")
+                print(f"Analytics loop error: {e}", file=sys.stderr)
                 time.sleep(1)
 
 
-# ── Hardware detection ─────────────────────────────────────────────────────
-# Use the mock sensor if:
-#   a) Running on Windows (development)
-#   b) EEW_MOCK=1 environment variable is set (CI / build environment)
-#   c) /proc/device-tree/model does not exist or does not contain 'Raspberry Pi'
-import os as _os
-
+# Use the mock sensor on Windows, in CI (EEW_MOCK=1), or on non-Pi Linux.
 def _is_raspberry_pi() -> bool:
     """Return True only when running on actual Raspberry Pi hardware."""
     if sys.platform == 'win32':
         return False
-    if _os.environ.get('EEW_MOCK', '').strip() == '1':
+    if os.environ.get('EEW_MOCK', '').strip() == '1':
         return False
     try:
         with open('/proc/device-tree/model', 'r') as _f:
