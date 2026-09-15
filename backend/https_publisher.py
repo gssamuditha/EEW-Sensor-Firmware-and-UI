@@ -255,7 +255,7 @@ class HttpsPublisher:
             "cpuUsage":    psutil.cpu_percent(interval=None),
             "uptime":      uptime_sec,
             "sensorSps":   sm.avg_sps if (sm and sm.avg_sps is not None) else 0.0,
-            "diskUsage":   round(disk.percent, 1),
+            "memoryUsage":   round(disk.percent, 1),
         }
 
     def _send_startup_metadata(self) -> None:
